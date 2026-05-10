@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <!DOCTYPE html>
 <html lang="fr" data-theme="light">
 <head>
@@ -764,4 +765,772 @@
         }
     </script>
 </body>
+=======
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calcul Poutre - EC2 Assistant</title>
+    <style>
+        /* Variables de thème (héritées de l'index) */
+        :root {
+            --bg-color: #f4f7f6; --surface-color: #ffffff;
+            --text-main: #2c3e50; --text-muted: #7f8c8d;
+            --primary: #3498db; --primary-hover: #2980b9;
+            --border-color: #e0e0e0; --shadow: 0 4px 10px rgba(0,0,0,0.08);
+            --danger: #e74c3c; --warning: #f39c12; --success: #2ecc71;
+            --transition: all 0.3s ease;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #121212; --surface-color: #1e1e1e;
+            --text-main: #e0e0e0; --text-muted: #a0a0a0;
+            --primary: #4dabf7; --primary-hover: #3b8cd9;
+            --border-color: #333333; --shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text-main); line-height: 1.5; }
+
+        /* Header */
+        header { background-color: var(--surface-color); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); }
+        .back-link { color: var(--primary); text-decoration: none; font-weight: bold; }
+        
+        /* Layout : 3 panneaux */
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr; /* Mobile First */
+            gap: 1.5rem;
+            padding: 1.5rem;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        @media (min-width: 1024px) {
+            .dashboard { grid-template-columns: 300px 1fr 450px; } /* Desktop : Input | Centre | Visuel Élargi */
+        }
+
+        .panel {
+            background-color: var(--surface-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        h2 { font-size: 1.2rem; margin-bottom: 1rem; color: var(--primary); border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem; }
+
+        /* Formulaire */
+        .input-group { margin-bottom: 1rem; }
+        label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.3rem; }
+        input, select { width: 100%; padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-color); color: var(--text-main); }
+        
+        /* Panneau Central (Résultats) */
+        .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .result-card {
+            background: var(--bg-color); border: 1px solid var(--border-color);
+            border-radius: 8px; padding: 1rem; text-align: center; cursor: pointer;
+            transition: var(--transition);
+        }
+        .result-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+        .result-value { font-size: 1.5rem; font-weight: bold; color: var(--primary); margin: 0.5rem 0; }
+        .clickable-hint { font-size: 0.8rem; color: var(--text-muted); }
+
+        /* Panneau Visuel */
+        .status-badge { display: inline-block; padding: 0.5rem 1rem; border-radius: 20px; font-weight: bold; width: 100%; text-align: center; margin-bottom: 1rem; }
+        .status-green { background-color: rgba(46, 204, 113, 0.2); color: var(--success); }
+        .status-red { background-color: rgba(231, 76, 60, 0.2); color: var(--danger); }
+        .status-orange { background-color: rgba(241, 196, 15, 0.2); color: var(--warning); }
+        
+        .svg-container { width: 100%; aspect-ratio: 1; background-color: var(--bg-color); border: 1px dashed var(--border-color); border-radius: 8px; display: flex; justify-content: center; align-items: center; }
+        svg { max-width: 100%; max-height: 100%; }
+
+        /* Sélecteur d'acier */
+        .steel-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 1rem; }
+        .steel-btn { padding: 0.4rem; border: 2px solid var(--border-color); background: var(--bg-color); color: var(--text-main); border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition); }
+        .steel-btn:hover { border-color: var(--primary); }
+        .steel-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        /* Info ferraillage */
+        .ferraillage-info { font-size: 0.85rem; background: var(--bg-color); padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; }
+        .ferraillage-info div { margin: 0.3rem 0; }
+        .info-label { font-weight: 600; color: var(--primary); }
+
+        /* Boutons d'export */
+        .export-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 1rem; }
+        .export-btn { padding: 0.6rem; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition); }
+        .export-btn:hover { background: var(--primary-hover); }
+        .export-btn:disabled { background: var(--text-muted); cursor: not-allowed; }
+
+        .theme-toggle {
+            background: none;
+            border: 2px solid var(--border-color);
+            border-radius: 20px;
+            padding: 5px 15px;
+            cursor: pointer;
+            color: var(--text-main);
+            font-weight: 600;
+            transition: var(--transition);
+        }
+
+        .theme-toggle:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        @media (max-width: 1024px) {
+            .dashboard { grid-template-columns: 1fr; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <a href="index.html" class="back-link">← Retour Accueil</a>
+        <div><strong>Module Poutre :</strong> Flexion Simple (ELU)</div>
+        <button class="theme-toggle" id="themeToggle">🌓 Mode</button>
+    </header>
+
+    <div class="dashboard">
+        <!-- PANNEAU 1 : PARAMÈTRES -->
+        <aside class="panel">
+            <h2>1. Paramètres</h2>
+            <form id="poutreForm">
+                <div class="input-group">
+                    <label>Portée L (m)</label>
+                    <input type="number" id="L" value="5.0" step="0.1">
+                </div>
+                <div class="input-group">
+                    <label>Base b (m)</label>
+                    <input type="number" id="b" value="0.20" step="0.05">
+                </div>
+                <div class="input-group">
+                    <label>Hauteur h (m)</label>
+                    <input type="number" id="h" value="0.50" step="0.05">
+                </div>
+                
+                <h2 style="margin-top: 1.5rem;">Matériaux & Charges</h2>
+                <div class="input-group">
+                    <label>Béton (fck en MPa)</label>
+                    <select id="fck">
+                        <option value="20">C20/25</option>
+                        <option value="25" selected>C25/30</option>
+                        <option value="30">C30/37</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Charge Permanente G (kN/ml)</label>
+                    <input type="number" id="G" value="15" step="1">
+                </div>
+                <div class="input-group">
+                    <label>Charge Exploitation Q (kN/ml)</label>
+                    <input type="number" id="Q" value="10" step="1">
+                </div>
+            </form>
+        </aside>
+
+        <!-- PANNEAU 2 : RDM & RÉSULTATS -->
+        <main class="panel">
+            <h2>2. Note de calcul interactive</h2>
+            <p style="margin-bottom: 1rem; color: var(--text-muted);">Cliquez sur une valeur pour voir la formule Eurocode 2.</p>
+            
+            <div class="result-grid">
+                <div class="result-card" onclick="showFormula('Med')">
+                    <div>Moment fléchissant ELU</div>
+                    <div class="result-value" id="res-Med">0.00</div>
+                    <div>kN.m</div>
+                    <div class="clickable-hint">🔍 Voir RDM</div>
+                </div>
+                
+                <div class="result-card" onclick="showFormula('Mu')">
+                    <div>Moment réduit (μcu)</div>
+                    <div class="result-value" id="res-Mu">0.000</div>
+                    <div>Sans dimension</div>
+                    <div class="clickable-hint">🔍 EC2 §3.1.6</div>
+                </div>
+
+                <div class="result-card" onclick="showFormula('Alpha')">
+                    <div>Axe neutre (α)</div>
+                    <div class="result-value" id="res-Alpha">0.000</div>
+                    <div>Sans dimension</div>
+                    <div class="clickable-hint">🔍 EC2 §3.1.6</div>
+                </div>
+
+                <div class="result-card" onclick="showFormula('As')">
+                    <div>Acier longitudinal (As)</div>
+                    <div class="result-value" id="res-As">0.00</div>
+                    <div>cm²</div>
+                    <div class="clickable-hint">🔍 EC2 §6.1</div>
+                </div>
+
+                <div class="result-card" onclick="showFormula('Ved')">
+                    <div>Effort Tranchant max</div>
+                    <div class="result-value" id="res-Ved">0.00</div>
+                    <div>kN</div>
+                    <div class="clickable-hint">🔍 Voir RDM</div>
+                </div>
+
+                <div class="result-card" onclick="showFormula('Asw')">
+                    <div>Acier Transversal (Asw/s)</div>
+                    <div class="result-value" id="res-Asw">0.00</div>
+                    <div>cm²/m</div>
+                    <div class="clickable-hint">🔍 EC2 §6.2.3</div>
+                </div>
+            </div>
+        </main>
+
+        <!-- PANNEAU 3 : VALIDATION & VISUEL -->
+        <aside class="panel">
+            <h2>3. Plan de Ferraillage</h2>
+            <div id="statusBadge" class="status-badge status-green">Section Conforme</div>
+            
+            <!-- Sélecteur d'acier -->
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.9rem;">Diamètre des aciers</label>
+                <div class="steel-selector">
+                    <button class="steel-btn active" data-diameter="10">HA10</button>
+                    <button class="steel-btn" data-diameter="12">HA12</button>
+                    <button class="steel-btn" data-diameter="16">HA16</button>
+                    <button class="steel-btn" data-diameter="20">HA20</button>
+                    <button class="steel-btn" data-diameter="25">HA25</button>
+                    <button class="steel-btn" data-diameter="32">HA32</button>
+                </div>
+            </div>
+            
+            <!-- Nombre de barres -->
+            <div style="margin-bottom: 1rem;">
+                <label style="font-size: 0.85rem; font-weight: 600;">Nombre de barres (Zone tendue)</label>
+                <input type="number" id="nbBarresInput" value="3" min="1" step="1" style="padding: 0.4rem; width: 100%;">
+            </div>
+
+            <!-- Info ferraillage -->
+            <div class="ferraillage-info">
+                <div><span class="info-label">Recommandé:</span> <span id="recommendation">-</span></div>
+                <div><span class="info-label">Acier requis:</span> <span id="steelReq">0.00</span> cm²</div>
+                <div><span class="info-label">Acier choisi:</span> <span id="steelChosen">0.00</span> cm²</div>
+                <div><span class="info-label">Nb de barres:</span> <span id="nbBarres">0</span> HA<span id="diamShow">10</span></div>
+                <div><span class="info-label">Écart. net:</span> <span id="spacing">0.00</span> cm</div>
+                <div><span class="info-label">Enrobage:</span> <span id="coverageShow">3.0</span> cm</div>
+            </div>
+            
+            <div class="svg-container" id="svgContainer">
+                <!-- Le SVG sera généré ici en JS -->
+            </div>
+            
+            <!-- Boutons d'export -->
+            <div class="export-buttons">
+                <button class="export-btn" id="exportPNG" onclick="exportAsPNG()">📥 PNG</button>
+                <button class="export-btn" id="exportSVG" onclick="exportAsSVG()">📥 SVG</button>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        // ==========================================
+        // 0. DONNÉES D'ACIERS CONSTRUCTEURS
+        // ==========================================
+        const STEEL_SPECS = {
+            10: { diametre: 10, section: 0.785 },   // cm²
+            12: { diametre: 12, section: 1.131 },
+            16: { diametre: 16, section: 2.011 },
+            20: { diametre: 20, section: 3.142 },
+            25: { diametre: 25, section: 4.909 },
+            32: { diametre: 32, section: 8.042 }
+        };
+
+        let selectedDiameter = 10; // HA10 par défaut
+        let currentResults = null;
+
+        // ==========================================
+        // 1. LOGIQUE MÉTIER PURE (Typé "TypeScript-like")
+        // ==========================================
+        
+        /**
+         * Calcule les paramètres de la poutre selon l'EC2.
+         * Fonction PURE : aucune interaction avec le DOM.
+         */
+        function calculateEC2(params) {
+            const { L, b, h, fck, G, Q } = params;
+            
+            // Constantes EC2
+            const gammaC = 1.5; // Coeff sécu Béton
+            const gammaS = 1.15; // Coeff sécu Acier
+            const fyk = 500; // Limite élastique acier (MPa)
+            const alphaCc = 1.0; 
+            
+            // Calcul RDM
+            const p_elu = 1.35 * G + 1.5 * Q; // Charge ELU (kN/ml)
+            const Med = (p_elu * Math.pow(L, 2)) / 8; // Moment max en travée (kN.m)
+            const Ved = (p_elu * L) / 2; // Effort tranchant max aux appuis (kN)
+            
+            // Calculs Béton Armé (Section rectangulaire - EC2 §3.1.6)
+            const d = 0.9 * h; // Hauteur utile (m)
+            const fcd = (alphaCc * fck) / gammaC; // Contrainte calcul béton (MPa)
+            const fyd = fyk / gammaS; // Contrainte calcul acier (MPa)
+            
+            // Acier minimum (EC2 § 9.2.1.1)
+            const fctm = 0.30 * Math.pow(fck, 2/3);
+            const As_min = Math.max(0.26 * (fctm / fyk) * b * d, 0.0013 * b * d) * 10000; // cm²
+
+            // Moment réduit
+            const Med_MN = Med / 1000; // Conversion en MN.m
+            const mu_cu = Med_MN / (b * Math.pow(d, 2) * fcd);
+            
+            let alpha = 0;
+            let z = 0;
+            let As_req = 0;
+            let status = 'OK';
+            
+            if (mu_cu > 0.371) { // Limite des pivots A/B
+                status = 'ERROR_MUCU'; // Section béton trop faible (nécessite aciers comprimés)
+            } else {
+                alpha = 1.25 * (1 - Math.sqrt(1 - 2 * mu_cu));
+                z = d * (1 - 0.4 * alpha);
+                As_req = (Med_MN / (z * fyd)) * 10000; // Résultat en cm²
+                As_req = Math.max(As_req, As_min); // Application acier minimum
+            }
+            
+            // Effort tranchant (EC2 §6.2.3) - Modèle de bielles à 45° (cot(theta) = 1)
+            const v1 = 0.6 * (1 - fck / 250); // coeff de réduction résistance béton fissuré
+            // V_Rd,max : Résistance max des bielles de compression
+            const Vrd_max = (alphaCc * b * z * v1 * fcd) / 2 * 1000; // kN
+
+            if (Ved > Vrd_max && status !== 'ERROR_MUCU') {
+                status = 'ERROR_SHEAR'; // Risque d'écrasement des bielles de béton
+            }
+
+            // Section des cadres requise : Asw / s
+            const Asw_s = (Ved / (z * fyd)) * 10; // cm²/m
+
+            return { Med, Ved, mu_cu, alpha, z, As_req, Asw_s, status, d };
+        }
+
+        /**
+         * Calcule le ferraillage réel en fonction de la section d'acier choisie
+         */
+        function calculateRealSteelArrangement(As_req, diameter) {
+            const spec = STEEL_SPECS[diameter];
+            const sectionPerBar = spec.section;
+            const nbBarres = Math.ceil(As_req / sectionPerBar);
+            const actualSection = nbBarres * sectionPerBar;
+            
+            return {
+                nbBarres,
+                actualSection,
+                sectionPerBar
+            };
+        }
+
+        // ==========================================
+        // 2. LOGIQUE D'INTERFACE ET PERSISTANCE
+        // ==========================================
+
+        const inputs = ['L', 'b', 'h', 'G', 'Q', 'fck'];
+        const c_enrobage = 0.03; // 3 cm d'enrobage en mètres
+        
+        // Initialisation
+        window.addEventListener('DOMContentLoaded', () => {
+            // Appliquer le thème depuis le localStorage
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+
+            // Restaurer les valeurs du formulaire
+            inputs.forEach(id => {
+                const savedVal = localStorage.getItem(`poutre_${id}`);
+                if (savedVal) document.getElementById(id).value = savedVal;
+            });
+
+            // Restaurer le diamètre d'acier sélectionné
+            const savedDiam = localStorage.getItem('poutre_diameter') || '10';
+            selectedDiameter = parseInt(savedDiam);
+            updateSteelSelector();
+
+            // Lancer le premier calcul
+            runEngine();
+
+            // Écouter les changements
+            inputs.forEach(id => {
+                document.getElementById(id).addEventListener('input', runEngine);
+            });
+            document.getElementById('nbBarresInput').addEventListener('input', runEngine);
+
+            // Écouter les clics sur les sélecteurs d'acier
+            document.querySelectorAll('.steel-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    selectedDiameter = parseInt(e.target.dataset.diameter);
+                    localStorage.setItem('poutre_diameter', selectedDiameter);
+                    updateSteelSelector();
+                    runEngine();
+                });
+            });
+
+            // Écouter les changements de thème
+            const themeToggleBtn = document.getElementById('themeToggle');
+            if (themeToggleBtn) {
+                themeToggleBtn.addEventListener('click', () => {
+                    const currentTheme = document.documentElement.getAttribute('data-theme');
+                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    document.documentElement.setAttribute('data-theme', newTheme);
+                    localStorage.setItem('theme', newTheme);
+                    runEngine(); // Redessiner le SVG avec les nouvelles couleurs
+                });
+            }
+        });
+
+        function updateSteelSelector() {
+            document.querySelectorAll('.steel-btn').forEach(btn => {
+                const diam = parseInt(btn.dataset.diameter);
+                if (diam === selectedDiameter) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+        function getSVGTextColor() {
+            const theme = document.documentElement.getAttribute('data-theme');
+            return theme === 'dark' ? '#e0e0e0' : '#1e293b';
+        }
+
+        function runEngine() {
+            // 1. Lire les inputs et sauvegarder
+            const params = {};
+            inputs.forEach(id => {
+                const val = parseFloat(document.getElementById(id).value);
+                params[id] = val;
+                localStorage.setItem(`poutre_${id}`, val);
+            });
+
+            // 2. Lancer le calcul pur
+            currentResults = calculateEC2(params);
+
+            // 3. Mettre à jour le DOM
+            document.getElementById('res-Med').innerText = currentResults.Med.toFixed(2);
+            document.getElementById('res-Mu').innerText = currentResults.mu_cu.toFixed(3);
+            document.getElementById('res-Alpha').innerText = currentResults.alpha.toFixed(3);
+            
+            document.getElementById('res-Ved').innerText = currentResults.Ved.toFixed(1);
+            
+            let As_to_draw = currentResults.status === 'ERROR_MUCU' ? 0 : currentResults.As_req;
+            document.getElementById('res-As').innerText = currentResults.status === 'ERROR_MUCU' ? "Erreur" : currentResults.As_req.toFixed(2);
+
+            // 4. Calculer le ferraillage réel et la recommandation
+            const sectionPerBar = STEEL_SPECS[selectedDiameter].section;
+            const min_bars = Math.ceil(As_to_draw / sectionPerBar);
+            
+            let nb_barres = parseInt(document.getElementById('nbBarresInput').value) || 1;
+            if (nb_barres < 1) nb_barres = 1;
+            
+            const recElement = document.getElementById('recommendation');
+            recElement.textContent = `${min_bars} HA${selectedDiameter} minimum`;
+            if (nb_barres < min_bars) {
+                recElement.style.color = "var(--danger)";
+                recElement.textContent += " ⚠ Choix Insuffisant";
+            } else {
+                recElement.style.color = "var(--success)";
+            }
+
+            const steelArrangement = { nbBarres: nb_barres, actualSection: nb_barres * sectionPerBar };
+            document.getElementById('steelReq').innerText = currentResults.As_req.toFixed(2);
+            document.getElementById('steelChosen').innerText = steelArrangement.actualSection.toFixed(2);
+            document.getElementById('nbBarres').innerText = steelArrangement.nbBarres;
+            document.getElementById('diamShow').innerText = selectedDiameter;
+
+            // 5. Calculer l'espacement net (espace libre entre armatures)
+            let spacing_cm = 0;
+            const diam_cm = selectedDiameter / 10;
+            const diam_cadre_cm = 0.8; // HA8 pour cadres
+            if (steelArrangement.nbBarres > 1) {
+                const espace_dispo_cm = (params.b * 100) - (2 * c_enrobage * 100) - (2 * diam_cadre_cm);
+                const encombrement_aciers = steelArrangement.nbBarres * diam_cm;
+                spacing_cm = (espace_dispo_cm - encombrement_aciers) / (steelArrangement.nbBarres - 1);
+                document.getElementById('spacing').innerText = spacing_cm.toFixed(1);
+            } else {
+                document.getElementById('spacing').innerText = 'N/A';
+            }
+            document.getElementById('coverageShow').innerText = (c_enrobage * 100).toFixed(1);
+            
+            const As_max = 0.04 * params.b * params.h * 10000; // 4% de la section béton (cm²)
+
+            // 6. Validation (Section / Insuffisance Acier / Encombrement)
+            const badge = document.getElementById('statusBadge');
+            if (currentResults.status === 'ERROR_MUCU') {
+                badge.className = "status-badge status-red";
+                badge.innerText = "Section béton insuffisante !";
+            } else if (currentResults.status === 'ERROR_SHEAR') {
+                badge.className = "status-badge status-red";
+                badge.innerText = "Risque Rupture Bielles (Cisaillement)";
+                document.getElementById('res-Asw').innerText = "Erreur";
+            } else if (steelArrangement.actualSection < currentResults.As_req) {
+                badge.className = "status-badge status-red";
+                badge.innerText = "Ferraillage Insuffisant";
+            } else if (steelArrangement.actualSection > As_max) {
+                badge.className = "status-badge status-red";
+                badge.innerText = "Ferraillage Trop Important (As > 4%)";
+            } else if (steelArrangement.nbBarres > 1 && spacing_cm < Math.max(2.5, diam_cm)) {
+                badge.className = "status-badge status-red";
+                badge.innerText = "Aciers trop serrés (Bétonnage difficile)";
+            } else {
+                badge.className = "status-badge status-green";
+                badge.innerText = "Section Conforme";
+            }
+            
+            if (currentResults.status !== 'ERROR_SHEAR') {
+                document.getElementById('res-Asw').innerText = currentResults.Asw_s.toFixed(2);
+            }
+
+            // 7. Dessiner le SVG
+            drawPoutreSVG(params.b, params.h, As_to_draw, steelArrangement);
+        }
+
+        // ==========================================
+        // 3. LOGIQUE VISUELLE (Génération SVG)
+        // ==========================================
+        
+        function drawPoutreSVG(b, h, As, steelArrangement) {
+            const container = document.getElementById('svgContainer');
+            
+            // Couleurs basées sur le thème
+            const theme = document.documentElement.getAttribute('data-theme');
+            const textColor = theme === 'dark' ? '#e0e0e0' : '#000000';
+            const concreteFill = theme === 'dark' ? '#2d3436' : '#f0f3f4';
+            const concreteStroke = theme === 'dark' ? '#636e72' : '#7f8c8d';
+            const legendBg = theme === 'dark' ? '#1e1e1e' : '#ffffff';
+
+            // Échelle et dimensions (Base de dessin agrandie)
+            const svgSize = 800;
+            const margin = 140;
+            const maxDim = Math.max(b, h);
+            const scale = (svgSize - 2*margin) / maxDim;
+            
+            const w_px = b * scale;
+            const h_px = h * scale;
+            // Centrage horizontal avec un léger décalage à gauche pour laisser place à la légende
+            const x0 = (svgSize - w_px) / 2 - 20; 
+            const y0 = (svgSize - h_px) / 2;
+
+            const c = c_enrobage * scale;
+            const diam_px = (selectedDiameter / 1000) * scale;
+            const radius_bar = Math.max(diam_px / 2, 6); // Taille minimum pour la visibilité
+
+            let svgContent = `<svg viewBox="0 0 ${svgSize} ${svgSize}" xmlns="http://www.w3.org/2000/svg" id="poutresvg" style="width: 100%; height: 100%;">`;
+            
+            // ===== BÉTON (Style architectural plat) =====
+            svgContent += `<rect x="${x0}" y="${y0}" width="${w_px}" height="${h_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
+            
+            if (As > 0) {
+                // ===== CADRE D'ARMATURE (Rectangle enveloppant les aciers) =====
+                const stirrupStroke = 5;
+                const rx = x0 + c - radius_bar;
+                const ry = y0 + c - radius_bar;
+                const rw = w_px - 2*c + 2*radius_bar;
+                const rh = h_px - 2*c + 2*radius_bar;
+                const r_corner = radius_bar * 1.5;
+
+                svgContent += `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="${r_corner}" ry="${r_corner}" fill="none" stroke="#2980b9" stroke-width="${stirrupStroke}"/>`;
+
+                // Retours parasismiques (crochets agrandis)
+                svgContent += `<line x1="${x0+c}" y1="${ry}" x2="${x0+c + 35}" y2="${ry + 35}" stroke="#2980b9" stroke-width="${stirrupStroke}" stroke-linecap="round"/>`;
+                svgContent += `<line x1="${rx}" y1="${y0+c}" x2="${rx + 35}" y2="${y0+c + 35}" stroke="#2980b9" stroke-width="${stirrupStroke}" stroke-linecap="round"/>`;
+
+                // ===== ESPACEURS (Aciers de liaison transversaux) =====
+                const nbEspaceurs = 5;
+                for(let i = 1; i < nbEspaceurs; i++) {
+                    const y = y0 + c + ((h_px - 2*c) * i / nbEspaceurs);
+                    // Épingle
+                    svgContent += `<line x1="${rx}" y1="${y}" x2="${rx + rw}" y2="${y}" stroke="#2980b9" stroke-width="${stirrupStroke - 1}"/>`;
+                    // Crochets de l'épingle (plus amples)
+                    svgContent += `<path d="M ${rx} ${y} C ${rx-15} ${y-20}, ${rx+20} ${y-20}, ${rx+20} ${y}" fill="none" stroke="#2980b9" stroke-width="${stirrupStroke - 1}" stroke-linecap="round"/>`;
+                    svgContent += `<path d="M ${rx + rw} ${y} C ${rx+rw+15} ${y+20}, ${rx+rw-20} ${y+20}, ${rx+rw-20} ${y}" fill="none" stroke="#2980b9" stroke-width="${stirrupStroke - 1}" stroke-linecap="round"/>`;
+                }
+                
+                // ===== ACIERS LONGITUDINAUX (Zone tendue - Plat Rouge) =====
+                const nbBarres = steelArrangement.nbBarres;
+                const espaceBarres = (w_px - 2*c) / (nbBarres - 1 || 1);
+                
+                for(let i=0; i<nbBarres; i++) {
+                    const bx = nbBarres === 1 ? x0 + w_px/2 : x0 + c + (i * espaceBarres);
+                    const by = y0 + h_px - c;
+                    
+                    svgContent += `<circle cx="${bx}" cy="${by}" r="${radius_bar}" fill="#c0392b"/>`;
+                }
+                
+                // ===== ACIERS MONTAGE (Appui - Gris) =====
+                const appuiRadius = Math.max(radius_bar * 0.8, 4);
+                svgContent += `<circle cx="${x0+c}" cy="${y0+c}" r="${appuiRadius}" fill="#7f8c8d"/>`;
+                svgContent += `<circle cx="${x0+w_px-c}" cy="${y0+c}" r="${appuiRadius}" fill="#7f8c8d"/>`;
+            }
+
+            // ===== COTATIONS =====
+            const fontSizeLabel = 18;
+            
+            // Hauteur utile (d)
+            if (currentResults) {
+                svgContent += `<line x1="${x0-40}" y1="${y0+c}" x2="${x0-20}" y2="${y0+c}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0-40}" y1="${y0+h_px-c}" x2="${x0-20}" y2="${y0+h_px-c}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0-30}" y1="${y0+c}" x2="${x0-30}" y2="${y0+h_px-c}" stroke="${textColor}" stroke-width="1.5"/>`;
+                // Ticks d
+                svgContent += `<line x1="${x0-35}" y1="${y0+c}" x2="${x0-25}" y2="${y0+c}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<line x1="${x0-35}" y1="${y0+h_px-c}" x2="${x0-25}" y2="${y0+h_px-c}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<text x="${x0-45}" y="${y0 + (h_px/2)}" text-anchor="middle" font-size="16" fill="${textColor}" font-weight="bold" transform="rotate(-90 ${x0-45} ${y0 + (h_px/2)})">d ≈ ${currentResults.d.toFixed(2)}m</text>`;
+            }
+
+            // Largeur
+            svgContent += `<line x1="${x0}" y1="${y0}" x2="${x0}" y2="${y0 - margin + 30}" stroke="${textColor}" stroke-dasharray="5,5" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0 + w_px}" y1="${y0}" x2="${x0 + w_px}" y2="${y0 - margin + 30}" stroke="${textColor}" stroke-dasharray="5,5" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0}" y1="${y0 - margin + 40}" x2="${x0 + w_px}" y2="${y0 - margin + 40}" stroke="${textColor}" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0}" y1="${y0 - margin + 35}" x2="${x0}" y2="${y0 - margin + 45}" stroke="${textColor}" stroke-width="2"/>`;
+            svgContent += `<line x1="${x0 + w_px}" y1="${y0 - margin + 35}" x2="${x0 + w_px}" y2="${y0 - margin + 45}" stroke="${textColor}" stroke-width="2"/>`;
+            svgContent += `<text x="${x0 + w_px/2}" y="${y0 - margin + 30}" text-anchor="middle" font-size="${fontSizeLabel}" fill="${textColor}" font-weight="bold">b = ${(b*100).toFixed(0)} cm</text>`;
+
+            // Hauteur
+            svgContent += `<line x1="${x0 + w_px}" y1="${y0}" x2="${x0 + w_px + 80}" y2="${y0}" stroke="${textColor}" stroke-dasharray="5,5" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0 + w_px}" y1="${y0 + h_px}" x2="${x0 + w_px + 80}" y2="${y0 + h_px}" stroke="${textColor}" stroke-dasharray="5,5" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0 + w_px + 70}" y1="${y0}" x2="${x0 + w_px + 70}" y2="${y0 + h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0 + w_px + 65}" y1="${y0}" x2="${x0 + w_px + 75}" y2="${y0}" stroke="${textColor}" stroke-width="2"/>`;
+            svgContent += `<line x1="${x0 + w_px + 65}" y1="${y0 + h_px}" x2="${x0 + w_px + 75}" y2="${y0 + h_px}" stroke="${textColor}" stroke-width="2"/>`;
+            svgContent += `<text x="${x0 + w_px + 85}" y="${y0 + h_px/2}" alignment-baseline="middle" font-size="${fontSizeLabel}" fill="${textColor}" font-weight="bold">h = ${(h*100).toFixed(0)} cm</text>`;
+
+            // Enrobage
+            svgContent += `<line x1="${x0}" y1="${y0 + h_px + 20}" x2="${x0 + c}" y2="${y0 + h_px + 20}" stroke="${textColor}" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0}" y1="${y0 + h_px + 15}" x2="${x0}" y2="${y0 + h_px + 25}" stroke="${textColor}" stroke-width="2"/>`;
+            svgContent += `<line x1="${x0 + c}" y1="${y0 + h_px + 15}" x2="${x0 + c}" y2="${y0 + h_px + 25}" stroke="${textColor}" stroke-width="2"/>`;
+            svgContent += `<text x="${x0 + c/2}" y="${y0 + h_px + 40}" text-anchor="middle" font-size="14" fill="${textColor}">c=${(c_enrobage*100).toFixed(1)}</text>`;
+
+            // Cotations d'écartement des aciers
+            if (As > 0 && steelArrangement.nbBarres > 1) {
+                const coteY = y0 + h_px + 70;
+                const spacing_cm = (b*100 - 2*c_enrobage*100) / (steelArrangement.nbBarres - 1);
+                const espaceBarres = (w_px - 2*c) / (steelArrangement.nbBarres - 1);
+                for(let i=0; i<steelArrangement.nbBarres-1; i++) {
+                    const startX = x0 + c + i*espaceBarres;
+                    const endX = x0 + c + (i+1)*espaceBarres;
+                    svgContent += `<line x1="${startX}" y1="${coteY}" x2="${endX}" y2="${coteY}" stroke="${textColor}" stroke-width="1.5"/>`;
+                    svgContent += `<line x1="${startX}" y1="${coteY-5}" x2="${startX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<line x1="${endX}" y1="${coteY-5}" x2="${endX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<text x="${(startX+endX)/2}" y="${coteY-10}" text-anchor="middle" font-size="14" fill="${textColor}">${spacing_cm.toFixed(1)}</text>`;
+                }
+            }
+
+            // ===== LÉGENDE INTÉGRÉE =====
+            svgContent += `
+            <g transform="translate(${svgSize - 180}, ${svgSize - 205})">
+                <rect x="0" y="0" width="160" height="175" rx="6" ry="6" fill="${legendBg}" stroke="${concreteStroke}" stroke-width="1.5"/>
+                <text x="15" y="25" font-weight="bold" font-size="16" fill="${textColor}">Légende</text>
+                <circle cx="25" cy="50" r="7" fill="#c0392b"/>
+                <text x="45" y="55" font-size="15" fill="${textColor}">Aciers long.</text>
+                <line x1="15" y1="80" x2="35" y2="80" stroke="#2980b9" stroke-width="4"/>
+                <text x="45" y="85" font-size="15" fill="${textColor}">Cadres / Épingles</text>
+                <circle cx="25" cy="110" r="7" fill="#7f8c8d"/>
+                <text x="45" y="115" font-size="15" fill="${textColor}">Aciers montage</text>
+                <text x="15" y="140" font-size="14" font-weight="bold" fill="${textColor}">Section: ${steelArrangement.actualSection.toFixed(2)} cm²</text>
+                <text x="15" y="160" font-size="14" font-weight="bold" fill="${textColor}">Aciers: HA${selectedDiameter}</text>
+            </g>`;
+
+            svgContent += `</svg>`;
+            container.innerHTML = svgContent;
+        }
+
+        // ==========================================
+        // 4. EXPORT PNG & SVG
+        // ==========================================
+        
+        async function exportAsPNG() {
+            const svg = document.getElementById('poutresvg');
+            if (!svg) {
+                alert('Dessinez d\'abord le ferraillage !');
+                return;
+            }
+
+            // Force light theme
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            document.documentElement.setAttribute('data-theme', 'light');
+            runEngine();
+
+            // Créer un canvas
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const svgUpdated = document.getElementById('poutresvg');
+            const svgData = new XMLSerializer().serializeToString(svgUpdated);
+            const img = new Image();
+
+            // Très haute résolution pour éviter la pixellisation
+            canvas.width = 1200;
+            canvas.height = 1200;
+
+            img.onload = () => {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                // Télécharger
+                const link = document.createElement('a');
+                link.href = canvas.toDataURL('image/png');
+                link.download = `ferraillage_${new Date().toISOString().slice(0,10)}.png`;
+                link.click();
+                
+                // Restaurer
+                document.documentElement.setAttribute('data-theme', currentTheme);
+                runEngine();
+            };
+            
+            img.onerror = (e) => {
+                console.error("Erreur de rendu de l'image SVG : ", e);
+                alert("Une erreur est survenue lors de l'export PNG.");
+                document.documentElement.setAttribute('data-theme', currentTheme);
+                runEngine();
+            }
+
+            // btoa() échoue sur les caractères unicode (comme '≈'), on utilise donc encodeURIComponent
+            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
+        }
+
+        function exportAsSVG() {
+            const svg = document.getElementById('poutresvg');
+            if (!svg) {
+                alert('Dessinez d\'abord le ferraillage !');
+                return;
+            }
+
+            // Force light theme
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            document.documentElement.setAttribute('data-theme', 'light');
+            runEngine();
+            
+            const svgUpdated = document.getElementById('poutresvg');
+            const svgData = new XMLSerializer().serializeToString(svgUpdated);
+            const blob = new Blob([svgData], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `ferraillage_${new Date().toISOString().slice(0,10)}.svg`;
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            // Restore
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            runEngine();
+        }
+
+        // ==========================================
+        // 5. PÉDAGOGIE (Pop-ups de formules)
+        // ==========================================
+        function showFormula(type) {
+            let msg = "";
+            switch(type) {
+                case 'Med': msg = "Moment ELU : M_ed = (1.35G + 1.5Q) * L² / 8\nModèle de poutre sur 2 appuis simples."; break;
+                case 'Mu': msg = "Moment réduit : μ_cu = M_ed / (b * d² * f_cd)\nEurocode 2 § 3.1.6. Détermine si la section a besoin d'aciers comprimés."; break;
+                case 'Alpha': msg = "Position de l'axe neutre : α = 1.25 * (1 - √(1 - 2*μ_cu))\nSi α > 0.45, il faut justifier la ductilité."; break;
+                case 'As': msg = "Section d'acier : A_s = M_ed / (z * f_yd)\nAvec z = d * (1 - 0.4*α) (bras de levier)."; break;
+                case 'Ved': msg = "Effort Tranchant ELU : V_ed = (1.35G + 1.5Q) * L / 2\nCisaillement maximal aux appuis."; break;
+                case 'Asw': msg = "Aciers transversaux (Asw/s) = V_ed / (z * f_ywd * cot(θ))\nModèle des bielles (ici θ = 45°)."; break;
+            }
+            alert(msg); // Dans la version finale, remplacer par une belle modale HTML.
+        }
+    </script>
+</body>
+>>>>>>> 744bccd7109a40014f1a401ea7dfbd3807fe6c2b
 </html>

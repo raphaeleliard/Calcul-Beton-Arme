@@ -682,7 +682,7 @@
                 const esp_x_elev = nb_a > 1 ? (wElev_px - 2*cElev_px) / (nb_a - 1) : 0;
                 for (let i = 0; i < nb_a; i++) {
                     const x_pos = xE + cElev_px + i * esp_x_elev;
-                    svgContent += `<line x1="${x_pos}" y1="${yE}" x2="${x_pos}" y2="${yE+hElev_px}" stroke="#c0392b" stroke-width="${radius_bar * 2}"/>`;
+                    svgContent += `<line x1="${x_pos}" y1="${yE}" x2="${x_pos}" y2="${yE+hElev_px}" stroke="#c0392b" stroke-width="${Math.max(radius_bar * 0.8, 4)}"/>`;
                 }
 
                 // Cadres
@@ -693,7 +693,7 @@
 
                 for (let j = 0; j < nb_cadres; j++) {
                     const y_pos = yE + y_offset + j * sElev_px;
-                    svgContent += `<line x1="${xE+cElev_px-4}" y1="${y_pos}" x2="${xE+wElev_px-cElev_px+4}" y2="${y_pos}" stroke="#2980b9" stroke-width="6"/>`;
+                    svgContent += `<line x1="${xE+cElev_px-4}" y1="${y_pos}" x2="${xE+wElev_px-cElev_px+4}" y2="${y_pos}" stroke="#2980b9" stroke-width="4"/>`;
                     svgContent += `<path d="M ${xE+cElev_px} ${y_pos} C ${xE+cElev_px+15} ${y_pos-15}, ${xE+cElev_px+15} ${y_pos+15}, ${xE+cElev_px} ${y_pos}" fill="none" stroke="#2980b9" stroke-width="3"/>`;
                 }
 

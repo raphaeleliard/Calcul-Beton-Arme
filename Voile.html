@@ -285,8 +285,16 @@
 
         let selectedTS = 'ST25C';
         let currentResults = null;
+        let currentView = 'coupe';
 
         const voileInputs = ['h', 'fck', 'N_Ed', 'V_Ed', 'enrobage', 'nappesCount'];
+
+        function setView(view) {
+            currentView = view;
+            document.getElementById('btnViewCoupe').classList.toggle('active', view === 'coupe');
+            document.getElementById('btnViewElev').classList.toggle('active', view === 'elevation');
+            if(currentResults) drawSVG();
+        }
 
         // ==========================================
         // 1. CALCULS EUROCODE 2 (Bande 1m)
@@ -444,6 +452,7 @@
                     const nx = x0 + offset_x + (i * esp_ts);
                     svgContent += `<line x1="${nx}" y1="${nappesY[0]}" x2="${nx}" y2="${nappesY[1]}" stroke="#2980b9" stroke-width="2"/>`;
                     svgContent += `<path d="M ${nx} ${nappesY[0]} C ${nx+15} ${nappesY[0]+15}, ${nx-15} ${nappesY[0]+15}, ${nx} ${nappesY[0]}" fill="none" stroke="#2980b9" stroke-width="2"/>`;
+                    svgContent += `<path d="M ${nx} ${nappesY[1]} C ${nx-15} ${nappesY[1]-15}, ${nx+15} ${nappesY[1]-15}, ${nx} ${nappesY[1]}" fill="none" stroke="#2980b9" stroke-width="2"/>`;
                 }
             }
 

@@ -686,7 +686,7 @@
                 const y_bas = y0L + hL_px - c_pxL;
                 const y_haut = y0L + c_pxL;
                 const hookL = 25;
-                svgContent += `<path d="M ${x0L} ${y_bas} L ${x0L+wL_px-c_pxL} ${y_bas} L ${x0L+wL_px-c_pxL} ${y_bas-hookL}" fill="none" stroke="#c0392b" stroke-width="${radius_bar*2}"/>`;
+                svgContent += `<path d="M ${x0L} ${y_bas} L ${x0L+wL_px-c_pxL} ${y_bas} L ${x0L+wL_px-c_pxL} ${y_bas-hookL}" fill="none" stroke="#c0392b" stroke-width="${Math.max(radius_bar * 0.8, 4)}" stroke-linejoin="round"/>`;
                 svgContent += `<line x1="${x0L}" y1="${y_haut}" x2="${x0L+wL_px}" y2="${y_haut}" stroke="#7f8c8d" stroke-width="6"/>`;
 
                 let Asw_s = currentResults ? currentResults.Asw_s : 1.0;
@@ -697,7 +697,7 @@
 
                 for (let i = 1; i < nb_cadres; i++) {
                     const x_pos = x0L + i * sL_px;
-                    svgContent += `<line x1="${x_pos}" y1="${y_haut}" x2="${x_pos}" y2="${y_bas}" stroke="#2980b9" stroke-width="5"/>`;
+                    svgContent += `<line x1="${x_pos}" y1="${y_haut}" x2="${x_pos}" y2="${y_bas}" stroke="#2980b9" stroke-width="3"/>`;
                     svgContent += `<path d="M ${x_pos} ${y_haut} C ${x_pos+15} ${y_haut+15}, ${x_pos-15} ${y_haut+15}, ${x_pos} ${y_haut}" fill="none" stroke="#2980b9" stroke-width="3"/>`;
                 }
 

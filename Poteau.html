@@ -393,7 +393,7 @@
             let e_2 = 0;
             if (lambda > 30) {
                 // Approximation de 1/r = (fyd/Es) / (0.45 * d) (Cas simplifié sans itération)
-                const courbure = (500 / 200000) / (0.45 * d); 
+                const courbure = (fyd / 200000) / (0.45 * d); 
                 e_2 = courbure * Math.pow(l0, 2) / 10;
             }
 
@@ -545,7 +545,7 @@
             const textColor = theme === 'dark' ? '#e0e0e0' : '#000000';
             const concreteFill = theme === 'dark' ? '#2d3436' : '#f0f3f4';
             const concreteStroke = theme === 'dark' ? '#636e72' : '#7f8c8d';
-            const legendBg = theme === 'dark' ? '#1e1e1e' : '#ffffff';
+            const legendBg = theme === 'dark' ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)';
 
             // Base de dessin agrandie
             const svgSize = 800;
@@ -686,7 +686,7 @@
                 }
 
                 // Cadres
-                const s_cadre_cm = Math.min(15 * diameter / 10, a * 100, b * 100, 40);
+                const s_cadre_cm = Math.min(20 * diameter / 10, a * 100, b * 100, 40);
                 const sElev_px = (s_cadre_cm / 100) * scaleElev;
                 const nb_cadres = Math.floor(hElev_px / sElev_px);
                 const y_offset = (hElev_px - (nb_cadres-1) * sElev_px) / 2;
@@ -704,6 +704,13 @@
                     svgContent += `<line x1="${xE+wElev_px+30}" y1="${yE+y_offset}" x2="${xE+wElev_px+30}" y2="${yE+y_offset+sElev_px}" stroke="${textColor}" stroke-width="1.5"/>`;
                     svgContent += `<text x="${xE+wElev_px+45}" y="${yE+y_offset+sElev_px/2}" alignment-baseline="middle" font-size="14" fill="${textColor}">s = ${s_cadre_cm.toFixed(1)} cm</text>`;
                 }
+
+                // Cote Enrobage (Élévation)
+                svgContent += `<line x1="${xE+wElev_px}" y1="${yE+hElev_px-30}" x2="${xE+wElev_px}" y2="${yE+hElev_px-10}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${xE+wElev_px-cElev_px}" y1="${yE+hElev_px-30}" x2="${xE+wElev_px-cElev_px}" y2="${yE+hElev_px-10}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${xE+wElev_px+20}" y1="${yE+hElev_px-20}" x2="${xE+wElev_px-cElev_px}" y2="${yE+hElev_px-20}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${xE+wElev_px+20}" y1="${yE+hElev_px-25}" x2="${xE+wElev_px+20}" y2="${yE+hElev_px-15}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<text x="${xE+wElev_px-cElev_px/2}" y="${yE+hElev_px-5}" text-anchor="middle" font-size="12" fill="${textColor}">c</text>`;
             }
 
             // ===== LÉGENDE INTÉGRÉE =====

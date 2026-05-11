@@ -353,7 +353,10 @@
             }
 
             // Section des cadres requise : Asw / s
-            const Asw_s = (Ved / (z * fyd)) * 10; // cm²/m
+            const Asw_s_calc = (Ved / (z * fyd)) * 10; // cm²/m
+            const rho_w_min = (0.08 * Math.sqrt(fck)) / fyk; // EC2 §9.2.2(5)
+            const Asw_s_min = rho_w_min * b * 10000; // cm²/m
+            const Asw_s = Math.max(Asw_s_calc, Asw_s_min);
 
             return { Med, Ved, mu_cu, alpha, z, As_req, Asw_s, status, d };
         }
@@ -549,7 +552,7 @@
             const textColor = theme === 'dark' ? '#e0e0e0' : '#000000';
             const concreteFill = theme === 'dark' ? '#2d3436' : '#f0f3f4';
             const concreteStroke = theme === 'dark' ? '#636e72' : '#7f8c8d';
-            const legendBg = theme === 'dark' ? '#1e1e1e' : '#ffffff';
+            const legendBg = theme === 'dark' ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)';
 
             // Échelle et dimensions (Base de dessin agrandie)
             const svgSize = 800;
@@ -686,8 +689,8 @@
                 const y_bas = y0L + hL_px - c_pxL;
                 const y_haut = y0L + c_pxL;
                 const hookL = 25;
-                svgContent += `<path d="M ${x0L} ${y_bas} L ${x0L+wL_px-c_pxL} ${y_bas} L ${x0L+wL_px-c_pxL} ${y_bas-hookL}" fill="none" stroke="#c0392b" stroke-width="${Math.max(radius_bar * 0.8, 4)}" stroke-linejoin="round"/>`;
-                svgContent += `<line x1="${x0L}" y1="${y_haut}" x2="${x0L+wL_px}" y2="${y_haut}" stroke="#7f8c8d" stroke-width="6"/>`;
+                svgContent += `<path d="M ${x0L+c_pxL} ${y_bas-hookL} L ${x0L+c_pxL} ${y_bas} L ${x0L+wL_px-c_pxL} ${y_bas} L ${x0L+wL_px-c_pxL} ${y_bas-hookL}" fill="none" stroke="#c0392b" stroke-width="${Math.max(radius_bar * 0.8, 4)}" stroke-linejoin="round"/>`;
+                svgContent += `<line x1="${x0L+c_pxL}" y1="${y_haut}" x2="${x0L+wL_px-c_pxL}" y2="${y_haut}" stroke="#7f8c8d" stroke-width="6" stroke-linecap="round"/>`;
 
                 let Asw_s = currentResults ? currentResults.Asw_s : 1.0;
                 if (isNaN(Asw_s) || Asw_s <= 0) Asw_s = 1.0;
@@ -707,6 +710,12 @@
                     svgContent += `<line x1="${x0L+sL_px}" y1="${y0L+hL_px+30}" x2="${x0L+2*sL_px}" y2="${y0L+hL_px+30}" stroke="${textColor}" stroke-width="1.5"/>`;
                     svgContent += `<text x="${x0L+1.5*sL_px}" y="${y0L+hL_px+50}" text-anchor="middle" font-size="14" fill="${textColor}">s = ${s_cadre_cm.toFixed(1)} cm</text>`;
                 }
+
+                // Cote Enrobage Longitudinal
+                svgContent += `<line x1="${x0L+wL_px+20}" y1="${y0L+hL_px}" x2="${x0L+wL_px+40}" y2="${y0L+hL_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0L+wL_px+20}" y1="${y0L+hL_px-c_pxL}" x2="${x0L+wL_px+40}" y2="${y0L+hL_px-c_pxL}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0L+wL_px+30}" y1="${y0L+hL_px}" x2="${x0L+wL_px+30}" y2="${y0L+hL_px-c_pxL}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<text x="${x0L+wL_px+45}" y="${y0L+hL_px-c_pxL/2}" alignment-baseline="middle" font-size="12" fill="${textColor}">c</text>`;
             }
 
             // ===== LÉGENDE INTÉGRÉE =====

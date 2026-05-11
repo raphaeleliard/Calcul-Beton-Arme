@@ -393,7 +393,7 @@
             const textColor = theme === 'dark' ? '#e0e0e0' : '#000000';
             const concreteFill = theme === 'dark' ? '#2d3436' : '#f0f3f4';
             const concreteStroke = theme === 'dark' ? '#636e72' : '#7f8c8d';
-            const legendBg = theme === 'dark' ? '#1e1e1e' : '#ffffff';
+            const legendBg = theme === 'dark' ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)';
 
             const h = currentResults.h;
             const c_nom = currentResults.c_nom;
@@ -467,6 +467,18 @@
             svgContent += `<line x1="${x0+w_px+20}" y1="${y0+h_px}" x2="${x0+w_px+40}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
             svgContent += `<line x1="${x0+w_px+30}" y1="${y0}" x2="${x0+w_px+30}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
             svgContent += `<text x="${x0+w_px+45}" y="${y0 + h_px/2}" alignment-baseline="middle" font-size="16" fill="${textColor}" font-weight="bold">h = ${(h*100).toFixed(0)} cm</text>`;
+
+            if (currentResults.nappesCount === 1) {
+                svgContent += `<line x1="${x0}" y1="${y0+h_px+20}" x2="${x0+h_px/2}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0}" y1="${y0+h_px+15}" x2="${x0}" y2="${y0+h_px+25}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<line x1="${x0+h_px/2}" y1="${y0+h_px+15}" x2="${x0+h_px/2}" y2="${y0+h_px+25}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<text x="${x0+h_px/4}" y="${y0+h_px+40}" text-anchor="middle" font-size="12" fill="${textColor}">h/2</text>`;
+            } else {
+                svgContent += `<line x1="${x0}" y1="${y0+h_px+20}" x2="${x0+c_px}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0}" y1="${y0+h_px+15}" x2="${x0}" y2="${y0+h_px+25}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<line x1="${x0+c_px}" y1="${y0+h_px+15}" x2="${x0+c_px}" y2="${y0+h_px+25}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<text x="${x0+c_px/2}" y="${y0+h_px+40}" text-anchor="middle" font-size="12" fill="${textColor}">c=${(c_nom*100).toFixed(1)}</text>`;
+            }
             } else {
                 // VUE DE FACE (ÉLÉVATION)
                 const maxDimF = 1.0;

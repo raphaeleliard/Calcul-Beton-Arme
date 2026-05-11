@@ -89,6 +89,12 @@
         .ferraillage-info div { margin: 0.3rem 0; }
         .info-label { font-weight: 600; color: var(--primary); }
 
+        /* Toggle View */
+        .view-toggles { display: flex; gap: 10px; margin-bottom: 1rem; }
+        .view-btn { flex: 1; padding: 0.5rem; border: 2px solid var(--border-color); background: var(--surface-color); color: var(--text-main); border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition); }
+        .view-btn:hover { border-color: var(--primary); }
+        .view-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
         /* Boutons d'export */
         .export-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 1rem; }
         .export-btn { padding: 0.6rem; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition); }
@@ -224,10 +230,15 @@
             <h2>3. Plan de Ferraillage (1 ml)</h2>
             <div id="statusBadge" class="status-badge status-green">Dalle Conforme</div>
             
+            <div class="view-toggles">
+                <button id="btnViewCoupe" class="view-btn active" onclick="setView('coupe')">👁️ Vue en Coupe</button>
+                <button id="btnViewPlan" class="view-btn" onclick="setView('plan')">👁️ Vue en Plan</button>
+            </div>
+
             <!-- Sélecteur d'acier -->
             <div style="margin-bottom: 1rem;">
-                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.9rem;">Armature Principale</label>
-                <div class="steel-selector">
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.85rem;">Armature Principale (Longitudinale)</label>
+                <div class="steel-selector" id="sel-Main">
                     <button class="steel-btn" data-diameter="8">HA8</button>
                     <button class="steel-btn active" data-diameter="10">HA10</button>
                     <button class="steel-btn" data-diameter="12">HA12</button>
@@ -235,17 +246,32 @@
                 </div>
             </div>
             
-            <!-- Espacement -->
             <div style="margin-bottom: 1rem;">
-                <label style="font-size: 0.85rem; font-weight: 600;">Espacement principal (cm)</label>
-                <input type="number" id="espacementInput" value="15" min="5" step="1" style="padding: 0.4rem; width: 100%;">
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.85rem;">Armature de Répartition (Transversale)</label>
+                <div class="steel-selector" id="sel-Rep">
+                    <button class="steel-btn active" data-diameter="8">HA8</button>
+                    <button class="steel-btn" data-diameter="10">HA10</button>
+                    <button class="steel-btn" data-diameter="12">HA12</button>
+                    <button class="steel-btn" data-diameter="16">HA16</button>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 1rem;">
+                <div>
+                    <label style="font-size: 0.85rem; font-weight: 600;">Espac. Princ. (cm)</label>
+                    <input type="number" id="espacementInput" value="15" min="5" step="1" style="padding: 0.4rem; width: 100%;">
+                </div>
+                <div>
+                    <label style="font-size: 0.85rem; font-weight: 600;">Espac. Répart. (cm)</label>
+                    <input type="number" id="espRepInput" value="20" min="5" step="1" style="padding: 0.4rem; width: 100%;">
+                </div>
             </div>
 
             <!-- Info ferraillage -->
             <div class="ferraillage-info">
-                <div><span class="info-label">Acier Requis:</span> <span id="steelReq">0.00</span> cm²/ml</div>
-                <div><span class="info-label">Acier Choisi:</span> <span id="steelChosen">0.00</span> cm²/ml <span id="recoEsp"></span></div>
-                <div><span class="info-label">Répartition:</span> <span id="repChosen">-</span></div>
+                <div><span class="info-label">Principal:</span> HA<span id="info-diamMain">10</span> e=<span id="info-espMain">15</span>cm (<span id="info-secMain">0.00</span> cm²/ml > <span id="req-secMain">0.00</span>)</div>
+                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 5px 0;">
+                <div><span class="info-label">Répartition:</span> HA<span id="info-diamRep">8</span> e=<span id="info-espRep">20</span>cm (<span id="info-secRep">0.00</span> cm²/ml > <span id="req-secRep">0.00</span>)</div>
             </div>
             
             <div class="svg-container" id="svgContainer">
@@ -272,9 +298,18 @@
             16: { diametre: 16, section: 2.011 }
         };
 
-        let selectedDiameter = 10;
+        let diamMain = 10;
+        let diamRep = 8;
         let currentResults = null;
-        const dalleInputs = ['L', 'h', 'G', 'Q', 'fck', 'enrobage', 'espacementInput'];
+        let currentView = 'coupe';
+        const dalleInputs = ['L', 'h', 'G', 'Q', 'fck', 'enrobage', 'espacementInput', 'espRepInput'];
+
+        function setView(view) {
+            currentView = view;
+            document.getElementById('btnViewCoupe').classList.toggle('active', view === 'coupe');
+            document.getElementById('btnViewPlan').classList.toggle('active', view === 'plan');
+            if(currentResults) drawSVG();
+        }
 
         // ==========================================
         // 1. CALCULS EUROCODE 2 (Bande de 1m)
@@ -294,6 +329,7 @@
             const Q = parseFloat(document.getElementById('Q').value);
             const c_nom = parseFloat(document.getElementById('enrobage').value) / 100;
             let espacement = parseFloat(document.getElementById('espacementInput').value);
+            let esp_rep = parseFloat(document.getElementById('espRepInput').value);
 
             // Matériaux
             const fcd = fck / 1.5;
@@ -302,7 +338,7 @@
             const fctm = 0.30 * Math.pow(fck, 2/3);
 
             // Hauteur utile
-            const d = h - c_nom - (selectedDiameter / 1000 / 2);
+            const d = h - c_nom - (diamMain / 1000 / 2);
 
             // RDM
             const p_elu = 1.35 * G + 1.5 * Q; // kN/m² -> kN/ml
@@ -329,19 +365,15 @@
             }
 
             // Ferraillage fourni
-            const sectionPerBar = STEEL_SPECS[selectedDiameter].section;
+            const sectionPerBar = STEEL_SPECS[diamMain].section;
             const nbBarres_per_m = 100 / espacement;
             const As_prov = sectionPerBar * nbBarres_per_m;
 
             // Acier de répartition (EC2 §9.3.1.1)
             const As_rep = Math.max(0.20 * As_prov, As_min);
-
-            // Choix automatique d'acier de répartition (HA8 par défaut)
-            let diam_rep = 8;
-            let esp_rep = 20; // max ~ 30cm
-            while ( (STEEL_SPECS[diam_rep].section * (100 / esp_rep)) < As_rep && esp_rep > 10 ) {
-                esp_rep -= 2.5;
-            }
+            
+            const sectionPerBarRep = STEEL_SPECS[diamRep].section;
+            const As_prov_rep = sectionPerBarRep * (100 / esp_rep);
 
             // Vérification Effort Tranchant du Béton Non Armé (EC2 §6.2.2)
             const k = Math.min(1 + Math.sqrt(200 / (d * 1000)), 2.0);
@@ -360,12 +392,12 @@
             const s_max_main = Math.min(3 * (h * 100), 40); // max 40 cm
             
             // Espacement net (distance libre)
-            const esp_net = espacement - (selectedDiameter / 10);
+            const esp_net = espacement - (diamMain / 10);
 
             currentResults = {
                 L, h, b, c_nom, d,
-                Med, Ved, mu_cu, As_req, As_min, As_prov, As_rep,
-                V_Rdc, status, s_max_main, espacement, esp_net, diam_rep, esp_rep
+                Med, Ved, mu_cu, As_req, As_min, As_prov, As_prov_rep, As_rep,
+                V_Rdc, status, s_max_main, espacement, esp_net, esp_rep
             };
 
             updateUI();
@@ -379,17 +411,17 @@
             document.getElementById('res-As_rep').innerText = currentResults.As_rep.toFixed(2);
             document.getElementById('res-As_min').innerText = currentResults.As_min.toFixed(2);
 
-            document.getElementById('steelReq').innerText = currentResults.status === 'ERROR_MUCU' ? "-" : currentResults.As_req.toFixed(2);
-            document.getElementById('steelChosen').innerText = currentResults.As_prov.toFixed(2);
-            
-            const repStr = `HA${currentResults.diam_rep} e=${currentResults.esp_rep}cm (${(STEEL_SPECS[currentResults.diam_rep].section * (100/currentResults.esp_rep)).toFixed(2)} cm²)`;
-            document.getElementById('repChosen').innerText = repStr;
+            document.getElementById('info-diamMain').innerText = diamMain;
+            document.getElementById('info-espMain').innerText = currentResults.espacement;
+            document.getElementById('info-secMain').innerText = currentResults.As_prov.toFixed(2);
+            document.getElementById('req-secMain').innerText = currentResults.As_req.toFixed(2);
+
+            document.getElementById('info-diamRep').innerText = diamRep;
+            document.getElementById('info-espRep').innerText = currentResults.esp_rep;
+            document.getElementById('info-secRep').innerText = currentResults.As_prov_rep.toFixed(2);
+            document.getElementById('req-secRep').innerText = currentResults.As_rep.toFixed(2);
 
             const badge = document.getElementById('statusBadge');
-            const recoEsp = document.getElementById('recoEsp');
-            recoEsp.innerText = "";
-            recoEsp.style.color = "var(--text-main)";
-
             if (currentResults.status === 'ERROR_MUCU') {
                 badge.className = "status-badge status-red";
                 badge.innerText = "Épaisseur h insuffisante (Moment trop élevé)";
@@ -399,13 +431,12 @@
             } else if (currentResults.As_prov < currentResults.As_req) {
                 badge.className = "status-badge status-red";
                 badge.innerText = "Ferraillage Principal Insuffisant";
-                recoEsp.innerText = " ⚠ Augmenter diam. ou réduire esp.";
-                recoEsp.style.color = "var(--danger)";
-            } else if (currentResults.esp_net < Math.max(2.5, selectedDiameter / 10)) {
+            } else if (currentResults.As_prov_rep < currentResults.As_rep) {
+                badge.className = "status-badge status-red";
+                badge.innerText = "Acier Répartition Insuffisant";
+            } else if (currentResults.esp_net < Math.max(2.5, diamMain / 10)) {
                 badge.className = "status-badge status-red";
                 badge.innerText = "Aciers trop rapprochés (Bétonnage)";
-                recoEsp.innerText = " ⚠ Augmenter l'espacement";
-                recoEsp.style.color = "var(--danger)";
             } else if (currentResults.espacement > currentResults.s_max_main) {
                 badge.className = "status-badge status-orange";
                 badge.innerText = `Espacement > ${currentResults.s_max_main} cm (EC2)`;
@@ -426,7 +457,7 @@
             const textColor = theme === 'dark' ? '#e0e0e0' : '#000000';
             const concreteFill = theme === 'dark' ? '#2d3436' : '#f0f3f4';
             const concreteStroke = theme === 'dark' ? '#636e72' : '#7f8c8d';
-            const legendBg = theme === 'dark' ? '#1e1e1e' : '#ffffff';
+            const legendBg = theme === 'dark' ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)';
 
             const h = currentResults.h;
             const c_nom = currentResults.c_nom;
@@ -444,14 +475,15 @@
             const y0 = (svgSize - h_px) / 2;
             
             const c_px = c_nom * scale;
-            const diam_px = (selectedDiameter / 1000) * scale;
-            const diam_rep_px = (currentResults.diam_rep / 1000) * scale;
+            const diam_px = (diamMain / 1000) * scale;
+            const diam_rep_px = (diamRep / 1000) * scale;
             
             const r_bar = Math.max(diam_px / 2, 6);
             const r_rep = Math.max(diam_rep_px / 2, 4);
 
             let svgContent = `<svg viewBox="0 0 ${svgSize} ${svgSize}" xmlns="http://www.w3.org/2000/svg" id="dallesvg" style="width: 100%; height: 100%;">`;
             
+            if (currentView === 'coupe') {
             // Lignes de continuité de la dalle (côtés hachurés)
             svgContent += `<line x1="${x0}" y1="${y0-20}" x2="${x0}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2" stroke-dasharray="10,10"/>`;
             svgContent += `<line x1="${x0+w_px}" y1="${y0-20}" x2="${x0+w_px}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2" stroke-dasharray="10,10"/>`;
@@ -475,6 +507,19 @@
             // Acier de répartition (Ligne horizontale posée sur les aciers principaux)
             const y_rep = y_main - r_bar - r_rep;
             svgContent += `<line x1="${x0}" y1="${y_rep}" x2="${x0+w_px}" y2="${y_rep}" stroke="#2980b9" stroke-width="${r_rep * 2}"/>`;
+            
+            // Cote d'enrobage (c)
+            svgContent += `<line x1="${x0-20}" y1="${y0+h_px}" x2="${x0-40}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0-20}" y1="${y0+h_px-c_px}" x2="${x0-40}" y2="${y0+h_px-c_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0-30}" y1="${y0+h_px}" x2="${x0-30}" y2="${y0+h_px-c_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+            svgContent += `<text x="${x0-45}" y="${y0+h_px-c_px/2}" text-anchor="middle" font-size="12" fill="${textColor}" transform="rotate(-90 ${x0-45} ${y0+h_px-c_px/2})">c=${(c_nom*100).toFixed(1)}</text>`;
+
+            // Cote Hauteur Utile (d)
+            const d_px = currentResults.d * scale;
+            svgContent += `<line x1="${x0+w_px+60}" y1="${y0}" x2="${x0+w_px+80}" y2="${y0}" stroke="${textColor}" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0+w_px+60}" y1="${y0+d_px}" x2="${x0+w_px+80}" y2="${y0+d_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0+w_px+70}" y1="${y0}" x2="${x0+w_px+70}" y2="${y0+d_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+            svgContent += `<text x="${x0+w_px+85}" y="${y0+d_px/2}" alignment-baseline="middle" font-size="14" fill="${textColor}">d</text>`;
 
             // Cotes (Largeur Bande)
             svgContent += `<line x1="${x0}" y1="${y0-40}" x2="${x0}" y2="${y0-20}" stroke="${textColor}" stroke-width="1.5"/>`;
@@ -496,18 +541,52 @@
             svgContent += `<line x1="${startX}" y1="${coteY-5}" x2="${startX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
             svgContent += `<line x1="${endX}" y1="${coteY-5}" x2="${endX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
             svgContent += `<text x="${(startX+endX)/2}" y="${coteY-10}" text-anchor="middle" font-size="14" fill="${textColor}">${esp.toFixed(1)} cm</text>`;
+            } else {
+                // VUE EN PLAN
+                const maxDimPlan = 1.0;
+                const scaleP = (svgSize - 2 * margin) / maxDimPlan;
+                const wP_px = maxDimPlan * scaleP;
+                const hP_px = maxDimPlan * scaleP;
+                const xP = (svgSize - wP_px) / 2;
+                const yP = (svgSize - hP_px) / 2;
+
+                svgContent += `<rect x="${xP}" y="${yP}" width="${wP_px}" height="${hP_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
+
+                const esp_pxP = (esp / 100) * scaleP;
+                const nb_main = Math.floor(wP_px / esp_pxP);
+                const offset_xP = (wP_px - (nb_main * esp_pxP)) / 2;
+                for (let i = 0; i <= nb_main; i++) {
+                    const lx = xP + offset_xP + i*esp_pxP;
+                    svgContent += `<line x1="${lx}" y1="${yP}" x2="${lx}" y2="${yP+hP_px}" stroke="#c0392b" stroke-width="${r_bar*2}"/>`;
+                }
+
+                const esp_rep_px = (currentResults.esp_rep / 100) * scaleP;
+                const nb_rep = Math.floor(hP_px / esp_rep_px);
+                const offset_yP = (hP_px - (nb_rep * esp_rep_px)) / 2;
+                for (let j = 0; j <= nb_rep; j++) {
+                    const ly = yP + offset_yP + j*esp_rep_px;
+                    svgContent += `<line x1="${xP}" y1="${ly}" x2="${xP+wP_px}" y2="${ly}" stroke="#2980b9" stroke-width="${r_rep*2}"/>`;
+                }
+
+                svgContent += `<line x1="${xP}" y1="${yP-30}" x2="${xP+wP_px}" y2="${yP-30}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<text x="${xP+wP_px/2}" y="${yP-40}" text-anchor="middle" font-size="16" fill="${textColor}" font-weight="bold">Bande 1.00 m</text>`;
+                if (nb_main > 1) {
+                    svgContent += `<line x1="${xP+offset_xP}" y1="${yP+hP_px+30}" x2="${xP+offset_xP+esp_pxP}" y2="${yP+hP_px+30}" stroke="${textColor}" stroke-width="1.5"/>`;
+                    svgContent += `<text x="${xP+offset_xP+0.5*esp_pxP}" y="${yP+hP_px+50}" text-anchor="middle" font-size="14" fill="${textColor}">e = ${esp.toFixed(1)} cm</text>`;
+                }
+            }
 
             // Légende
             svgContent += `
-            <g transform="translate(${svgSize - 180}, ${svgSize - 175})">
-                <rect x="0" y="0" width="160" height="155" rx="6" ry="6" fill="${legendBg}" stroke="${concreteStroke}" stroke-width="1.5"/>
+            <g transform="translate(${svgSize - 220}, ${svgSize - 165})">
+                <rect x="0" y="0" width="200" height="145" rx="6" ry="6" fill="${legendBg}" stroke="${concreteStroke}" stroke-width="1.5"/>
                 <text x="15" y="25" font-weight="bold" font-size="16" fill="${textColor}">Légende</text>
                 <circle cx="25" cy="50" r="6" fill="#c0392b"/>
                 <text x="45" y="55" font-size="14" fill="${textColor}">Acier Principal</text>
                 <line x1="15" y1="80" x2="35" y2="80" stroke="#2980b9" stroke-width="4"/>
                 <text x="45" y="85" font-size="14" fill="${textColor}">Acier Répartition</text>
-                <text x="15" y="115" font-size="13" font-weight="bold" fill="${textColor}">A_s: ${currentResults.As_prov.toFixed(2)} cm²/ml</text>
-                <text x="15" y="140" font-size="13" font-weight="bold" fill="${textColor}">Type: HA${selectedDiameter} e=${esp}cm</text>
+                <text x="15" y="110" font-size="13" font-weight="bold" fill="${textColor}">As,req: ${currentResults.As_prov.toFixed(2)} cm²/ml (HA${diamMain})</text>
+                <text x="15" y="130" font-size="13" font-weight="bold" fill="${textColor}">As,rep: ${currentResults.As_prov_rep.toFixed(2)} cm²/ml (HA${diamRep})</text>
             </g>`;
 
             svgContent += '</svg>';
@@ -517,14 +596,12 @@
         // ==========================================
         // 3. INITIALISATION ET ÉVÉNEMENTS
         // ==========================================
-        function updateSteelSelector() {
-            document.querySelectorAll('.steel-btn').forEach(btn => {
-                const diam = parseInt(btn.dataset.diameter);
-                if (diam === selectedDiameter) {
-                    btn.classList.add('active');
-                } else {
-                    btn.classList.remove('active');
-                }
+        function updateSteelSelectors() {
+            document.querySelectorAll('#sel-Main .steel-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.diameter) === diamMain);
+            });
+            document.querySelectorAll('#sel-Rep .steel-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.diameter) === diamRep);
             });
         }
 
@@ -540,18 +617,30 @@
                     if (el) el.value = savedVal;
                 }
             });
-            const savedDiam = localStorage.getItem('dalle_diameter');
-            if (savedDiam) selectedDiameter = parseInt(savedDiam);
-            updateSteelSelector();
+            
+            const savedDiamMain = localStorage.getItem('dalle_diamMain');
+            if (savedDiamMain) diamMain = parseInt(savedDiamMain);
+            const savedDiamRep = localStorage.getItem('dalle_diamRep');
+            if (savedDiamRep) diamRep = parseInt(savedDiamRep);
+            updateSteelSelectors();
 
             document.getElementById('dalleForm').addEventListener('input', calculateEC2);
             document.getElementById('espacementInput').addEventListener('input', calculateEC2);
+            document.getElementById('espRepInput').addEventListener('input', calculateEC2);
 
-            document.querySelectorAll('.steel-btn').forEach(btn => {
+            document.querySelectorAll('#sel-Main .steel-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
-                    selectedDiameter = parseInt(e.target.dataset.diameter);
-                    localStorage.setItem('dalle_diameter', selectedDiameter);
-                    updateSteelSelector();
+                    diamMain = parseInt(e.target.dataset.diameter);
+                    localStorage.setItem('dalle_diamMain', diamMain);
+                    updateSteelSelectors();
+                    calculateEC2();
+                });
+            });
+            document.querySelectorAll('#sel-Rep .steel-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    diamRep = parseInt(e.target.dataset.diameter);
+                    localStorage.setItem('dalle_diamRep', diamRep);
+                    updateSteelSelectors();
                     calculateEC2();
                 });
             });
@@ -606,7 +695,7 @@
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 const link = document.createElement('a');
                 link.href = canvas.toDataURL('image/png');
-                link.download = `ferraillage_dalle_${new Date().toISOString().slice(0,10)}.png`;
+                link.download = `ferraillage_dalle_${currentView}_${new Date().toISOString().slice(0,10)}.png`;
                 link.click();
                 document.documentElement.setAttribute('data-theme', currentTheme);
                 calculateEC2();
@@ -625,7 +714,7 @@
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `ferraillage_dalle_${new Date().toISOString().slice(0,10)}.svg`;
+            link.download = `ferraillage_dalle_${currentView}_${new Date().toISOString().slice(0,10)}.svg`;
             link.click();
             URL.revokeObjectURL(url);
             

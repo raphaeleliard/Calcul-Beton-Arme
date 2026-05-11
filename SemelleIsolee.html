@@ -378,7 +378,7 @@
             const textColor = theme === 'dark' ? '#e0e0e0' : '#000000';
             const concreteFill = theme === 'dark' ? '#2d3436' : '#f0f3f4';
             const concreteStroke = theme === 'dark' ? '#636e72' : '#7f8c8d';
-            const legendBg = theme === 'dark' ? '#1e1e1e' : '#ffffff';
+            const legendBg = theme === 'dark' ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)';
             
             const svgSize = 800;
             const margin = 100;
@@ -407,6 +407,12 @@
                 svgContent += `<rect x="${col_x0}" y="${y0 - col_h_px}" width="${a_px}" height="${col_h_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
                 svgContent += `<line x1="${col_x0-10}" y1="${y0 - col_h_px}" x2="${col_x0+a_px+10}" y2="${y0 - col_h_px}" stroke="${concreteStroke}" stroke-width="2" stroke-dasharray="8,8"/>`;
 
+                // Cotes Poteau (a)
+                svgContent += `<line x1="${col_x0}" y1="${y0 - col_h_px - 20}" x2="${col_x0+a_px}" y2="${y0 - col_h_px - 20}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${col_x0}" y1="${y0 - col_h_px - 25}" x2="${col_x0}" y2="${y0 - col_h_px - 15}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<line x1="${col_x0+a_px}" y1="${y0 - col_h_px - 25}" x2="${col_x0+a_px}" y2="${y0 - col_h_px - 15}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<text x="${col_x0+a_px/2}" y="${y0 - col_h_px - 30}" text-anchor="middle" font-size="14" fill="${textColor}">a = ${(a*100).toFixed(0)} cm</text>`;
+
                 // Nappe A (Barres longitudinales)
                 const yA = y0 + h_px - c_px;
                 const hook = 15 * (diamA/1000) * scale; // Longueur d'ancrage visuelle
@@ -432,6 +438,12 @@
                 svgContent += `<line x1="${x0-35}" y1="${y0}" x2="${x0-25}" y2="${y0}" stroke="${textColor}" stroke-width="2"/>`;
                 svgContent += `<line x1="${x0-35}" y1="${y0+h_px}" x2="${x0-25}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="2"/>`;
                 svgContent += `<text x="${x0-45}" y="${y0+h_px/2}" text-anchor="middle" font-size="16" fill="${textColor}" transform="rotate(-90 ${x0-45} ${y0+h_px/2})">h = ${(h*100).toFixed(0)} cm</text>`;
+
+                // Cote Enrobage (c)
+                svgContent += `<line x1="${x0}" y1="${y0+h_px+15}" x2="${x0+c_px}" y2="${y0+h_px+15}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0}" y1="${y0+h_px+10}" x2="${x0}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<line x1="${x0+c_px}" y1="${y0+h_px+10}" x2="${x0+c_px}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<text x="${x0+c_px/2}" y="${y0+h_px+30}" text-anchor="middle" font-size="12" fill="${textColor}">c=${(c_m*100).toFixed(1)}</text>`;
             } 
             else {
                 // Vue en PLAN
@@ -455,6 +467,13 @@
                 const col_y0 = y0 + (wB_px - b_px)/2;
                 svgContent += `<rect x="${col_x0}" y="${col_y0}" width="${a_px}" height="${b_px}" fill="${theme==='dark'?'#3d3d3d':'#dcdde1'}" stroke="${concreteStroke}" stroke-width="2"/>`;
                 
+                // Poteau a
+                svgContent += `<line x1="${col_x0}" y1="${col_y0-15}" x2="${col_x0+a_px}" y2="${col_y0-15}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<text x="${col_x0+a_px/2}" y="${col_y0-25}" text-anchor="middle" font-size="12" fill="${textColor}">a</text>`;
+                // Poteau b
+                svgContent += `<line x1="${col_x0+a_px+15}" y1="${col_y0}" x2="${col_x0+a_px+15}" y2="${col_y0+b_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<text x="${col_x0+a_px+25}" y="${col_y0+b_px/2}" text-anchor="middle" font-size="12" fill="${textColor}" alignment-baseline="middle">b</text>`;
+
                 // Lignes d'armatures Nappe A (Lignes horizontales réparties sur B)
                 // La longueur des barres est A. Distribuées le long de B.
                 const esp_A_px = nb_A > 1 ? (wB_px - 2*c_px) / (nb_A - 1) : 0;

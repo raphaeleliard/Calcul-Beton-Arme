@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calcul Poteau - EC2 Assistant</title>
     <link rel="stylesheet" href="styles.css">
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
 </head>
 <body>
 
@@ -432,12 +438,12 @@
             svgContent += `<text x="${x0 + w_px/2}" y="${y0 - margin + 30}" font-size="18" fill="${textColor}" text-anchor="middle" font-weight="bold">a = ${(a*100).toFixed(0)} cm</text>`;
 
             // Cote verticale (Hauteur)
-            svgContent += `<line x1="${x0 + w_px}" y1="${y0}" x2="${x0 + w_px + 80}" y2="${y0}" stroke="${textColor}" stroke-dasharray="5,5" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0 + w_px}" y1="${y0 + h_px}" x2="${x0 + w_px + 80}" y2="${y0 + h_px}" stroke="${textColor}" stroke-dasharray="5,5" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0 + w_px + 70}" y1="${y0}" x2="${x0 + w_px + 70}" y2="${y0 + h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0 + w_px + 65}" y1="${y0}" x2="${x0 + w_px + 75}" y2="${y0}" stroke="${textColor}" stroke-width="2"/>`;
-            svgContent += `<line x1="${x0 + w_px + 65}" y1="${y0 + h_px}" x2="${x0 + w_px + 75}" y2="${y0 + h_px}" stroke="${textColor}" stroke-width="2"/>`;
-            svgContent += `<text x="${x0 + w_px + 85}" y="${y0 + h_px/2}" font-size="18" fill="${textColor}" alignment-baseline="middle" font-weight="bold">b = ${(b*100).toFixed(0)} cm</text>`;
+            svgContent += `<line x1="${x0 + w_px}" y1="${y0}" x2="${x0 + w_px + 110}" y2="${y0}" stroke="${textColor}" stroke-dasharray="5,5" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0 + w_px}" y1="${y0 + h_px}" x2="${x0 + w_px + 110}" y2="${y0 + h_px}" stroke="${textColor}" stroke-dasharray="5,5" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0 + w_px + 100}" y1="${y0}" x2="${x0 + w_px + 100}" y2="${y0 + h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0 + w_px + 95}" y1="${y0}" x2="${x0 + w_px + 105}" y2="${y0}" stroke="${textColor}" stroke-width="2"/>`;
+            svgContent += `<line x1="${x0 + w_px + 95}" y1="${y0 + h_px}" x2="${x0 + w_px + 105}" y2="${y0 + h_px}" stroke="${textColor}" stroke-width="2"/>`;
+            svgContent += `<text x="${x0 + w_px + 115}" y="${y0 + h_px/2}" font-size="18" fill="${textColor}" alignment-baseline="middle" font-weight="bold">b = ${(b*100).toFixed(0)} cm</text>`;
 
             // Cadre extérieur (Armatures transversales enveloppant les aciers)
             const stirrupStroke = 5;

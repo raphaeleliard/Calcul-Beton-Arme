@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calcul Dalle - EC2 Assistant</title>
     <link rel="stylesheet" href="styles.css">
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
 </head>
 <body>
 
@@ -333,7 +339,7 @@
             const esp = currentResults.espacement; // cm
             
             const svgSize = 800;
-            const margin = 120;
+            const margin = 160;
             const w_m = 1.0; 
             const maxDim = Math.max(w_m, h);
             const scale = (svgSize - 2 * margin) / maxDim;
@@ -378,17 +384,17 @@
             svgContent += `<line x1="${x0}" y1="${y_rep}" x2="${x0+w_px}" y2="${y_rep}" stroke="#2980b9" stroke-width="${r_rep * 2}"/>`;
             
             // Cote d'enrobage (c)
-            svgContent += `<line x1="${x0-20}" y1="${y0+h_px}" x2="${x0-40}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0-20}" y1="${y0+h_px-c_px}" x2="${x0-40}" y2="${y0+h_px-c_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0-30}" y1="${y0+h_px}" x2="${x0-30}" y2="${y0+h_px-c_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<text x="${x0-45}" y="${y0+h_px-c_px/2}" text-anchor="middle" font-size="12" fill="${textColor}" transform="rotate(-90 ${x0-45} ${y0+h_px-c_px/2})">c=${(c_nom*100).toFixed(1)}</text>`;
+            svgContent += `<line x1="${x0-20}" y1="${y0+h_px}" x2="${x0-50}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0-20}" y1="${y0+h_px-c_px}" x2="${x0-50}" y2="${y0+h_px-c_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0-40}" y1="${y0+h_px}" x2="${x0-40}" y2="${y0+h_px-c_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+            svgContent += `<text x="${x0-55}" y="${y0+h_px-c_px/2}" text-anchor="middle" font-size="12" fill="${textColor}" transform="rotate(-90 ${x0-55} ${y0+h_px-c_px/2})">c=${(c_nom*100).toFixed(1)}</text>`;
 
             // Cote Hauteur Utile (d)
             const d_px = currentResults.d * scale;
-            svgContent += `<line x1="${x0+w_px+60}" y1="${y0}" x2="${x0+w_px+80}" y2="${y0}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0+w_px+60}" y1="${y0+d_px}" x2="${x0+w_px+80}" y2="${y0+d_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0+w_px+70}" y1="${y0}" x2="${x0+w_px+70}" y2="${y0+d_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<text x="${x0+w_px+85}" y="${y0+d_px/2}" alignment-baseline="middle" font-size="14" fill="${textColor}">d</text>`;
+            svgContent += `<line x1="${x0+w_px+80}" y1="${y0}" x2="${x0+w_px+100}" y2="${y0}" stroke="${textColor}" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0+w_px+80}" y1="${y0+d_px}" x2="${x0+w_px+100}" y2="${y0+d_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+            svgContent += `<line x1="${x0+w_px+90}" y1="${y0}" x2="${x0+w_px+90}" y2="${y0+d_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+            svgContent += `<text x="${x0+w_px+105}" y="${y0+d_px/2}" alignment-baseline="middle" font-size="14" fill="${textColor}">d</text>`;
 
             // Cotes (Largeur Bande)
             svgContent += `<line x1="${x0}" y1="${y0-40}" x2="${x0}" y2="${y0-20}" stroke="${textColor}" stroke-width="1.5"/>`;

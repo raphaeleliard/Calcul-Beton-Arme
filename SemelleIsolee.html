@@ -50,4 +50,548 @@
 
         /* Panneau Visuel */
         .status-badge { display: inline-block; padding: 0.5rem 1rem; border-radius: 20px; font-weight: bold; width: 100%; text-align: center; margin-bottom: 1rem; }
-        .status-green {
+        .status-green { background-color: rgba(46, 204, 113, 0.2); color: var(--success); }
+        .status-red { background-color: rgba(231, 76, 60, 0.2); color: var(--danger); }
+        .status-orange { background-color: rgba(241, 196, 15, 0.2); color: var(--warning); }
+        
+        .svg-container { width: 100%; aspect-ratio: 1; background-color: var(--bg-color); border: 1px dashed var(--border-color); border-radius: 8px; display: flex; justify-content: center; align-items: center; }
+        svg { max-width: 100%; max-height: 100%; }
+
+        /* Toggle View */
+        .view-toggles { display: flex; gap: 10px; margin-bottom: 1rem; }
+        .view-btn { flex: 1; padding: 0.5rem; border: 2px solid var(--border-color); background: var(--surface-color); color: var(--text-main); border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition); }
+        .view-btn:hover { border-color: var(--primary); }
+        .view-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        /* Sélecteur d'acier */
+        .steel-selector { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 1rem; }
+        .steel-btn { padding: 0.4rem; border: 2px solid var(--border-color); background: var(--bg-color); color: var(--text-main); border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition); }
+        .steel-btn:hover { border-color: var(--primary); }
+        .steel-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        /* Info ferraillage */
+        .ferraillage-info { font-size: 0.85rem; background: var(--bg-color); padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; }
+        .ferraillage-info div { margin: 0.3rem 0; }
+        .info-label { font-weight: 600; color: var(--primary); }
+
+        /* Boutons d'export */
+        .export-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 1rem; }
+        .export-btn { padding: 0.6rem; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition); }
+        .export-btn:hover { background: var(--primary-hover); }
+
+        .theme-toggle { background: none; border: 2px solid var(--border-color); border-radius: 20px; padding: 5px 15px; cursor: pointer; color: var(--text-main); font-weight: 600; transition: var(--transition); }
+        .theme-toggle:hover { border-color: var(--primary); color: var(--primary); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <a href="index.html" class="back-link">← Retour Accueil</a>
+        <div><strong>Module Fondation :</strong> Semelle Isolée (Méthode des bielles)</div>
+        <button class="theme-toggle" id="themeToggle">🌓 Mode</button>
+    </header>
+
+    <div class="dashboard">
+        <!-- PANNEAU 1 : PARAMÈTRES -->
+        <aside class="panel">
+            <h2>1. Paramètres</h2>
+            <form id="semelleForm">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                    <div class="input-group">
+                        <label>Poteau a (m) [// A]</label>
+                        <input type="number" id="a" value="0.30" step="0.05">
+                    </div>
+                    <div class="input-group">
+                        <label>Poteau b (m) [// B]</label>
+                        <input type="number" id="b" value="0.30" step="0.05">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                    <div class="input-group">
+                        <label>Semelle A (m)</label>
+                        <input type="number" id="A" value="1.50" step="0.10">
+                    </div>
+                    <div class="input-group">
+                        <label>Semelle B (m)</label>
+                        <input type="number" id="B" value="1.50" step="0.10">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Hauteur semelle h (m)</label>
+                    <input type="number" id="h" value="0.40" step="0.05">
+                </div>
+
+                <h2 style="margin-top: 1.5rem;">Matériaux & Sol</h2>
+                <div class="input-group">
+                    <label>Béton (fck en MPa)</label>
+                    <select id="fck">
+                        <option value="20">C20/25</option>
+                        <option value="25" selected>C25/30</option>
+                        <option value="30">C30/37</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Contrainte sol q_adm (MPa)</label>
+                    <input type="number" id="q_adm" value="0.25" step="0.05">
+                </div>
+
+                <h2 style="margin-top: 1.5rem;">Charges & Enrobage</h2>
+                <div class="input-group">
+                    <label>Effort normal ELU N_Ed (kN)</label>
+                    <input type="number" id="N_Ed" value="600" step="10">
+                </div>
+                <div class="input-group">
+                    <label>Effort normal ELS N_Eq (kN)</label>
+                    <input type="number" id="N_Eq" value="430" step="10">
+                </div>
+                <div class="input-group">
+                    <label>Enrobage c (cm)</label>
+                    <input type="number" id="enrobage" value="4.0" step="0.5" min="3.0">
+                </div>
+            </form>
+        </aside>
+
+        <!-- PANNEAU 2 : RDM & RÉSULTATS -->
+        <main class="panel">
+            <h2>2. Note de calcul interactive</h2>
+            <p style="margin-bottom: 1rem; color: var(--text-muted);">Cliquez sur une valeur pour voir la formule EC2.</p>
+            
+            <div class="result-grid">
+                <div class="result-card" onclick="showFormula('sigma_sol')">
+                    <div>Contrainte Sol (ELS)</div>
+                    <div class="result-value" id="res-sigma">0.00</div>
+                    <div>MPa</div>
+                    <div class="clickable-hint">🔍 Vérif. Portance</div>
+                </div>
+                
+                <div class="result-card" onclick="showFormula('d_req')">
+                    <div>Hauteur utile min. (d)</div>
+                    <div class="result-value" id="res-dmin">0.00</div>
+                    <div>m</div>
+                    <div class="clickable-hint">🔍 Condition de rigidité</div>
+                </div>
+
+                <div class="result-card" onclick="showFormula('As_A')">
+                    <div>Section requise As // A</div>
+                    <div class="result-value" id="res-AsA">0.00</div>
+                    <div>cm²</div>
+                    <div class="clickable-hint">🔍 EC2 Bielles (Nappe Inf)</div>
+                </div>
+
+                <div class="result-card" onclick="showFormula('As_B')">
+                    <div>Section requise As // B</div>
+                    <div class="result-value" id="res-AsB">0.00</div>
+                    <div>cm²</div>
+                    <div class="clickable-hint">🔍 EC2 Bielles (Nappe Sup)</div>
+                </div>
+            </div>
+        </main>
+
+        <!-- PANNEAU 3 : VALIDATION & VISUEL -->
+        <aside class="panel">
+            <h2>3. Plan de Ferraillage</h2>
+            <div id="statusBadge" class="status-badge status-green">Semelle Conforme</div>
+            
+            <div class="view-toggles">
+                <button id="btnViewCoupe" class="view-btn active" onclick="setView('coupe')">👁️ Vue en Coupe (A)</button>
+                <button id="btnViewPlan" class="view-btn" onclick="setView('plan')">👁️ Vue en Plan</button>
+            </div>
+            
+            <div style="margin-bottom: 0.5rem;">
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.85rem;">Nappe Inférieure (// A)</label>
+                <div class="steel-selector" id="sel-A">
+                    <button class="steel-btn" data-diam="10">HA10</button>
+                    <button class="steel-btn active" data-diam="12">HA12</button>
+                    <button class="steel-btn" data-diam="14">HA14</button>
+                    <button class="steel-btn" data-diam="16">HA16</button>
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.85rem;">Nappe Supérieure (// B)</label>
+                <div class="steel-selector" id="sel-B">
+                    <button class="steel-btn" data-diam="10">HA10</button>
+                    <button class="steel-btn active" data-diam="12">HA12</button>
+                    <button class="steel-btn" data-diam="14">HA14</button>
+                    <button class="steel-btn" data-diam="16">HA16</button>
+                </div>
+            </div>
+
+            <div class="ferraillage-info">
+                <div><span class="info-label">Nappe // A:</span> <span id="info-nbA">0</span> HA<span id="info-diamA">12</span> (<span id="info-secA">0.00</span> cm² > <span id="req-secA">0.00</span>)</div>
+                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 5px 0;">
+                <div><span class="info-label">Nappe // B:</span> <span id="info-nbB">0</span> HA<span id="info-diamB">12</span> (<span id="info-secB">0.00</span> cm² > <span id="req-secB">0.00</span>)</div>
+            </div>
+            
+            <div class="svg-container" id="svgContainer">
+                <!-- Le SVG sera généré ici en JS -->
+            </div>
+            
+            <!-- Boutons d'export -->
+            <div class="export-buttons">
+                <button class="export-btn" onclick="exportAsPNG()">📥 PNG</button>
+                <button class="export-btn" onclick="exportAsSVG()">📥 SVG</button>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        // ==========================================
+        // DONNÉES D'ACIERS CONSTRUCTEURS
+        // ==========================================
+        const STEEL_SPECS = {
+            10: { section: 0.785 },
+            12: { section: 1.131 },
+            14: { section: 1.539 },
+            16: { section: 2.011 }
+        };
+
+        let diamA = 12;
+        let diamB = 12;
+        let currentView = 'coupe';
+        let currentResults = null;
+        const semelleInputs = ['a', 'b', 'A', 'B', 'h', 'fck', 'q_adm', 'N_Ed', 'N_Eq', 'enrobage'];
+
+        // ==========================================
+        // LOGIQUE D'INTERFACE
+        // ==========================================
+        function setView(view) {
+            currentView = view;
+            document.getElementById('btnViewCoupe').classList.toggle('active', view === 'coupe');
+            document.getElementById('btnViewPlan').classList.toggle('active', view === 'plan');
+            if (currentResults) drawSVG();
+        }
+
+        function updateSteelSelectors() {
+            document.querySelectorAll('#sel-A .steel-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.diam) === diamA);
+            });
+            document.querySelectorAll('#sel-B .steel-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.diam) === diamB);
+            });
+        }
+
+        // ==========================================
+        // CALCULS EC2 (MÉTHODE DES BIELLES)
+        // ==========================================
+        function calculateEC2() {
+            semelleInputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) localStorage.setItem(`semelle_${id}`, el.value);
+            });
+
+            const a = parseFloat(document.getElementById('a').value);
+            const b = parseFloat(document.getElementById('b').value);
+            const A = parseFloat(document.getElementById('A').value);
+            const B = parseFloat(document.getElementById('B').value);
+            const h = parseFloat(document.getElementById('h').value);
+            const fck = parseFloat(document.getElementById('fck').value);
+            const q_adm = parseFloat(document.getElementById('q_adm').value);
+            const N_Ed = parseFloat(document.getElementById('N_Ed').value);
+            const N_Eq = parseFloat(document.getElementById('N_Eq').value);
+            const c_m = parseFloat(document.getElementById('enrobage').value) / 100;
+
+            // 1. Contrainte de sol
+            const weight = A * B * h * 25; // kN (Poids propre semelle)
+            const sigma_sol = (N_Eq + weight) / (A * B * 1000); // MPa
+
+            // 2. Condition de rigidité (Struts)
+            const d_req_A = (A - a) / 4;
+            const d_req_B = (B - b) / 4;
+            const d_req = Math.max(d_req_A, d_req_B);
+            
+            // 3. Calcul Ferraillage (Méthode bielles)
+            const fyd = 500 / 1.15;
+            const d_A = h - c_m - (diamA / 2000); // Nappe inférieure
+            const d_B = h - c_m - (diamA / 1000) - (diamB / 2000); // Nappe supérieure
+
+            let As_A_req = (N_Ed * (A - a)) / (8 * d_A * fyd) * 10; // cm²
+            let As_B_req = (N_Ed * (B - b)) / (8 * d_B * fyd) * 10; // cm²
+
+            // Section min réglementaire (EC2)
+            const fctm = 0.30 * Math.pow(fck, 2/3);
+            const As_A_min = Math.max(0.26 * (fctm/500) * B * d_A, 0.0013 * B * d_A) * 10000;
+            const As_B_min = Math.max(0.26 * (fctm/500) * A * d_B, 0.0013 * A * d_B) * 10000;
+            
+            As_A_req = Math.max(As_A_req, As_A_min);
+            As_B_req = Math.max(As_B_req, As_B_min);
+
+            // Aciers fournis
+            const secA = STEEL_SPECS[diamA].section;
+            let nb_A = Math.max(Math.ceil(As_A_req / secA), Math.ceil((B*100 - 2*c_m*100)/30) + 1); // Max espacement 30cm
+            const As_A_prov = nb_A * secA;
+            const esp_A = nb_A > 1 ? (B*100 - 2*c_m*100) / (nb_A - 1) : 0;
+
+            const secB = STEEL_SPECS[diamB].section;
+            let nb_B = Math.max(Math.ceil(As_B_req / secB), Math.ceil((A*100 - 2*c_m*100)/30) + 1);
+            const As_B_prov = nb_B * secB;
+            const esp_B = nb_B > 1 ? (A*100 - 2*c_m*100) / (nb_B - 1) : 0;
+
+            currentResults = {
+                a, b, A, B, h, c_m, sigma_sol, q_adm, d_req, d_A, d_B,
+                As_A_req, As_B_req, As_A_prov, As_B_prov, nb_A, nb_B, esp_A, esp_B
+            };
+
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('res-sigma').innerText = currentResults.sigma_sol.toFixed(3);
+            document.getElementById('res-dmin').innerText = currentResults.d_req.toFixed(2);
+            document.getElementById('res-AsA').innerText = currentResults.As_A_req.toFixed(2);
+            document.getElementById('res-AsB').innerText = currentResults.As_B_req.toFixed(2);
+
+            document.getElementById('info-nbA').innerText = currentResults.nb_A;
+            document.getElementById('info-diamA').innerText = diamA;
+            document.getElementById('info-secA').innerText = currentResults.As_A_prov.toFixed(2);
+            document.getElementById('req-secA').innerText = currentResults.As_A_req.toFixed(2);
+
+            document.getElementById('info-nbB').innerText = currentResults.nb_B;
+            document.getElementById('info-diamB').innerText = diamB;
+            document.getElementById('info-secB').innerText = currentResults.As_B_prov.toFixed(2);
+            document.getElementById('req-secB').innerText = currentResults.As_B_req.toFixed(2);
+
+            const badge = document.getElementById('statusBadge');
+            if (currentResults.sigma_sol > currentResults.q_adm) {
+                badge.className = 'status-badge status-red';
+                badge.innerText = 'Surface insuffisante (σ_sol > q_adm)';
+            } else if (currentResults.d_A < currentResults.d_req || currentResults.d_B < currentResults.d_req) {
+                badge.className = 'status-badge status-orange';
+                badge.innerText = 'Épaisseur h limite (Semelle non rigide)';
+            } else if (currentResults.As_A_prov < currentResults.As_A_req || currentResults.As_B_prov < currentResults.As_B_req) {
+                badge.className = 'status-badge status-red';
+                badge.innerText = 'Ferraillage Insuffisant';
+            } else {
+                badge.className = 'status-badge status-green';
+                badge.innerText = 'Semelle Conforme';
+            }
+
+            drawSVG();
+        }
+
+        // ==========================================
+        // RENDU SVG (COUPE ET PLAN)
+        // ==========================================
+        function drawSVG() {
+            const container = document.getElementById('svgContainer');
+            const theme = document.documentElement.getAttribute('data-theme');
+            const textColor = theme === 'dark' ? '#e0e0e0' : '#000000';
+            const concreteFill = theme === 'dark' ? '#2d3436' : '#f0f3f4';
+            const concreteStroke = theme === 'dark' ? '#636e72' : '#7f8c8d';
+            
+            const svgSize = 800;
+            const margin = 100;
+            const { a, b, A, B, h, c_m, nb_A, nb_B } = currentResults;
+            
+            let svgContent = `<svg viewBox="0 0 ${svgSize} ${svgSize}" xmlns="http://www.w3.org/2000/svg" id="semellesvg" style="width: 100%; height: 100%;">`;
+
+            if (currentView === 'coupe') {
+                // Vue en coupe selon l'axe A
+                const maxDim = Math.max(A, h + 0.5);
+                const scale = (svgSize - 2*margin) / maxDim;
+                
+                const w_px = A * scale;
+                const h_px = h * scale;
+                const a_px = a * scale;
+                const col_h_px = 0.6 * scale; // Hauteur arbitraire du poteau visible
+                const c_px = c_m * scale;
+
+                const x0 = (svgSize - w_px) / 2;
+                const y0 = svgSize - margin - h_px;
+
+                // Béton Semelle
+                svgContent += `<rect x="${x0}" y="${y0}" width="${w_px}" height="${h_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
+                // Béton Poteau
+                const col_x0 = x0 + (w_px - a_px)/2;
+                svgContent += `<rect x="${col_x0}" y="${y0 - col_h_px}" width="${a_px}" height="${col_h_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
+                svgContent += `<line x1="${col_x0-10}" y1="${y0 - col_h_px}" x2="${col_x0+a_px+10}" y2="${y0 - col_h_px}" stroke="${concreteStroke}" stroke-width="2" stroke-dasharray="8,8"/>`;
+
+                // Nappe A (Barres longitudinales)
+                const yA = y0 + h_px - c_px;
+                const hook = 15 * (diamA/1000) * scale; // Longueur d'ancrage visuelle
+                svgContent += `<path d="M ${x0+c_px} ${yA-hook} L ${x0+c_px} ${yA} L ${x0+w_px-c_px} ${yA} L ${x0+w_px-c_px} ${yA-hook}" fill="none" stroke="#c0392b" stroke-width="4" stroke-linejoin="round"/>`;
+
+                // Nappe B (Barres transversales, vues comme des cercles)
+                const radiusB = Math.max((diamB/1000)*scale/2, 4);
+                const yB = yA - radiusB - 2;
+                const espace_B_px = nb_B > 1 ? (w_px - 2*c_px) / (nb_B - 1) : 0;
+                
+                for(let i=0; i<nb_B; i++) {
+                    const bx = x0 + c_px + i * espace_B_px;
+                    svgContent += `<circle cx="${bx}" cy="${yB}" r="${radiusB}" fill="#2980b9"/>`;
+                }
+
+                // Cotes
+                svgContent += `<line x1="${x0}" y1="${y0+h_px+30}" x2="${x0+w_px}" y2="${y0+h_px+30}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0}" y1="${y0+h_px+25}" x2="${x0}" y2="${y0+h_px+35}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<line x1="${x0+w_px}" y1="${y0+h_px+25}" x2="${x0+w_px}" y2="${y0+h_px+35}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<text x="${x0+w_px/2}" y="${y0+h_px+50}" text-anchor="middle" font-size="16" fill="${textColor}">A = ${(A).toFixed(2)} m</text>`;
+
+                svgContent += `<line x1="${x0-30}" y1="${y0}" x2="${x0-30}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0-35}" y1="${y0}" x2="${x0-25}" y2="${y0}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<line x1="${x0-35}" y1="${y0+h_px}" x2="${x0-25}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<text x="${x0-45}" y="${y0+h_px/2}" text-anchor="middle" font-size="16" fill="${textColor}" transform="rotate(-90 ${x0-45} ${y0+h_px/2})">h = ${(h*100).toFixed(0)} cm</text>`;
+            } 
+            else {
+                // Vue en PLAN
+                const maxDim = Math.max(A, B);
+                const scale = (svgSize - 2*margin) / maxDim;
+                
+                const wA_px = A * scale;
+                const wB_px = B * scale;
+                const a_px = a * scale;
+                const b_px = b * scale;
+                const c_px = c_m * scale;
+
+                const x0 = (svgSize - wA_px) / 2;
+                const y0 = (svgSize - wB_px) / 2;
+
+                // Semelle
+                svgContent += `<rect x="${x0}" y="${y0}" width="${wA_px}" height="${wB_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
+                
+                // Poteau (Centre)
+                const col_x0 = x0 + (wA_px - a_px)/2;
+                const col_y0 = y0 + (wB_px - b_px)/2;
+                svgContent += `<rect x="${col_x0}" y="${col_y0}" width="${a_px}" height="${b_px}" fill="${theme==='dark'?'#3d3d3d':'#dcdde1'}" stroke="${concreteStroke}" stroke-width="2"/>`;
+                
+                // Lignes d'armatures Nappe A (Lignes horizontales réparties sur B)
+                // La longueur des barres est A. Distribuées le long de B.
+                const esp_A_px = nb_A > 1 ? (wB_px - 2*c_px) / (nb_A - 1) : 0;
+                for(let i=0; i<nb_A; i++) {
+                    const yL = y0 + c_px + i * esp_A_px;
+                    svgContent += `<line x1="${x0+c_px}" y1="${yL}" x2="${x0+wA_px-c_px}" y2="${yL}" stroke="#c0392b" stroke-width="2"/>`;
+                }
+
+                // Lignes d'armatures Nappe B (Lignes verticales réparties sur A)
+                // La longueur des barres est B. Distribuées le long de A.
+                const esp_B_px = nb_B > 1 ? (wA_px - 2*c_px) / (nb_B - 1) : 0;
+                for(let i=0; i<nb_B; i++) {
+                    const xL = x0 + c_px + i * esp_B_px;
+                    svgContent += `<line x1="${xL}" y1="${y0+c_px}" x2="${xL}" y2="${y0+wB_px-c_px}" stroke="#2980b9" stroke-width="2"/>`;
+                }
+
+                // Cotes extérieures
+                svgContent += `<line x1="${x0}" y1="${y0-30}" x2="${x0+wA_px}" y2="${y0-30}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0}" y1="${y0-35}" x2="${x0}" y2="${y0-25}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<line x1="${x0+wA_px}" y1="${y0-35}" x2="${x0+wA_px}" y2="${y0-25}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<text x="${x0+wA_px/2}" y="${y0-45}" text-anchor="middle" font-size="16" fill="${textColor}">A = ${(A).toFixed(2)} m</text>`;
+
+                svgContent += `<line x1="${x0+wA_px+30}" y1="${y0}" x2="${x0+wA_px+30}" y2="${y0+wB_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0+wA_px+25}" y1="${y0}" x2="${x0+wA_px+35}" y2="${y0}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<line x1="${x0+wA_px+25}" y1="${y0+wB_px}" x2="${x0+wA_px+35}" y2="${y0+wB_px}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<text x="${x0+wA_px+45}" y="${y0+wB_px/2}" text-anchor="middle" font-size="16" fill="${textColor}" transform="rotate(90 ${x0+wA_px+45} ${y0+wB_px/2})">B = ${(B).toFixed(2)} m</text>`;
+            }
+
+            svgContent += '</svg>';
+            container.innerHTML = svgContent;
+        }
+
+        // ==========================================
+        // INITIALISATION ET ÉVÉNEMENTS
+        // ==========================================
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+
+            semelleInputs.forEach(id => {
+                const savedVal = localStorage.getItem(`semelle_${id}`);
+                if (savedVal) {
+                    const el = document.getElementById(id);
+                    if (el) el.value = savedVal;
+                }
+            });
+
+            document.getElementById('semelleForm').addEventListener('input', calculateEC2);
+
+            document.querySelectorAll('#sel-A .steel-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    diamA = parseInt(e.target.dataset.diam);
+                    updateSteelSelectors();
+                    calculateEC2();
+                });
+            });
+            document.querySelectorAll('#sel-B .steel-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    diamB = parseInt(e.target.dataset.diam);
+                    updateSteelSelectors();
+                    calculateEC2();
+                });
+            });
+
+            const themeToggleBtn = document.getElementById('themeToggle');
+            if (themeToggleBtn) {
+                themeToggleBtn.addEventListener('click', () => {
+                    const currentTheme = document.documentElement.getAttribute('data-theme');
+                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    document.documentElement.setAttribute('data-theme', newTheme);
+                    localStorage.setItem('theme', newTheme);
+                    if (currentResults) drawSVG();
+                });
+            }
+
+            calculateEC2();
+        });
+
+        // ==========================================
+        // EXPORT & PÉDAGOGIE
+        // ==========================================
+        function showFormula(type) {
+            let msg = "";
+            switch(type) {
+                case 'sigma_sol': msg = "Contrainte sol : σ_sol = (N_Eq + Poids_Semelle) / (A × B)\nVérification à l'ELS par rapport à q_adm."; break;
+                case 'd_req': msg = "Hauteur utile requise (Rigidité) :\n d ≥ max( (A-a)/4 , (B-b)/4 ) \nAssure le bon fonctionnement du modèle des bielles."; break;
+                case 'As_A': msg = "Section Nappe Inférieure (// A) :\n As = N_Ed × (A-a) / (8 × d × fyd)\nMéthode des bielles."; break;
+                case 'As_B': msg = "Section Nappe Supérieure (// B) :\n As = N_Ed × (B-b) / (8 × d × fyd)"; break;
+            }
+            alert(msg);
+        }
+
+        function exportAsPNG() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            document.documentElement.setAttribute('data-theme', 'light');
+            drawSVG(); // Force light mode draw
+
+            const svg = document.getElementById('semellesvg');
+            const svgData = new XMLSerializer().serializeToString(svg);
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+
+            canvas.width = 1200;
+            canvas.height = 1200;
+
+            img.onload = () => {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const link = document.createElement('a');
+                link.href = canvas.toDataURL('image/png');
+                link.download = `ferraillage_semelle_${currentView}_${new Date().toISOString().slice(0,10)}.png`;
+                link.click();
+                document.documentElement.setAttribute('data-theme', currentTheme);
+                drawSVG();
+            };
+            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
+        }
+
+        function exportAsSVG() {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            document.documentElement.setAttribute('data-theme', 'light');
+            drawSVG();
+            
+            const svg = document.getElementById('semellesvg');
+            const svgData = new XMLSerializer().serializeToString(svg);
+            const blob = new Blob([svgData], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `ferraillage_semelle_${currentView}_${new Date().toISOString().slice(0,10)}.svg`;
+            link.click();
+            URL.revokeObjectURL(url);
+            
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            drawSVG();
+        }
+    </script>
+</body>
+</html>

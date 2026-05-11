@@ -89,6 +89,12 @@
         .ferraillage-info div { margin: 0.3rem 0; }
         .info-label { font-weight: 600; color: var(--primary); }
 
+        /* Toggle View */
+        .view-toggles { display: flex; gap: 10px; margin-bottom: 1rem; }
+        .view-btn { flex: 1; padding: 0.5rem; border: 2px solid var(--border-color); background: var(--surface-color); color: var(--text-main); border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition); }
+        .view-btn:hover { border-color: var(--primary); }
+        .view-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
         /* Boutons d'export */
         .export-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 1rem; }
         .export-btn { padding: 0.6rem; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition); }
@@ -218,6 +224,11 @@
             <h2>3. Plan de Ferraillage</h2>
             <div id="statusBadge" class="status-badge status-green">Section Conforme</div>
             
+            <div class="view-toggles">
+                <button id="btnViewCoupe" class="view-btn active" onclick="setView('coupe')">👁️ Vue en Coupe</button>
+                <button id="btnViewLong" class="view-btn" onclick="setView('longitudinale')">👁️ Vue Longitudinale</button>
+            </div>
+
             <!-- Sélecteur d'acier -->
             <div style="margin-bottom: 1rem;">
                 <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.9rem;">Diamètre des aciers</label>
@@ -274,6 +285,14 @@
 
         let selectedDiameter = 10; // HA10 par défaut
         let currentResults = null;
+        let currentView = 'coupe';
+
+        function setView(view) {
+            currentView = view;
+            document.getElementById('btnViewCoupe').classList.toggle('active', view === 'coupe');
+            document.getElementById('btnViewLong').classList.toggle('active', view === 'longitudinale');
+            runEngine();
+        }
 
         // ==========================================
         // 1. LOGIQUE MÉTIER PURE (Typé "TypeScript-like")
@@ -550,6 +569,7 @@
 
             let svgContent = `<svg viewBox="0 0 ${svgSize} ${svgSize}" xmlns="http://www.w3.org/2000/svg" id="poutresvg" style="width: 100%; height: 100%;">`;
             
+            if (currentView === 'coupe') {
             // ===== BÉTON (Style architectural plat) =====
             svgContent += `<rect x="${x0}" y="${y0}" width="${w_px}" height="${h_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
             
@@ -646,6 +666,48 @@
                     svgContent += `<text x="${(startX+endX)/2}" y="${coteY-10}" text-anchor="middle" font-size="14" fill="${textColor}">${spacing_cm.toFixed(1)}</text>`;
                 }
             }
+            } else {
+                // ===== VUE LONGITUDINALE =====
+                const L_visu = 2.0; // Longueur visuelle
+                const maxDimL = Math.max(L_visu, h);
+                const scaleL = (svgSize - 2*margin) / maxDimL;
+                const wL_px = L_visu * scaleL;
+                const hL_px = h * scaleL;
+                const x0L = (svgSize - wL_px) / 2 - 20;
+                const y0L = (svgSize - hL_px) / 2;
+                const c_pxL = c_enrobage * scaleL;
+
+                svgContent += `<rect x="${x0L}" y="${y0L}" width="${wL_px}" height="${hL_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
+                svgContent += `<line x1="${x0L-20}" y1="${y0L}" x2="${x0L}" y2="${y0L}" stroke="${concreteStroke}" stroke-width="2" stroke-dasharray="8,8"/>`;
+                svgContent += `<line x1="${x0L-20}" y1="${y0L+hL_px}" x2="${x0L}" y2="${y0L+hL_px}" stroke="${concreteStroke}" stroke-width="2" stroke-dasharray="8,8"/>`;
+                svgContent += `<line x1="${x0L+wL_px}" y1="${y0L}" x2="${x0L+wL_px+20}" y2="${y0L}" stroke="${concreteStroke}" stroke-width="2" stroke-dasharray="8,8"/>`;
+                svgContent += `<line x1="${x0L+wL_px}" y1="${y0L+hL_px}" x2="${x0L+wL_px+20}" y2="${y0L+hL_px}" stroke="${concreteStroke}" stroke-width="2" stroke-dasharray="8,8"/>`;
+
+                const y_bas = y0L + hL_px - c_pxL;
+                const y_haut = y0L + c_pxL;
+                const hookL = 25;
+                svgContent += `<path d="M ${x0L} ${y_bas} L ${x0L+wL_px-c_pxL} ${y_bas} L ${x0L+wL_px-c_pxL} ${y_bas-hookL}" fill="none" stroke="#c0392b" stroke-width="${radius_bar*2}"/>`;
+                svgContent += `<line x1="${x0L}" y1="${y_haut}" x2="${x0L+wL_px}" y2="${y_haut}" stroke="#7f8c8d" stroke-width="6"/>`;
+
+                let Asw_s = currentResults ? currentResults.Asw_s : 1.0;
+                if (isNaN(Asw_s) || Asw_s <= 0) Asw_s = 1.0;
+                let s_cadre_cm = Math.min(Math.max((1.00 / Asw_s) * 100, 5), 30);
+                const sL_px = (s_cadre_cm / 100) * scaleL;
+                const nb_cadres = Math.floor(wL_px / sL_px);
+
+                for (let i = 1; i < nb_cadres; i++) {
+                    const x_pos = x0L + i * sL_px;
+                    svgContent += `<line x1="${x_pos}" y1="${y_haut}" x2="${x_pos}" y2="${y_bas}" stroke="#2980b9" stroke-width="5"/>`;
+                    svgContent += `<path d="M ${x_pos} ${y_haut} C ${x_pos+15} ${y_haut+15}, ${x_pos-15} ${y_haut+15}, ${x_pos} ${y_haut}" fill="none" stroke="#2980b9" stroke-width="3"/>`;
+                }
+
+                svgContent += `<line x1="${x0L-30}" y1="${y0L}" x2="${x0L-30}" y2="${y0L+hL_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<text x="${x0L-45}" y="${y0L+hL_px/2}" text-anchor="middle" font-size="16" fill="${textColor}" transform="rotate(-90 ${x0L-45} ${y0L+hL_px/2})">h = ${(h*100).toFixed(0)} cm</text>`;
+                if (nb_cadres > 2) {
+                    svgContent += `<line x1="${x0L+sL_px}" y1="${y0L+hL_px+30}" x2="${x0L+2*sL_px}" y2="${y0L+hL_px+30}" stroke="${textColor}" stroke-width="1.5"/>`;
+                    svgContent += `<text x="${x0L+1.5*sL_px}" y="${y0L+hL_px+50}" text-anchor="middle" font-size="14" fill="${textColor}">s = ${s_cadre_cm.toFixed(1)} cm</text>`;
+                }
+            }
 
             // ===== LÉGENDE INTÉGRÉE =====
             svgContent += `
@@ -701,7 +763,7 @@
                 // Télécharger
                 const link = document.createElement('a');
                 link.href = canvas.toDataURL('image/png');
-                link.download = `ferraillage_${new Date().toISOString().slice(0,10)}.png`;
+                link.download = `ferraillage_poutre_${currentView}_${new Date().toISOString().slice(0,10)}.png`;
                 link.click();
                 
                 // Restaurer
@@ -738,7 +800,7 @@
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `ferraillage_${new Date().toISOString().slice(0,10)}.svg`;
+            link.download = `ferraillage_poutre_${currentView}_${new Date().toISOString().slice(0,10)}.svg`;
             link.click();
             URL.revokeObjectURL(url);
             

@@ -98,11 +98,11 @@
             <form id="semelleForm">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
                     <div class="input-group">
-                        <label>Poteau a (m) [// A]</label>
+                        <label title="Côté du poteau parallèle à la dimension A de la semelle">Poteau a (m) [// A] <span style="cursor:help">ℹ️</span></label>
                         <input type="number" id="a" value="0.30" step="0.05">
                     </div>
                     <div class="input-group">
-                        <label>Poteau b (m) [// B]</label>
+                        <label title="Côté du poteau parallèle à la dimension B de la semelle">Poteau b (m) [// B] <span style="cursor:help">ℹ️</span></label>
                         <input type="number" id="b" value="0.30" step="0.05">
                     </div>
                 </div>
@@ -198,7 +198,7 @@
             </div>
             
             <div style="margin-bottom: 0.5rem;">
-                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.85rem;">Nappe Inférieure (// A)</label>
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.85rem;" title="Aciers disposés parallèlement au côté A">Nappe Inférieure (// A) <span style="cursor:help">ℹ️</span></label>
                 <div class="steel-selector" id="sel-A">
                     <button class="steel-btn" data-diam="10">HA10</button>
                     <button class="steel-btn active" data-diam="12">HA12</button>
@@ -208,7 +208,7 @@
             </div>
             
             <div style="margin-bottom: 1rem;">
-                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.85rem;">Nappe Supérieure (// B)</label>
+                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.85rem;" title="Aciers disposés parallèlement au côté B">Nappe Supérieure (// B) <span style="cursor:help">ℹ️</span></label>
                 <div class="steel-selector" id="sel-B">
                     <button class="steel-btn" data-diam="10">HA10</button>
                     <button class="steel-btn active" data-diam="12">HA12</button>
@@ -378,6 +378,7 @@
             const textColor = theme === 'dark' ? '#e0e0e0' : '#000000';
             const concreteFill = theme === 'dark' ? '#2d3436' : '#f0f3f4';
             const concreteStroke = theme === 'dark' ? '#636e72' : '#7f8c8d';
+            const legendBg = theme === 'dark' ? '#1e1e1e' : '#ffffff';
             
             const svgSize = 800;
             const margin = 100;
@@ -482,6 +483,19 @@
                 svgContent += `<text x="${x0+wA_px+45}" y="${y0+wB_px/2}" text-anchor="middle" font-size="16" fill="${textColor}" transform="rotate(90 ${x0+wA_px+45} ${y0+wB_px/2})">B = ${(B).toFixed(2)} m</text>`;
             }
 
+            // ===== LÉGENDE INTÉGRÉE =====
+            svgContent += `
+            <g transform="translate(${svgSize - 220}, ${svgSize - 165})">
+                <rect x="0" y="0" width="200" height="145" rx="6" ry="6" fill="${legendBg}" stroke="${concreteStroke}" stroke-width="1.5"/>
+                <text x="15" y="25" font-weight="bold" font-size="16" fill="${textColor}">Légende</text>
+                <line x1="15" y1="50" x2="35" y2="50" stroke="#c0392b" stroke-width="4"/>
+                <text x="45" y="55" font-size="14" fill="${textColor}">Nappe Inf (// A)</text>
+                <line x1="15" y1="80" x2="35" y2="80" stroke="#2980b9" stroke-width="4"/>
+                <text x="45" y="85" font-size="14" fill="${textColor}">Nappe Sup (// B)</text>
+                <text x="15" y="110" font-size="13" font-weight="bold" fill="${textColor}">As // A: ${currentResults.As_A_prov.toFixed(2)} cm² (HA${diamA})</text>
+                <text x="15" y="130" font-size="13" font-weight="bold" fill="${textColor}">As // B: ${currentResults.As_B_prov.toFixed(2)} cm² (HA${diamB})</text>
+            </g>`;
+
             svgContent += '</svg>';
             container.innerHTML = svgContent;
         }
@@ -540,8 +554,8 @@
             switch(type) {
                 case 'sigma_sol': msg = "Contrainte sol : σ_sol = (N_Eq + Poids_Semelle) / (A × B)\nVérification à l'ELS par rapport à q_adm."; break;
                 case 'd_req': msg = "Hauteur utile requise (Rigidité) :\n d ≥ max( (A-a)/4 , (B-b)/4 ) \nAssure le bon fonctionnement du modèle des bielles."; break;
-                case 'As_A': msg = "Section Nappe Inférieure (// A) :\n As = N_Ed × (A-a) / (8 × d × fyd)\nMéthode des bielles."; break;
-                case 'As_B': msg = "Section Nappe Supérieure (// B) :\n As = N_Ed × (B-b) / (8 × d × fyd)"; break;
+                case 'As_A': msg = "Section Nappe Inférieure (parallèle au côté A) :\n As = N_Ed × (A-a) / (8 × d × fyd)\nMéthode des bielles."; break;
+                case 'As_B': msg = "Section Nappe Supérieure (parallèle au côté B) :\n As = N_Ed × (B-b) / (8 × d × fyd)"; break;
             }
             alert(msg);
         }

@@ -98,6 +98,12 @@
         .dimension-line { stroke: var(--text-main); stroke-width: 1; fill: none; }
         .dimension-text { font-size: 10px; fill: var(--text-main); text-anchor: middle; font-weight: bold; }
 
+        /* Toggle View */
+        .view-toggles { display: flex; gap: 10px; margin-bottom: 1rem; }
+        .view-btn { flex: 1; padding: 0.5rem; border: 2px solid var(--border-color); background: var(--surface-color); color: var(--text-main); border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition); }
+        .view-btn:hover { border-color: var(--primary); }
+        .view-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
         /* Boutons d'export */
         .export-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 1rem; }
         .export-btn { padding: 0.6rem; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition); }
@@ -253,6 +259,11 @@
             <h2>3. Plan de Ferraillage</h2>
             <div id="statusBadge" class="status-badge status-green">Section Conforme</div>
 
+            <div class="view-toggles">
+                <button id="btnViewCoupe" class="view-btn active" onclick="setView('coupe')">👁️ Vue en Coupe</button>
+                <button id="btnViewElev" class="view-btn" onclick="setView('elevation')">👁️ Vue en Élévation</button>
+            </div>
+
             <!-- Sélecteur d'acier -->
             <div style="margin-bottom: 1rem;">
                 <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.9rem;">Diamètre des aciers longitudinaux</label>
@@ -318,8 +329,16 @@
         // ==========================================
         let currentSteelDiameter = 12;
         let selectedSteelDiameter = 12;
+        let currentView = 'coupe';
 
         const poteauInputs = ['L', 'a', 'b', 'beta', 'fck', 'fyk', 'N_Ed', 'M_Ed', 'enrobage', 'nb_a', 'nb_b'];
+
+        function setView(view) {
+            currentView = view;
+            document.getElementById('btnViewCoupe').classList.toggle('active', view === 'coupe');
+            document.getElementById('btnViewElev').classList.toggle('active', view === 'elevation');
+            calculateEurocode2();
+        }
 
         // ==========================================
         // 2. CALCULS EUROCODE 2
@@ -544,6 +563,7 @@
 
             let svgContent = `<svg viewBox="0 0 ${svgSize} ${svgSize}" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">`;
 
+            if (currentView === 'coupe') {
             // Section béton (Style architectural plat)
             svgContent += `<rect x="${x0}" y="${y0}" width="${w_px}" height="${h_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
 
@@ -640,6 +660,49 @@
                     svgContent += `<line x1="${coteX-5}" y1="${startY}" x2="${coteX+5}" y2="${startY}" stroke="${textColor}" stroke-width="2"/>`;
                     svgContent += `<line x1="${coteX-5}" y1="${endY}" x2="${coteX+5}" y2="${endY}" stroke="${textColor}" stroke-width="2"/>`;
                     svgContent += `<text x="${coteX+15}" y="${(startY+endY)/2}" alignment-baseline="middle" font-size="14" fill="${textColor}">${distance_b.toFixed(1)}</text>`;
+                }
+            }
+            } else {
+                // VUE EN ÉLÉVATION
+                const L_visu = 1.5; // Hauteur fixée pour proportion visuelle
+                const w_m = a; // Face 'a'
+                const maxDimElev = Math.max(w_m, L_visu);
+                const scaleElev = 400 / maxDimElev;
+                const wElev_px = w_m * scaleElev;
+                const hElev_px = L_visu * scaleElev;
+                const xE = 120 + (400 - wElev_px) / 2;
+                const yE = 120 + (400 - hElev_px) / 2;
+
+                svgContent += `<rect x="${xE}" y="${yE}" width="${wElev_px}" height="${hElev_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
+                svgContent += `<line x1="${xE-15}" y1="${yE}" x2="${xE+wElev_px+15}" y2="${yE}" stroke="${concreteStroke}" stroke-width="2" stroke-dasharray="10,5"/>`;
+                svgContent += `<line x1="${xE-15}" y1="${yE+hElev_px}" x2="${xE+wElev_px+15}" y2="${yE+hElev_px}" stroke="${concreteStroke}" stroke-width="2" stroke-dasharray="10,5"/>`;
+
+                // Aciers verticaux
+                const cElev_px = (enrobage / 100) * scaleElev;
+                const esp_x_elev = nb_a > 1 ? (wElev_px - 2*cElev_px) / (nb_a - 1) : 0;
+                for (let i = 0; i < nb_a; i++) {
+                    const x_pos = xE + cElev_px + i * esp_x_elev;
+                    svgContent += `<line x1="${x_pos}" y1="${yE}" x2="${x_pos}" y2="${yE+hElev_px}" stroke="#c0392b" stroke-width="${radius_bar * 2}"/>`;
+                }
+
+                // Cadres
+                const s_cadre_cm = Math.min(15 * diameter / 10, a * 100, b * 100, 40);
+                const sElev_px = (s_cadre_cm / 100) * scaleElev;
+                const nb_cadres = Math.floor(hElev_px / sElev_px);
+                const y_offset = (hElev_px - (nb_cadres-1) * sElev_px) / 2;
+
+                for (let j = 0; j < nb_cadres; j++) {
+                    const y_pos = yE + y_offset + j * sElev_px;
+                    svgContent += `<line x1="${xE+cElev_px-4}" y1="${y_pos}" x2="${xE+wElev_px-cElev_px+4}" y2="${y_pos}" stroke="#2980b9" stroke-width="6"/>`;
+                    svgContent += `<path d="M ${xE+cElev_px} ${y_pos} C ${xE+cElev_px+15} ${y_pos-15}, ${xE+cElev_px+15} ${y_pos+15}, ${xE+cElev_px} ${y_pos}" fill="none" stroke="#2980b9" stroke-width="3"/>`;
+                }
+
+                // Cotes
+                svgContent += `<line x1="${xE-30}" y1="${yE}" x2="${xE-30}" y2="${yE+hElev_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<text x="${xE-45}" y="${yE+hElev_px/2}" text-anchor="middle" font-size="16" fill="${textColor}" transform="rotate(-90 ${xE-45} ${yE+hElev_px/2})">L (tronqué)</text>`;
+                if (nb_cadres > 1) {
+                    svgContent += `<line x1="${xE+wElev_px+30}" y1="${yE+y_offset}" x2="${xE+wElev_px+30}" y2="${yE+y_offset+sElev_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+                    svgContent += `<text x="${xE+wElev_px+45}" y="${yE+y_offset+sElev_px/2}" alignment-baseline="middle" font-size="14" fill="${textColor}">s = ${s_cadre_cm.toFixed(1)} cm</text>`;
                 }
             }
 
@@ -756,7 +819,7 @@
 
                 const link = document.createElement('a');
                 link.href = canvas.toDataURL('image/png');
-                link.download = `ferraillage_poteau_${new Date().toISOString().slice(0,10)}.png`;
+                link.download = `ferraillage_poteau_${currentView}_${new Date().toISOString().slice(0,10)}.png`;
                 link.click();
                 
                 // Restaurer le thème utilisateur
@@ -792,7 +855,7 @@
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `ferraillage_poteau_${new Date().toISOString().slice(0,10)}.svg`;
+            link.download = `ferraillage_poteau_${currentView}_${new Date().toISOString().slice(0,10)}.svg`;
             link.click();
             URL.revokeObjectURL(url);
             

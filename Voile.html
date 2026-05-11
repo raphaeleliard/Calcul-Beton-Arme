@@ -89,6 +89,12 @@
         .ferraillage-info div { margin: 0.3rem 0; }
         .info-label { font-weight: 600; color: var(--primary); }
 
+        /* Toggle View */
+        .view-toggles { display: flex; gap: 10px; margin-bottom: 1rem; }
+        .view-btn { flex: 1; padding: 0.5rem; border: 2px solid var(--border-color); background: var(--surface-color); color: var(--text-main); border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition); }
+        .view-btn:hover { border-color: var(--primary); }
+        .view-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
         /* Boutons d'export */
         .export-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 1rem; }
         .export-btn { padding: 0.6rem; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition); }
@@ -220,6 +226,11 @@
         <aside class="panel">
             <h2>3. Plan de Ferraillage (Treillis)</h2>
             <div id="statusBadge" class="status-badge status-green">Voile Conforme</div>
+
+            <div class="view-toggles">
+                <button id="btnViewCoupe" class="view-btn active" onclick="setView('coupe')">👁️ Vue en Coupe</button>
+                <button id="btnViewElev" class="view-btn" onclick="setView('elevation')">👁️ Vue de Face</button>
+            </div>
 
             <!-- Sélecteur d'acier -->
             <div style="margin-bottom: 1rem;">
@@ -395,6 +406,7 @@
 
             let svgContent = `<svg viewBox="0 0 ${svgSize} ${svgSize}" xmlns="http://www.w3.org/2000/svg" id="voilesvg" style="width: 100%; height: 100%;">`;
             
+            if (currentView === 'coupe') {
             // Représentation de la continuité du voile (lignes hachurées sur les côtés)
             svgContent += `<line x1="${x0}" y1="${y0-20}" x2="${x0}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2" stroke-dasharray="10,10"/>`;
             svgContent += `<line x1="${x0+w_px}" y1="${y0-20}" x2="${x0+w_px}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2" stroke-dasharray="10,10"/>`;
@@ -427,6 +439,14 @@
                 }
             });
 
+            if (currentResults.nappesCount === 2) {
+                for(let i=1; i<nb_points; i+=2) {
+                    const nx = x0 + offset_x + (i * esp_ts);
+                    svgContent += `<line x1="${nx}" y1="${nappesY[0]}" x2="${nx}" y2="${nappesY[1]}" stroke="#2980b9" stroke-width="2"/>`;
+                    svgContent += `<path d="M ${nx} ${nappesY[0]} C ${nx+15} ${nappesY[0]+15}, ${nx-15} ${nappesY[0]+15}, ${nx} ${nappesY[0]}" fill="none" stroke="#2980b9" stroke-width="2"/>`;
+                }
+            }
+
             // Cotes (Largeur Bande)
             svgContent += `<line x1="${x0}" y1="${y0-40}" x2="${x0}" y2="${y0-20}" stroke="${textColor}" stroke-width="1.5"/>`;
             svgContent += `<line x1="${x0+w_px}" y1="${y0-40}" x2="${x0+w_px}" y2="${y0-20}" stroke="${textColor}" stroke-width="1.5"/>`;
@@ -438,6 +458,32 @@
             svgContent += `<line x1="${x0+w_px+20}" y1="${y0+h_px}" x2="${x0+w_px+40}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
             svgContent += `<line x1="${x0+w_px+30}" y1="${y0}" x2="${x0+w_px+30}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
             svgContent += `<text x="${x0+w_px+45}" y="${y0 + h_px/2}" alignment-baseline="middle" font-size="16" fill="${textColor}" font-weight="bold">h = ${(h*100).toFixed(0)} cm</text>`;
+            } else {
+                // VUE DE FACE (ÉLÉVATION)
+                const maxDimF = 1.0;
+                const scaleF = (svgSize - 2 * margin) / maxDimF;
+                const wF_px = maxDimF * scaleF;
+                const hF_px = maxDimF * scaleF;
+                const xF = (svgSize - wF_px) / 2 - 20;
+                const yF = (svgSize - hF_px) / 2;
+
+                svgContent += `<rect x="${xF}" y="${yF}" width="${wF_px}" height="${hF_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
+                
+                const esp_ts_F = (TS_SPECS[selectedTS].esp / 1000) * scaleF;
+                const nb_lines = Math.floor(wF_px / esp_ts_F);
+                
+                for(let i=1; i<nb_lines; i++) {
+                    svgContent += `<line x1="${xF + i*esp_ts_F}" y1="${yF}" x2="${xF + i*esp_ts_F}" y2="${yF+hF_px}" stroke="#c0392b" stroke-width="3"/>`;
+                    svgContent += `<line x1="${xF}" y1="${yF + i*esp_ts_F}" x2="${xF+wF_px}" y2="${yF + i*esp_ts_F}" stroke="#c0392b" stroke-width="3"/>`;
+                }
+
+                svgContent += `<line x1="${xF}" y1="${yF-30}" x2="${xF+wF_px}" y2="${yF-30}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<text x="${xF+wF_px/2}" y="${yF-40}" text-anchor="middle" font-size="16" fill="${textColor}" font-weight="bold">Bande = 1.00 m</text>`;
+                if (nb_lines > 2) {
+                    svgContent += `<line x1="${xF+esp_ts_F}" y1="${yF+hF_px+30}" x2="${xF+2*esp_ts_F}" y2="${yF+hF_px+30}" stroke="${textColor}" stroke-width="1.5"/>`;
+                    svgContent += `<text x="${xF+1.5*esp_ts_F}" y="${yF+hF_px+50}" text-anchor="middle" font-size="14" fill="${textColor}">Maille ${TS_SPECS[selectedTS].esp} mm</text>`;
+                }
+            }
 
             // Légende
             svgContent += `
@@ -547,7 +593,7 @@
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 const link = document.createElement('a');
                 link.href = canvas.toDataURL('image/png');
-                link.download = `ferraillage_voile_${new Date().toISOString().slice(0,10)}.png`;
+                link.download = `ferraillage_voile_${currentView}_${new Date().toISOString().slice(0,10)}.png`;
                 link.click();
                 document.documentElement.setAttribute('data-theme', currentTheme);
                 calculateEC2();
@@ -566,7 +612,7 @@
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `ferraillage_voile_${new Date().toISOString().slice(0,10)}.svg`;
+            link.download = `ferraillage_voile_${currentView}_${new Date().toISOString().slice(0,10)}.svg`;
             link.click();
             URL.revokeObjectURL(url);
             

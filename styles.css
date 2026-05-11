@@ -1,0 +1,190 @@
+/* ==========================================
+   1. VARIABLES & THÈMES
+   ========================================== */
+:root {
+    --bg-color: #f4f7f6;
+    --surface-color: #ffffff;
+    --text-main: #2c3e50;
+    --text-muted: #7f8c8d;
+    --primary: #3498db;
+    --primary-hover: #2980b9;
+    --border-color: #e0e0e0;
+    --shadow: 0 4px 10px rgba(0,0,0,0.08);
+    --danger: #e74c3c;
+    --warning: #f39c12;
+    --success: #2ecc71;
+    --transition: all 0.3s ease;
+}
+
+[data-theme="dark"] {
+    --bg-color: #121212;
+    --surface-color: #1e1e1e;
+    --text-main: #e0e0e0;
+    --text-muted: #a0a0a0;
+    --primary: #4dabf7;
+    --primary-hover: #3b8cd9;
+    --border-color: #333333;
+    --shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    transition: var(--transition);
+}
+
+/* ==========================================
+   2. HEADER & NAVIGATION
+   ========================================== */
+header {
+    background-color: var(--surface-color);
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: var(--shadow);
+}
+
+.logo { font-size: 1.5rem; font-weight: bold; color: var(--primary); display: flex; align-items: center; gap: 10px; }
+.back-link { color: var(--primary); text-decoration: none; font-weight: bold; }
+
+.theme-toggle {
+    background: none; border: 2px solid var(--border-color); border-radius: 20px;
+    padding: 5px 15px; cursor: pointer; color: var(--text-main); font-weight: 600;
+    transition: var(--transition);
+}
+.theme-toggle:hover { border-color: var(--primary); color: var(--primary); }
+
+/* ==========================================
+   3. LAYOUTS (INDEX, CONTACT & DASHBOARD)
+   ========================================== */
+.container-index { flex: 1; padding: 2rem; max-width: 1200px; margin: 0 auto; width: 100%; }
+.container-contact { flex: 1; padding: 2rem; max-width: 800px; margin: 0 auto; width: 100%; }
+
+.dashboard {
+    display: grid; grid-template-columns: 1fr; gap: 1.5rem; padding: 1.5rem; max-width: 1400px; margin: 0 auto; flex: 1;
+}
+@media (min-width: 1024px) {
+    .dashboard { grid-template-columns: 300px 1fr 450px; }
+}
+
+.panel {
+    background-color: var(--surface-color); border-radius: 12px; padding: 1.5rem;
+    box-shadow: var(--shadow); border: 1px solid var(--border-color);
+}
+.panel-contact { padding: 2.5rem; }
+
+h1 { font-size: 2rem; margin-bottom: 1.5rem; color: var(--primary); border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem; }
+.panel h2 { font-size: 1.2rem; margin-bottom: 1rem; color: var(--primary); border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem; }
+.panel h2.contact-title { font-size: 1.3rem; margin-top: 2rem; margin-bottom: 0.8rem; color: var(--text-main); border: none; padding-bottom: 0; }
+p { margin-bottom: 1rem; color: var(--text-muted); font-size: 1.05rem; }
+
+/* ==========================================
+   4. COMPOSANTS (ACCUEIL)
+   ========================================== */
+.hero { text-align: center; margin-bottom: 3rem; }
+.hero h1 { font-size: 2.5rem; margin-bottom: 0.5rem; border: none; padding-bottom: 0; }
+.hero p { color: var(--text-muted); font-size: 1.1rem; margin-bottom: 0; }
+
+.modules-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
+.module-card {
+    background-color: var(--surface-color); border: 1px solid var(--border-color);
+    border-radius: 12px; padding: 1.5rem; text-decoration: none; color: var(--text-main);
+    box-shadow: var(--shadow); transition: var(--transition); display: flex; flex-direction: column; gap: 10px;
+}
+.module-card:hover { transform: translateY(-5px); border-color: var(--primary); box-shadow: 0 8px 15px rgba(52, 152, 219, 0.2); }
+.module-icon { font-size: 2rem; margin-bottom: 10px; }
+.module-title { font-size: 1.2rem; font-weight: bold; }
+.module-desc { font-size: 0.9rem; color: var(--text-muted); line-height: 1.4; }
+
+.module-status { margin-top: auto; font-size: 0.8rem; font-weight: bold; padding: 4px 8px; border-radius: 4px; display: inline-block; width: max-content; }
+.status-ready { background-color: rgba(46, 204, 113, 0.2); color: var(--success); }
+.status-dev { background-color: rgba(241, 196, 15, 0.2); color: var(--warning); }
+
+/* ==========================================
+   5. FORMULAIRES & INPUTS
+   ========================================== */
+.input-group { margin-bottom: 1rem; }
+label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.3rem; }
+input, select {
+    width: 100%; padding: 0.5rem; border: 1px solid var(--border-color);
+    border-radius: 6px; background: var(--bg-color); color: var(--text-main);
+}
+
+/* ==========================================
+   6. RÉSULTATS MATHÉMATIQUES & BADGES
+   ========================================== */
+.result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.result-card {
+    background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 8px;
+    padding: 1rem; text-align: center; cursor: pointer; transition: var(--transition);
+}
+.result-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+.result-value { font-size: 1.5rem; font-weight: bold; color: var(--primary); margin: 0.5rem 0; }
+.clickable-hint { font-size: 0.8rem; color: var(--text-muted); }
+
+.status-badge {
+    display: inline-block; padding: 0.5rem 1rem; border-radius: 20px;
+    font-weight: bold; width: 100%; text-align: center; margin-bottom: 1rem;
+}
+.status-green { background-color: rgba(46, 204, 113, 0.2); color: var(--success); }
+.status-red { background-color: rgba(231, 76, 60, 0.2); color: var(--danger); }
+.status-orange { background-color: rgba(241, 196, 15, 0.2); color: var(--warning); }
+
+/* ==========================================
+   7. FERRAILLAGE & INTERFACE SVG
+   ========================================== */
+.svg-container {
+    width: 100%; aspect-ratio: 1; background-color: var(--bg-color);
+    border: 1px dashed var(--border-color); border-radius: 8px;
+    display: flex; justify-content: center; align-items: center;
+}
+svg { max-width: 100%; max-height: 100%; }
+
+.steel-selector {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(50px, 1fr));
+    gap: 0.5rem; margin-bottom: 1rem;
+}
+.steel-btn {
+    padding: 0.4rem; border: 2px solid var(--border-color); background: var(--bg-color);
+    color: var(--text-main); border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition);
+}
+.steel-btn:hover { border-color: var(--primary); }
+.steel-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+.ferraillage-info { font-size: 0.85rem; background: var(--bg-color); padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; }
+.ferraillage-info div { margin: 0.3rem 0; }
+.info-label { font-weight: 600; color: var(--primary); }
+
+.view-toggles { display: flex; gap: 10px; margin-bottom: 1rem; }
+.view-btn {
+    flex: 1; padding: 0.5rem; border: 2px solid var(--border-color); background: var(--surface-color);
+    color: var(--text-main); border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition);
+}
+.view-btn:hover { border-color: var(--primary); }
+.view-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+.export-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 1rem; }
+.export-btn { padding: 0.6rem; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition); }
+.export-btn:hover { background: var(--primary-hover); }
+.export-btn:disabled { background: var(--text-muted); cursor: not-allowed; }
+
+/* ==========================================
+   8. COMPOSANTS (CONTACT) & FOOTER
+   ========================================== */
+.contact-list { list-style: none; margin-bottom: 1.5rem; padding-left: 0.5rem; }
+.contact-list li { margin-bottom: 0.8rem; font-size: 1.05rem; }
+.contact-list a { color: var(--primary); text-decoration: none; font-weight: 600; }
+.contact-list a:hover { text-decoration: underline; color: var(--primary-hover); }
+.portfolio-link { display: inline-block; margin-top: 1rem; padding: 0.8rem 1.5rem; background-color: var(--primary); color: white; text-decoration: none; border-radius: 8px; font-weight: bold; transition: var(--transition); }
+.portfolio-link:hover { background-color: var(--primary-hover); transform: translateY(-2px); }
+
+footer { text-align: center; padding: 1rem; color: var(--text-muted); font-size: 0.9rem; background-color: var(--surface-color); border-top: 1px solid var(--border-color); width: 100%; margin-top: auto; }

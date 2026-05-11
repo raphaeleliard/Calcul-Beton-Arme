@@ -154,18 +154,6 @@
     </div>
 
     <script>
-        // ==========================================
-        // 0. DONNÉES D'ACIERS CONSTRUCTEURS
-        // ==========================================
-        const STEEL_SPECS = {
-            10: { diametre: 10, section: 0.785 },   // cm²
-            12: { diametre: 12, section: 1.131 },
-            16: { diametre: 16, section: 2.011 },
-            20: { diametre: 20, section: 3.142 },
-            25: { diametre: 25, section: 4.909 },
-            32: { diametre: 32, section: 8.042 }
-        };
-
         let selectedDiameter = 10; // HA10 par défaut
         let currentResults = null;
         let currentView = 'coupe';
@@ -303,17 +291,7 @@
                 });
             });
 
-            // Écouter les changements de thème
-            const themeToggleBtn = document.getElementById('themeToggle');
-            if (themeToggleBtn) {
-                themeToggleBtn.addEventListener('click', () => {
-                    const currentTheme = document.documentElement.getAttribute('data-theme');
-                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                    document.documentElement.setAttribute('data-theme', newTheme);
-                    localStorage.setItem('theme', newTheme);
-                    runEngine(); // Redessiner le SVG avec les nouvelles couleurs
-                });
-            }
+            window.onThemeChange = runEngine;
         });
 
         function updateSteelSelector() {
@@ -429,13 +407,7 @@
         
         function drawPoutreSVG(b, h, As, steelArrangement) {
             const container = document.getElementById('svgContainer');
-            
-            // Couleurs basées sur le thème
-            const theme = document.documentElement.getAttribute('data-theme');
-            const textColor = theme === 'dark' ? '#e0e0e0' : '#000000';
-            const concreteFill = theme === 'dark' ? '#2d3436' : '#f0f3f4';
-            const concreteStroke = theme === 'dark' ? '#636e72' : '#7f8c8d';
-            const legendBg = theme === 'dark' ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)';
+            const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
 
             // Échelle et dimensions (Base de dessin agrandie)
             const svgSize = 800;
@@ -624,81 +596,12 @@
         // 4. EXPORT PNG & SVG
         // ==========================================
         
-        async function exportAsPNG() {
-            const svg = document.getElementById('poutresvg');
-            if (!svg) {
-                alert('Dessinez d\'abord le ferraillage !');
-                return;
-            }
-
-            // Force light theme
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            document.documentElement.setAttribute('data-theme', 'light');
-            runEngine();
-
-            // Créer un canvas
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const svgUpdated = document.getElementById('poutresvg');
-            const svgData = new XMLSerializer().serializeToString(svgUpdated);
-            const img = new Image();
-
-            // Très haute résolution pour éviter la pixellisation
-            canvas.width = 1200;
-            canvas.height = 1200;
-
-            img.onload = () => {
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-                // Télécharger
-                const link = document.createElement('a');
-                link.href = canvas.toDataURL('image/png');
-                link.download = `ferraillage_poutre_${currentView}_${new Date().toISOString().slice(0,10)}.png`;
-                link.click();
-                
-                // Restaurer
-                document.documentElement.setAttribute('data-theme', currentTheme);
-                runEngine();
-            };
-            
-            img.onerror = (e) => {
-                console.error("Erreur de rendu de l'image SVG : ", e);
-                alert("Une erreur est survenue lors de l'export PNG.");
-                document.documentElement.setAttribute('data-theme', currentTheme);
-                runEngine();
-            }
-
-            // btoa() échoue sur les caractères unicode (comme '≈'), on utilise donc encodeURIComponent
-            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
+        function exportAsPNG() {
+            exportPlanAsPNG('svgContainer', `ferraillage_poutre_${currentView}_${new Date().toISOString().slice(0,10)}.png`, runEngine);
         }
 
         function exportAsSVG() {
-            const svg = document.getElementById('poutresvg');
-            if (!svg) {
-                alert('Dessinez d\'abord le ferraillage !');
-                return;
-            }
-
-            // Force light theme
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            document.documentElement.setAttribute('data-theme', 'light');
-            runEngine();
-            
-            const svgUpdated = document.getElementById('poutresvg');
-            const svgData = new XMLSerializer().serializeToString(svgUpdated);
-            const blob = new Blob([svgData], { type: 'image/svg+xml' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `ferraillage_poutre_${currentView}_${new Date().toISOString().slice(0,10)}.svg`;
-            link.click();
-            URL.revokeObjectURL(url);
-            
-            // Restore
-            document.documentElement.setAttribute('data-theme', currentTheme);
-            runEngine();
+            exportPlanAsSVG('svgContainer', `ferraillage_poutre_${currentView}_${new Date().toISOString().slice(0,10)}.svg`, runEngine);
         }
 
         // ==========================================
@@ -714,8 +617,9 @@
                 case 'Ved': msg = "Effort Tranchant ELU : V_ed = (1.35G + 1.5Q) * L / 2\nCisaillement maximal aux appuis."; break;
                 case 'Asw': msg = "Aciers transversaux (Asw/s) = V_ed / (z * f_ywd * cot(θ))\nModèle des bielles (ici θ = 45°)."; break;
             }
-            alert(msg); // Dans la version finale, remplacer par une belle modale HTML.
+            showModal("Information EC2", msg);
         }
     </script>
+    <script src="script.js"></script>
 </body>
 </html>

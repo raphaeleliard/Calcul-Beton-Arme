@@ -171,17 +171,6 @@
     </div>
 
     <script>
-        // ==========================================
-        // 0. DONNÉES D'ACIERS CONSTRUCTEURS
-        // ==========================================
-        const STEEL_SPECS = {
-            8: { diametre: 8, section: 0.503 },
-            10: { diametre: 10, section: 0.785 },
-            12: { diametre: 12, section: 1.131 },
-            14: { diametre: 14, section: 1.539 },
-            16: { diametre: 16, section: 2.011 }
-        };
-
         let diamMain = 10;
         let diamRep = 8;
         let currentResults = null;
@@ -337,11 +326,7 @@
         // ==========================================
         function drawSVG() {
             const container = document.getElementById('svgContainer');
-            const theme = document.documentElement.getAttribute('data-theme');
-            const textColor = theme === 'dark' ? '#e0e0e0' : '#000000';
-            const concreteFill = theme === 'dark' ? '#2d3436' : '#f0f3f4';
-            const concreteStroke = theme === 'dark' ? '#636e72' : '#7f8c8d';
-            const legendBg = theme === 'dark' ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)';
+            const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
 
             const h = currentResults.h;
             const c_nom = currentResults.c_nom;
@@ -529,17 +514,7 @@
                 });
             });
 
-            const themeToggleBtn = document.getElementById('themeToggle');
-            if (themeToggleBtn) {
-                themeToggleBtn.addEventListener('click', () => {
-                    const currentTheme = document.documentElement.getAttribute('data-theme');
-                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                    document.documentElement.setAttribute('data-theme', newTheme);
-                    localStorage.setItem('theme', newTheme);
-                    calculateEC2();
-                });
-            }
-
+            window.onThemeChange = calculateEC2; // Lien avec script.js
             calculateEC2();
         });
 
@@ -556,55 +531,17 @@
                 case 'As_rep': msg = "Acier de répartition (Transversal)\nDoit représenter au moins 20% de l'armature principale (EC2 §9.3.1.1)."; break;
                 case 'As_min': msg = "Ferraillage Minimum Flexion (EC2 §9.2.1.1)\nAs,min = max(0.26 * (fctm/fyk) * b * d ; 0.0013 * b * d)."; break;
             }
-            alert(msg);
+            showModal("Formule Eurocode 2", msg);
         }
 
         function exportAsPNG() {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            document.documentElement.setAttribute('data-theme', 'light');
-            calculateEC2();
-
-            const svg = document.getElementById('dallesvg');
-            const svgData = new XMLSerializer().serializeToString(svg);
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const img = new Image();
-
-            canvas.width = 1200;
-            canvas.height = 1200;
-
-            img.onload = () => {
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                const link = document.createElement('a');
-                link.href = canvas.toDataURL('image/png');
-                link.download = `ferraillage_dalle_${currentView}_${new Date().toISOString().slice(0,10)}.png`;
-                link.click();
-                document.documentElement.setAttribute('data-theme', currentTheme);
-                calculateEC2();
-            };
-            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
+            exportPlanAsPNG('svgContainer', `ferraillage_dalle_${currentView}_${new Date().toISOString().slice(0,10)}.png`, calculateEC2);
         }
 
         function exportAsSVG() {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            document.documentElement.setAttribute('data-theme', 'light');
-            calculateEC2();
-            
-            const svg = document.getElementById('dallesvg');
-            const svgData = new XMLSerializer().serializeToString(svg);
-            const blob = new Blob([svgData], { type: 'image/svg+xml' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `ferraillage_dalle_${currentView}_${new Date().toISOString().slice(0,10)}.svg`;
-            link.click();
-            URL.revokeObjectURL(url);
-            
-            document.documentElement.setAttribute('data-theme', currentTheme);
-            calculateEC2();
+            exportPlanAsSVG('svgContainer', `ferraillage_dalle_${currentView}_${new Date().toISOString().slice(0,10)}.svg`, calculateEC2);
         }
     </script>
+    <script src="script.js"></script>
 </body>
 </html>

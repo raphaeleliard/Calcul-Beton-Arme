@@ -188,3 +188,28 @@ svg { max-width: 100%; max-height: 100%; }
 .portfolio-link:hover { background-color: var(--primary-hover); transform: translateY(-2px); }
 
 footer { text-align: center; padding: 1rem; color: var(--text-muted); font-size: 0.9rem; background-color: var(--surface-color); border-top: 1px solid var(--border-color); width: 100%; margin-top: auto; }
+
+/* ==========================================
+   9. MODALES (POP-UPS)
+   ========================================== */
+.modal-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(3px);
+    display: flex; justify-content: center; align-items: center;
+    z-index: 1000; opacity: 0; visibility: hidden; transition: var(--transition);
+}
+.modal-overlay.active { opacity: 1; visibility: visible; }
+.modal-content {
+    background: var(--surface-color); padding: 2rem; border-radius: 12px;
+    max-width: 500px; width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    border: 1px solid var(--border-color); transform: translateY(-20px);
+    transition: var(--transition);
+}
+.modal-overlay.active .modal-content { transform: translateY(0); }
+.modal-title { color: var(--primary); font-size: 1.25rem; margin-bottom: 1rem; border-bottom: 2px solid var(--border-color); padding-bottom: 0.5rem; font-weight: bold; }
+.modal-body { color: var(--text-main); font-size: 1.05rem; line-height: 1.6; white-space: pre-line; margin-bottom: 1.5rem; }
+.modal-close {
+    background: var(--primary); color: white; border: none; padding: 0.6rem 1.5rem;
+    border-radius: 6px; cursor: pointer; font-weight: bold; float: right; transition: var(--transition);
+}
+.modal-close:hover { background: var(--primary-hover); }

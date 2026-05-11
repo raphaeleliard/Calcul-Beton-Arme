@@ -156,17 +156,6 @@
     </div>
 
     <script>
-        // ==========================================
-        // 0. DONNÉES TREILLIS SOUDÉS STANDARDS
-        // ==========================================
-        const TS_SPECS = {
-            'ST15C': { section: 1.42, diam: 5.2, esp: 150 },
-            'ST25C': { section: 2.57, diam: 7.0, esp: 150 },
-            'ST35C': { section: 3.85, diam: 7.0, esp: 100 },
-            'ST50C': { section: 5.03, diam: 8.0, esp: 100 },
-            'ST65C': { section: 6.36, diam: 9.0, esp: 100 }
-        };
-
         let selectedTS = 'ST25C';
         let currentResults = null;
         let currentView = 'coupe';
@@ -273,11 +262,7 @@
         // ==========================================
         function drawSVG() {
             const container = document.getElementById('svgContainer');
-            const theme = document.documentElement.getAttribute('data-theme');
-            const textColor = theme === 'dark' ? '#e0e0e0' : '#000000';
-            const concreteFill = theme === 'dark' ? '#2d3436' : '#f0f3f4';
-            const concreteStroke = theme === 'dark' ? '#636e72' : '#7f8c8d';
-            const legendBg = theme === 'dark' ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)';
+            const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
 
             const h = currentResults.h;
             const c_nom = currentResults.c_nom;
@@ -448,16 +433,7 @@
                 });
             });
 
-            const themeToggleBtn = document.getElementById('themeToggle');
-            if (themeToggleBtn) {
-                themeToggleBtn.addEventListener('click', () => {
-                    const currentTheme = document.documentElement.getAttribute('data-theme');
-                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                    document.documentElement.setAttribute('data-theme', newTheme);
-                    localStorage.setItem('theme', newTheme);
-                    calculateEC2();
-                });
-            }
+            window.onThemeChange = calculateEC2;
 
             calculateEC2();
         });
@@ -475,55 +451,17 @@
                 case 'As_vmin': msg = "Ferraillage Vertical Minimum (EC2 9.6.2)\nAs,v,min = 0.002 × Ac"; break;
                 case 'As_hmin': msg = "Ferraillage Horizontal Minimum (EC2 9.6.3)\nAs,h,min = max(0.25 × As,v,min ; 0.001 × Ac)"; break;
             }
-            alert(msg);
+            showModal("Détails du calcul", msg);
         }
 
         function exportAsPNG() {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            document.documentElement.setAttribute('data-theme', 'light');
-            calculateEC2();
-
-            const svg = document.getElementById('voilesvg');
-            const svgData = new XMLSerializer().serializeToString(svg);
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const img = new Image();
-
-            canvas.width = 1200;
-            canvas.height = 1200;
-
-            img.onload = () => {
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                const link = document.createElement('a');
-                link.href = canvas.toDataURL('image/png');
-                link.download = `ferraillage_voile_${currentView}_${new Date().toISOString().slice(0,10)}.png`;
-                link.click();
-                document.documentElement.setAttribute('data-theme', currentTheme);
-                calculateEC2();
-            };
-            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
+            exportPlanAsPNG('svgContainer', `ferraillage_voile_${currentView}_${new Date().toISOString().slice(0,10)}.png`, calculateEC2);
         }
 
         function exportAsSVG() {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            document.documentElement.setAttribute('data-theme', 'light');
-            calculateEC2();
-            
-            const svg = document.getElementById('voilesvg');
-            const svgData = new XMLSerializer().serializeToString(svg);
-            const blob = new Blob([svgData], { type: 'image/svg+xml' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `ferraillage_voile_${currentView}_${new Date().toISOString().slice(0,10)}.svg`;
-            link.click();
-            URL.revokeObjectURL(url);
-            
-            document.documentElement.setAttribute('data-theme', currentTheme);
-            calculateEC2();
+            exportPlanAsSVG('svgContainer', `ferraillage_voile_${currentView}_${new Date().toISOString().slice(0,10)}.svg`, calculateEC2);
         }
     </script>
+    <script src="script.js"></script>
 </body>
 </html>

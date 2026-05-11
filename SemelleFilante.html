@@ -160,17 +160,6 @@
     </div>
 
     <script>
-        // ==========================================
-        // DONNÉES D'ACIERS CONSTRUCTEURS
-        // ==========================================
-        const STEEL_SPECS = {
-            8:  { section: 0.503 },
-            10: { section: 0.785 },
-            12: { section: 1.131 },
-            14: { section: 1.539 },
-            16: { section: 2.011 }
-        };
-
         let diamMain = 12;
         let diamRep = 8;
         let currentView = 'coupe';
@@ -292,11 +281,7 @@
         // ==========================================
         function drawSVG() {
             const container = document.getElementById('svgContainer');
-            const theme = document.documentElement.getAttribute('data-theme');
-            const textColor = theme === 'dark' ? '#e0e0e0' : '#000000';
-            const concreteFill = theme === 'dark' ? '#2d3436' : '#f0f3f4';
-            const concreteStroke = theme === 'dark' ? '#636e72' : '#7f8c8d';
-            const legendBg = theme === 'dark' ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)';
+            const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
             
             const svgSize = 800;
             const margin = 100;
@@ -471,16 +456,7 @@
                 });
             });
 
-            const themeToggleBtn = document.getElementById('themeToggle');
-            if (themeToggleBtn) {
-                themeToggleBtn.addEventListener('click', () => {
-                    const currentTheme = document.documentElement.getAttribute('data-theme');
-                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                    document.documentElement.setAttribute('data-theme', newTheme);
-                    localStorage.setItem('theme', newTheme);
-                    if (currentResults) drawSVG();
-                });
-            }
+            window.onThemeChange = () => { if (currentResults) drawSVG(); };
 
             calculateEC2();
         });
@@ -496,55 +472,17 @@
                 case 'As_req': msg = "Section Principale Transversale :\n As = N_Ed × (B-a) / (8 × d × fyd)\nMéthode des bielles."; break;
                 case 'As_rep': msg = "Section de Répartition Longitudinale :\n Doit représenter au moins 20% de l'armature principale (EC2)."; break;
             }
-            alert(msg);
+            showModal("Formule Eurocode 2", msg);
         }
 
         function exportAsPNG() {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            document.documentElement.setAttribute('data-theme', 'light');
-            drawSVG(); // Force light mode draw
-
-            const svg = document.getElementById('semellesvg');
-            const svgData = new XMLSerializer().serializeToString(svg);
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const img = new Image();
-
-            canvas.width = 1200;
-            canvas.height = 1200;
-
-            img.onload = () => {
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                const link = document.createElement('a');
-                link.href = canvas.toDataURL('image/png');
-                link.download = `ferraillage_semelle_filante_${currentView}_${new Date().toISOString().slice(0,10)}.png`;
-                link.click();
-                document.documentElement.setAttribute('data-theme', currentTheme);
-                drawSVG();
-            };
-            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
+            exportPlanAsPNG('svgContainer', `ferraillage_semelle_filante_${currentView}_${new Date().toISOString().slice(0,10)}.png`, drawSVG);
         }
 
         function exportAsSVG() {
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            document.documentElement.setAttribute('data-theme', 'light');
-            drawSVG();
-            
-            const svg = document.getElementById('semellesvg');
-            const svgData = new XMLSerializer().serializeToString(svg);
-            const blob = new Blob([svgData], { type: 'image/svg+xml' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `ferraillage_semelle_filante_${currentView}_${new Date().toISOString().slice(0,10)}.svg`;
-            link.click();
-            URL.revokeObjectURL(url);
-            
-            document.documentElement.setAttribute('data-theme', currentTheme);
-            drawSVG();
+            exportPlanAsSVG('svgContainer', `ferraillage_semelle_filante_${currentView}_${new Date().toISOString().slice(0,10)}.svg`, drawSVG);
         }
     </script>
+    <script src="script.js"></script>
 </body>
 </html>

@@ -1,3 +1,12 @@
+/*
+=========================================================
+Projet : Outil Pédagogique Eurocode 2 (Calcul Béton Armé)
+Auteur : Raphaël ELIARD
+Description : Fichier de styles global. J'ai structuré ce CSS
+avec des variables (custom properties) pour gérer facilement le thème 
+clair/sombre et concevoir une interface propre et responsive.
+=========================================================
+*/
 /* ==========================================
    1. VARIABLES & THÈMES
    ========================================== */

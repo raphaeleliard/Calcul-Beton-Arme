@@ -1,3 +1,12 @@
+/*
+=========================================================
+Projet : Outil Pédagogique Eurocode 2 (Calcul Béton Armé)
+Auteur : Raphaël ELIARD
+Description : Script central. J'y ai regroupé la bibliothèque de 
+matériaux (aciers), la gestion globale du mode visuel (clair/sombre) 
+ainsi que les utilitaires d'export graphique et d'interface.
+=========================================================
+*/
 // ==========================================
 // DONNÉES D'ACIERS CONSTRUCTEURS
 // ==========================================
@@ -22,6 +31,7 @@ const TS_SPECS = {
 
 // ==========================================
 // GESTION GLOBALE DU THÈME (Clair / Sombre)
+// J'assure ici la persistance de l'expérience utilisateur vis-à-vis des préférences système ou des choix manuels.
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -58,6 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ==========================================
 // UTILITAIRES D'EXPORT (PNG / SVG)
+// J'ai programmé ces fonctions pour convertir et télécharger dynamiquement les rendus DOM SVG vers des fichiers locaux exploitables.
 // ==========================================
 function exportPlanAsPNG(svgContainerId, filename, drawCallback) {
     const container = document.getElementById(svgContainerId);
@@ -107,6 +118,7 @@ function exportPlanAsSVG(svgContainerId, filename, drawCallback) {
 
 // ==========================================
 // UTILITAIRES SVG (Couleurs)
+// Je gère ici les palettes d'interface du canvas selon le mode sombre/clair courant.
 // ==========================================
 function getThemeColors() {
     const theme = document.documentElement.getAttribute('data-theme');
@@ -120,6 +132,7 @@ function getThemeColors() {
 
 // ==========================================
 // GESTION GLOBALE DES MODALES (POP-UPS)
+// J'ai codé ce composant réutilisable pour afficher mes notes pédagogiques sans quitter le contexte de la page.
 // ==========================================
 function showModal(title, content) {
     let overlay = document.getElementById('globalModalOverlay');

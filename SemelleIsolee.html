@@ -1,9 +1,19 @@
+<!--
+=========================================================
+Projet : Outil Pédagogique Eurocode 2 (Calcul Béton Armé)
+Auteur : Raphaël ELIARD
+Description : Module sur les semelles isolées sous poteau. J'ai 
+implémenté un double calcul (nappe A et nappe B) en utilisant 
+le modèle des bielles de compression pour garantir l'assise structurelle.
+=========================================================
+-->
 <!DOCTYPE html>
 <html lang="fr" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calcul Semelle Isolée - EC2 Assistant</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏗️</text></svg>">
     <link rel="stylesheet" href="styles.css">
     <script>
         (function() {
@@ -173,6 +183,7 @@
 
         // ==========================================
         // LOGIQUE D'INTERFACE
+        // Je centralise les mises à jour des éléments visuels de la page.
         // ==========================================
         function setView(view) {
             currentView = view;
@@ -192,6 +203,7 @@
 
         // ==========================================
         // CALCULS EC2 (MÉTHODE DES BIELLES)
+        // C'est ici que je traduis la mécanique des bielles de l'Eurocode pour trouver l'armature croisée.
         // ==========================================
         function calculateEC2() {
             semelleInputs.forEach(id => {
@@ -290,6 +302,7 @@
 
         // ==========================================
         // RENDU SVG (COUPE ET PLAN)
+        // Je génère un plan à l'échelle pour visualiser la répartition bidirectionnelle des armatures.
         // ==========================================
         function drawSVG() {
             const container = document.getElementById('svgContainer');
@@ -436,6 +449,7 @@
 
         // ==========================================
         // INITIALISATION ET ÉVÉNEMENTS
+        // Je restaure l'environnement au chargement et j'y attache la boucle de recalcul automatique.
         // ==========================================
         window.addEventListener('DOMContentLoaded', () => {
             const savedTheme = localStorage.getItem('theme') || 'light';
@@ -473,6 +487,7 @@
 
         // ==========================================
         // EXPORT & PÉDAGOGIE
+        // J'explique mes formules et permets la sauvegarde des plans pour le rendu des projets d'études.
         // ==========================================
         function showFormula(type) {
             let msg = "";

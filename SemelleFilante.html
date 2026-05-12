@@ -1,9 +1,18 @@
+<!--
+=========================================================
+Projet : Outil Pédagogique Eurocode 2 (Calcul Béton Armé)
+Auteur : Raphaël ELIARD
+Description : J'ai développé cet outil pour les fondations superficielles. 
+Il vérifie la portance et dimensionne les semelles filantes par la méthode des bielles.
+=========================================================
+-->
 <!DOCTYPE html>
 <html lang="fr" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calcul Semelle Filante - EC2 Assistant</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏗️</text></svg>">
     <link rel="stylesheet" href="styles.css">
     <script>
         (function() {
@@ -174,6 +183,7 @@
 
         // ==========================================
         // LOGIQUE D'INTERFACE
+        // J'organise ici les fonctions de manipulation de l'affichage et de bascule de vues.
         // ==========================================
         function setView(view) {
             currentView = view;
@@ -193,6 +203,7 @@
 
         // ==========================================
         // CALCULS EC2 (MÉTHODE DES BIELLES - BANDE 1M)
+        // J'applique la méthode des bielles pour concevoir l'armature de fondation sous le voile.
         // ==========================================
         function calculateEC2() {
             semelleInputs.forEach(id => {
@@ -284,6 +295,7 @@
 
         // ==========================================
         // RENDU SVG (COUPE ET PLAN)
+        // Mon code trace avec précision la géométrie de la semelle filante et ses nappes de treillis/barres.
         // ==========================================
         function drawSVG() {
             const container = document.getElementById('svgContainer');
@@ -430,6 +442,7 @@
 
         // ==========================================
         // INITIALISATION ET ÉVÉNEMENTS
+        // J'assure l'amorçage de l'app et l'injection des valeurs mémorisées dans le navigateur.
         // ==========================================
         window.addEventListener('DOMContentLoaded', () => {
             const savedTheme = localStorage.getItem('theme') || 'light';
@@ -469,6 +482,7 @@
 
         // ==========================================
         // EXPORT & PÉDAGOGIE
+        // J'encadre l'utilisateur avec mes explications sur la méthode des bielles et la condition de rigidité.
         // ==========================================
         function showFormula(type) {
             let msg = "";

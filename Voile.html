@@ -1,9 +1,19 @@
+<!--
+=========================================================
+Projet : Outil Pédagogique Eurocode 2 (Calcul Béton Armé)
+Auteur : Raphaël ELIARD
+Description : Module de vérification des voiles en béton. J'ai 
+structuré l'algorithme pour vérifier la résistance au cisaillement
+et proposer un ferraillage par treillis soudés conformes aux normes.
+=========================================================
+-->
 <!DOCTYPE html>
 <html lang="fr" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calcul Voile - EC2 Assistant</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏗️</text></svg>">
     <link rel="stylesheet" href="styles.css">
     <script>
         (function() {
@@ -177,6 +187,7 @@
 
         // ==========================================
         // 1. CALCULS EUROCODE 2 (Bande 1m)
+        // J'ai programmé ici la détermination du cisaillement résistant et de la contrainte limite du béton pour les voiles.
         // ==========================================
         function calculateEC2() {
             // Sauvegarde dans le localStorage
@@ -201,8 +212,7 @@
             const As_hmin = Math.max(0.25 * As_vmin, 0.001 * Ac * 10000); // cm²/ml (Horizontal)
             const As_req = Math.max(As_vmin, As_hmin); // Le treillis C est isométrique, on prend le max
 
-            // 2. Effort Tranchant du Béton Non Armé (EC2 §6.2.2)
-            // Contrainte de compression moyenne
+            // 2. Effort Tranchant du Béton Non Armé (EC2 §6.2.2) : Je vérifie si la paroi béton peut reprendre seule le cisaillement.
             const sigma_cp_calc = N_Ed / (Ac * 1000); // MPa
             const sigma_cp = Math.min(sigma_cp_calc, 0.2 * fcd); // Limité par l'EC2
             
@@ -265,6 +275,7 @@
 
         // ==========================================
         // 2. DESSIN DU PLAN (SVG)
+        // Pour illustrer ma démarche, je dessine les nappes de treillis soudé en coupe et en élévation.
         // ==========================================
         function drawSVG() {
             const container = document.getElementById('svgContainer');
@@ -399,6 +410,7 @@
 
         // ==========================================
         // 3. INITIALISATION ET ÉVÉNEMENTS
+        // Je gère la reprise des données sauvegardées localement pour fluidifier l'utilisation d'une session à l'autre.
         // ==========================================
         function updateTSSelector() {
             document.querySelectorAll('.steel-btn').forEach(btn => {
@@ -446,6 +458,7 @@
 
         // ==========================================
         // 4. EXPORT & PÉDAGOGIE
+        // Je synthétise l'apprentissage normatif au travers de pop-ups claires sur mes justifications de calcul.
         // ==========================================
         function showFormula(type) {
             let msg = "";

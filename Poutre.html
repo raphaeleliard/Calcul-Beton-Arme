@@ -1,9 +1,19 @@
+<!--
+=========================================================
+Projet : Outil Pédagogique Eurocode 2 (Calcul Béton Armé)
+Auteur : Raphaël ELIARD
+Description : Module dédié aux poutres. J'ai conçu l'algorithme 
+pour calculer la flexion simple à l'ELU, vérifier le cisaillement
+et proposer un arrangement des aciers transversaux (cadres).
+=========================================================
+-->
 <!DOCTYPE html>
 <html lang="fr" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calcul Poutre - EC2 Assistant</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏗️</text></svg>">
     <link rel="stylesheet" href="styles.css">
     <script>
         (function() {
@@ -173,11 +183,12 @@
 
         // ==========================================
         // 1. LOGIQUE MÉTIER PURE (Typé "TypeScript-like")
+        // J'ai volontairement séparé la logique mathématique de la vue pour garantir la fiabilité des calculs et faciliter les tests.
         // ==========================================
         
         /**
-         * Calcule les paramètres de la poutre selon l'EC2.
-         * Fonction PURE : aucune interaction avec le DOM.
+         * Je calcule les paramètres de la poutre selon l'EC2.
+         * Il s'agit d'une fonction PURE : aucune interaction avec le DOM.
          */
         function calculateEC2(params) {
             const { L, b, h, fck, G, Q } = params;
@@ -193,7 +204,7 @@
             const Med = (p_elu * Math.pow(L, 2)) / 8; // Moment max en travée (kN.m)
             const Ved = (p_elu * L) / 2; // Effort tranchant max aux appuis (kN)
             
-            // Calculs Béton Armé (Section rectangulaire - EC2 §3.1.6)
+            // Calculs Béton Armé : Je me base sur l'EC2 §3.1.6 pour les sections rectangulaires
             const d = 0.9 * h; // Hauteur utile (m)
             const fcd = (alphaCc * fck) / gammaC; // Contrainte calcul béton (MPa)
             const fyd = fyk / gammaS; // Contrainte calcul acier (MPa)
@@ -220,7 +231,7 @@
                 As_req = Math.max(As_req, As_min); // Application acier minimum
             }
             
-            // Effort tranchant (EC2 §6.2.3) - Modèle de bielles à 45° (cot(theta) = 1)
+            // Effort tranchant (EC2 §6.2.3) : J'utilise le modèle des bielles de compression inclinées à 45°
             const v1 = 0.6 * (1 - fck / 250); // coeff de réduction résistance béton fissuré
             // V_Rd,max : Résistance max des bielles de compression
             const Vrd_max = (alphaCc * b * z * v1 * fcd) / 2 * 1000; // kN
@@ -239,7 +250,7 @@
         }
 
         /**
-         * Calcule le ferraillage réel en fonction de la section d'acier choisie
+         * Je déduis l'arrangement réel du ferraillage à partir de la section théorique et du diamètre choisi.
          */
         function calculateRealSteelArrangement(As_req, diameter) {
             const spec = STEEL_SPECS[diameter];
@@ -256,6 +267,7 @@
 
         // ==========================================
         // 2. LOGIQUE D'INTERFACE ET PERSISTANCE
+        // J'orchestre ici le lien entre les inputs utilisateur et l'affichage des résultats en temps réel.
         // ==========================================
 
         const inputs = ['L', 'b', 'h', 'G', 'Q', 'fck'];
@@ -409,6 +421,7 @@
 
         // ==========================================
         // 3. LOGIQUE VISUELLE (Génération SVG)
+        // Je génère dynamiquement le schéma de la poutre à l'aide de l'API SVG, en appliquant les cotes et le ferraillage exacts.
         // ==========================================
         
         function drawPoutreSVG(b, h, As, steelArrangement) {
@@ -600,6 +613,7 @@
 
         // ==========================================
         // 4. EXPORT PNG & SVG
+        // J'ai mis en place l'exportation graphique pour que mes calculs puissent être intégrés dans des rapports.
         // ==========================================
         
         function exportAsPNG() {
@@ -612,6 +626,7 @@
 
         // ==========================================
         // 5. PÉDAGOGIE (Pop-ups de formules)
+        // Afin d'accompagner les utilisateurs, je détaille ici les formules fondamentales de l'Eurocode 2 utilisées dans mes algorithmes.
         // ==========================================
         function showFormula(type) {
             let msg = "";

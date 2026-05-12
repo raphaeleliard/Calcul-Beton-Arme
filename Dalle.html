@@ -1,9 +1,19 @@
+<!--
+=========================================================
+Projet : Outil Pédagogique Eurocode 2 (Calcul Béton Armé)
+Auteur : Raphaël ELIARD
+Description : J'ai implémenté ce module pour automatiser le calcul
+des dalles pleines. Il gère la flexion simple sur une bande de 1m, 
+en vérifiant le cisaillement et en optimisant les aciers de répartition.
+=========================================================
+-->
 <!DOCTYPE html>
 <html lang="fr" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calcul Dalle - EC2 Assistant</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏗️</text></svg>">
     <link rel="stylesheet" href="styles.css">
     <script>
         (function() {
@@ -192,9 +202,10 @@
 
         // ==========================================
         // 1. CALCULS EUROCODE 2 (Bande de 1m)
+        // J'utilise ici la méthode de la bande de 1 mètre pour modéliser le comportement en flexion de la dalle.
         // ==========================================
         function calculateEC2() {
-            // Sauvegarde dans le localStorage
+            // Je sauvegarde l'état dans le localStorage pour améliorer l'expérience utilisateur
             dalleInputs.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) localStorage.setItem(`dalle_${id}`, el.value);
@@ -216,10 +227,10 @@
             const fyd = fyk / 1.15;
             const fctm = 0.30 * Math.pow(fck, 2/3);
 
-            // Hauteur utile
+            // Je calcule la hauteur utile 'd' en déduisant l'enrobage et le demi-diamètre des aciers
             const d = h - c_nom - (diamMain / 1000 / 2);
 
-            // RDM
+            // RDM : J'évalue les sollicitations maximales (Moment ELU et Effort Tranchant)
             const p_elu = 1.35 * G + 1.5 * Q; // kN/m² -> kN/ml
             const Med = (p_elu * Math.pow(L, 2)) / 8; // kN.m/ml
             const Ved = (p_elu * L) / 2; // kN/ml
@@ -329,6 +340,7 @@
 
         // ==========================================
         // 2. DESSIN DU PLAN (SVG)
+        // J'ai conçu cette fonction pour générer un plan de ferraillage dynamique et à l'échelle via l'API SVG du navigateur.
         // ==========================================
         function drawSVG() {
             const container = document.getElementById('svgContainer');
@@ -470,6 +482,7 @@
 
         // ==========================================
         // 3. INITIALISATION ET ÉVÉNEMENTS
+        // Je mets en place les écouteurs d'événements pour rendre l'interface interactive et réactive aux modifications.
         // ==========================================
         function updateSteelSelectors() {
             document.querySelectorAll('#sel-Main .steel-btn').forEach(btn => {
@@ -526,6 +539,7 @@
 
         // ==========================================
         // 4. EXPORT & PÉDAGOGIE
+        // J'ai ajouté ces fonctionnalités pour permettre aux étudiants de comprendre les formules normatives et d'exporter leurs résultats.
         // ==========================================
         function showFormula(type) {
             let msg = "";

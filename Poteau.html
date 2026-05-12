@@ -1,9 +1,19 @@
+<!--
+=========================================================
+Projet : Outil Pédagogique Eurocode 2 (Calcul Béton Armé)
+Auteur : Raphaël ELIARD
+Description : Module de dimensionnement des poteaux. J'ai 
+programmé ici la vérification au flambement, en intégrant les
+effets du second ordre via la méthode de la courbure nominale.
+=========================================================
+-->
 <!DOCTYPE html>
 <html lang="fr" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calcul Poteau - EC2 Assistant</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏗️</text></svg>">
     <link rel="stylesheet" href="styles.css">
     <script>
         (function() {
@@ -193,6 +203,7 @@
     <script>
         // ==========================================
         // 1. GESTION DES DONNÉES
+        // J'initialise l'état global et les variables pour l'application.
         // ==========================================
         let currentSteelDiameter = 12;
         let selectedSteelDiameter = 12;
@@ -209,6 +220,7 @@
 
         // ==========================================
         // 2. CALCULS EUROCODE 2
+        // Coeur de calcul EC2. J'y implémente la méthode de courbure nominale pour tenir compte de l'élancement et des imperfections.
         // ==========================================
         function getSVGTextColor() {
             const theme = document.documentElement.getAttribute('data-theme');
@@ -216,7 +228,7 @@
         }
 
         function calculateEurocode2() {
-            // Sauvegarde dans le localStorage
+            // Je persiste les données saisies par l'utilisateur pour ne pas les perdre au rechargement.
             poteauInputs.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) localStorage.setItem(`poteau_${id}`, el.value);
@@ -304,6 +316,7 @@
 
         // ==========================================
         // 3. VALIDATION
+        // Je centralise ici la logique de conformité pour émettre un diagnostic clair sur l'état de la section étudiée.
         // ==========================================
         function updateValidation(N_Ed, N_Rd, As_chosen, As_required, spacing_mm, steelDiam) {
             const statusBadge = document.getElementById('statusBadge');
@@ -329,6 +342,7 @@
 
         // ==========================================
         // 4. FERRAILLAGE
+        // Algorithme de répartition d'armatures. Je l'ai optimisé pour proposer une disposition pertinente et symétrique.
         // ==========================================
         function updateSteelArrangement(As_required, a, b, N_Ed, N_Rd, Ac) {
             const steelReq = document.getElementById('steelReq');
@@ -348,7 +362,7 @@
             const section_per_bar = STEEL_SPECS[selectedSteelDiameter].section;
             const min_bars = Math.ceil(As_required / section_per_bar);
             
-            // Recommandation intelligente
+            // Je mets en place une heuristique pour recommander intelligemment une répartition symétrique des barres.
             let rec_a = 2, rec_b = 2;
             while ((rec_a * 2 + Math.max(0, rec_b - 2) * 2) < min_bars) {
                 if (a / rec_a >= b / rec_b) rec_a++;
@@ -403,6 +417,7 @@
 
         // ==========================================
         // 5. GÉNÉRATION SVG
+        // J'ai codé ce générateur de plans vectoriels pour visualiser instantanément l'impact du dimensionnement.
         // ==========================================
         function generateColumnSVG(a, b, nb_a, nb_b, diameter, enrobage, As_chosen) {
             const svgContainer = document.getElementById('svgContainer');
@@ -596,6 +611,7 @@
 
         // ==========================================
         // 6. GESTION DES ÉVÉNEMENTS
+        // Je relie le DOM au moteur de calcul pour assurer une interface réactive.
         // ==========================================
         function updateSteelSelector() {
             document.querySelectorAll('.steel-btn').forEach(btn => {
@@ -648,6 +664,7 @@
 
         // ==========================================
         // 7. EXPORT
+        // J'offre la possibilité d'exporter les résultats graphiques pour faciliter l'intégration dans des notes de calcul.
         // ==========================================
         function exportAsPNG() {
             exportPlanAsPNG('svgContainer', `ferraillage_poteau_${currentView}_${new Date().toISOString().slice(0,10)}.png`, calculateEurocode2);
@@ -659,6 +676,7 @@
 
         // ==========================================
         // 8. PÉDAGOGIE (Pop-ups de formules)
+        // Aspect éducationnel : je détaille les références normatives pour aider à l'apprentissage de l'Eurocode 2.
         // ==========================================
         function showFormula(type) {
             let msg = "";

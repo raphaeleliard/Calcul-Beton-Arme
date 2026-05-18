@@ -29,10 +29,13 @@ ma démarche pédagogique et professionnelle derrière ce projet.
         <button class="theme-toggle" id="themeToggle">🌓 Mode</button>
     </header>
 
+    <!-- J'organise le contenu principal dans un conteneur 'main' pour une meilleure sémantique et accessibilité. -->
     <main class="container-contact">
+        <!-- Le 'panel' est un composant réutilisable de mon design. Ici, je l'adapte pour présenter le texte de manière aérée. -->
         <div class="panel panel-contact">
             <h1>Contact & Informations</h1>
             
+            <!-- Section "Pourquoi" : J'explique ici ma motivation personnelle et l'objectif pédagogique de l'outil. -->
             <h2 class="contact-title">Le pourquoi du comment 💡</h2>
             <p>
                 Étudiant en école d'ingénieur à Builders Caen (ex ESITC), j'ai souhaité développer cette plateforme pour aider les autres étudiants dans leurs calculs de béton armé.
@@ -44,6 +47,7 @@ ma démarche pédagogique et professionnelle derrière ce projet.
                 L'idée derrière ce projet est double : m'entraîner au développement informatique de manière concrète, tout en y intégrant la rigueur technique et les exigences normatives (Eurocode 2) inhérentes à notre futur métier d'ingénieur structure.
             </p>
 
+            <!-- Section "Contact" : Je fournis mes coordonnées pour encourager le feedback et la collaboration. -->
             <h2 class="contact-title">Me contacter ✉️</h2>
             <p>
                 Ce projet est voué à évoluer ! Si vous repérez une erreur dans les calculs, si vous avez un besoin spécifique pour modifier le code, ou simplement une suggestion d'amélioration, n'hésitez pas à me contacter :
@@ -53,19 +57,22 @@ ma démarche pédagogique et professionnelle derrière ce projet.
                 <li>💼 LinkedIn : <a href="https://linkedin.com/in/raphaeleliard" target="_blank">Raphaël ELIARD</a></li>
             </ul>
 
+            <!-- Section "Portfolio" : Un appel à l'action pour ceux qui sont intéressés par mes autres travaux de développement. -->
             <h2 class="contact-title">Mes autres projets 🚀</h2>
             <p>
                 Curieux d'en voir plus ? Je vous invite à consulter mon portfolio pour découvrir les autres projets sur lesquels j'ai eu l'opportunité de travailler.
             </p>
+            <!-- J'utilise un lien externe avec target="_blank" pour ne pas faire quitter mon application. -->
             <a href="https://raphaeleliard.github.io/index.html" target="_blank" class="portfolio-link">Visiter mon site web</a>
         </div>
     </main>
 
+    <!-- Le pied de page contient les crédits et l'année, que je mettrai à jour. -->
     <footer>
         <p>© 2026 ELIARD Raphaël - Outil Pédagogique Eurocode 2</p>
     </footer>
 
-    <!-- Utilisation du même script centralisé pour le mode clair/sombre -->
+    <!-- J'appelle mon script centralisé qui gère la logique du mode clair/sombre et d'autres utilitaires partagés. -->
     <script src="script.js"></script>
 </body>
 </html>

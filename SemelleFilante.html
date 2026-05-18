@@ -300,6 +300,7 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
         function drawSVG() {
             const container = document.getElementById('svgContainer');
             const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
+            const theme = document.documentElement.getAttribute('data-theme');
             
             const svgSize = 800;
             const margin = 140;
@@ -336,8 +337,10 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
 
                 // Acier Principal (Barre Transversale avec retours)
                 const yMain = y0 + h_px - c_px;
-                const hook = 15 * (diamMain/1000) * scale;
-                svgContent += `<path d="M ${x0+c_px} ${yMain-hook} L ${x0+c_px} ${yMain} L ${x0+w_px-c_px} ${yMain} L ${x0+w_px-c_px} ${yMain-hook}" fill="none" stroke="#c0392b" stroke-width="4" stroke-linejoin="round"/>`;
+                const diamMain_px = (diamMain / 1000) * scale;
+                const strokeWMain = Math.max(diamMain_px, 4);
+                const hook = Math.max(15 * (diamMain/1000) * scale, 25);
+                svgContent += `<path d="M ${x0+c_px} ${yMain-hook} L ${x0+c_px} ${yMain} L ${x0+w_px-c_px} ${yMain} L ${x0+w_px-c_px} ${yMain-hook}" fill="none" stroke="#c0392b" stroke-width="${strokeWMain}" stroke-linejoin="round" stroke-linecap="round"/>`;
 
                 // Acier Répartition (Barres Longitudinales, vues comme des cercles)
                 const radiusRep = Math.max((diamRep/1000)*scale/2, 4);
@@ -394,21 +397,25 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
                 svgContent += `<rect x="${col_x0}" y="${y0}" width="${a_px}" height="${h_px}" fill="${theme==='dark'?'#3d3d3d':'#dcdde1'}" stroke="${concreteStroke}" stroke-width="2"/>`;
                 
                 // Aciers Principaux Transversaux (Lignes Horizontales espacées verticalement)
+                const diamMain_px = (diamMain / 1000) * scale;
+                const strokeWMain = Math.max(diamMain_px, 3);
                 const espMain_px = (espMain / 100) * scale;
                 const nb_main = Math.floor(h_px / espMain_px);
                 const offset_y = (h_px - (nb_main * espMain_px)) / 2;
                 for(let i=0; i<=nb_main; i++) {
                     const yL = y0 + offset_y + i * espMain_px;
-                    svgContent += `<line x1="${x0+c_px}" y1="${yL}" x2="${x0+w_px-c_px}" y2="${yL}" stroke="#c0392b" stroke-width="3"/>`;
+                    svgContent += `<line x1="${x0+c_px}" y1="${yL}" x2="${x0+w_px-c_px}" y2="${yL}" stroke="#c0392b" stroke-width="${strokeWMain}" stroke-linecap="round"/>`;
                 }
 
                 // Aciers Répartition Longitudinaux (Lignes Verticales espacées horizontalement)
+                const diamRep_px = (diamRep / 1000) * scale;
+                const strokeWRep = Math.max(diamRep_px, 2);
                 const espRep_px = (espRep / 100) * scale;
                 const nb_rep = Math.floor((w_px - 2*c_px) / espRep_px);
                 const offset_x = (w_px - (nb_rep * espRep_px)) / 2;
                 for(let i=0; i<=nb_rep; i++) {
                     const xL = x0 + offset_x + i * espRep_px;
-                    svgContent += `<line x1="${xL}" y1="${y0}" x2="${xL}" y2="${y0+h_px}" stroke="#2980b9" stroke-width="2"/>`;
+                    svgContent += `<line x1="${xL}" y1="${y0 + strokeWRep/2}" x2="${xL}" y2="${y0+h_px - strokeWRep/2}" stroke="#2980b9" stroke-width="${strokeWRep}" stroke-linecap="round"/>`;
                 }
 
                 // Cotes extérieures
@@ -421,6 +428,28 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
                 svgContent += `<line x1="${x0+w_px+25}" y1="${y0}" x2="${x0+w_px+35}" y2="${y0}" stroke="${textColor}" stroke-width="2"/>`;
                 svgContent += `<line x1="${x0+w_px+25}" y1="${y0+h_px}" x2="${x0+w_px+35}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="2"/>`;
                 svgContent += `<text x="${x0+w_px+45}" y="${y0+h_px/2}" text-anchor="middle" font-size="16" fill="${textColor}" font-weight="bold" transform="rotate(90 ${x0+w_px+45} ${y0+h_px/2})">Bande 1.00 m</text>`;
+
+                // Cotes d'espacement en plan (Aciers Répartition - Espacement horizontal)
+                if (nb_rep >= 1) {
+                    const startX = x0 + offset_x;
+                    const endX = startX + espRep_px;
+                    const coteY = y0 + h_px + 40;
+                    svgContent += `<line x1="${startX}" y1="${coteY}" x2="${endX}" y2="${coteY}" stroke="${textColor}" stroke-width="1.5"/>`;
+                    svgContent += `<line x1="${startX}" y1="${coteY-5}" x2="${startX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<line x1="${endX}" y1="${coteY-5}" x2="${endX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<text x="${(startX+endX)/2}" y="${coteY-10}" text-anchor="middle" font-size="14" fill="${textColor}">${espRep.toFixed(1)} cm</text>`;
+                }
+
+                // Cotes d'espacement en plan (Aciers Principaux - Espacement vertical)
+                if (nb_main >= 1) {
+                    const startY = y0 + offset_y;
+                    const endY = startY + espMain_px;
+                    const coteX = x0 - 40;
+                    svgContent += `<line x1="${coteX}" y1="${startY}" x2="${coteX}" y2="${endY}" stroke="${textColor}" stroke-width="1.5"/>`;
+                    svgContent += `<line x1="${coteX-5}" y1="${startY}" x2="${coteX+5}" y2="${startY}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<line x1="${coteX-5}" y1="${endY}" x2="${coteX+5}" y2="${endY}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<text x="${coteX-10}" y="${(startY+endY)/2}" alignment-baseline="middle" text-anchor="end" font-size="14" fill="${textColor}">${espMain.toFixed(1)} cm</text>`;
+                }
             }
 
             // ===== LÉGENDE INTÉGRÉE =====

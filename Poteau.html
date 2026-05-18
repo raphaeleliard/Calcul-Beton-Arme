@@ -487,14 +487,14 @@ effets du second ordre via la méthode de la courbure nominale.
             // Épingles horizontales
             for (let j = 1; j < nb_b - 1; j++) {
                 const y_pos = y0 + c_px + j * esp_y;
-                svgContent += `<line x1="${rx}" y1="${y_pos}" x2="${rx + rw}" y2="${y_pos}" stroke="#2980b9" stroke-width="${stirrupStroke - 1}"/>`;
+                svgContent += `<line x1="${rx}" y1="${y_pos}" x2="${rx + rw}" y2="${y_pos}" stroke="#2980b9" stroke-width="${stirrupStroke - 1}" stroke-linecap="round"/>`;
                 svgContent += `<path d="M ${rx} ${y_pos} C ${rx-15} ${y_pos-20}, ${rx+20} ${y_pos-20}, ${rx+20} ${y_pos}" fill="none" stroke="#2980b9" stroke-width="${stirrupStroke - 1}" stroke-linecap="round"/>`;
                 svgContent += `<path d="M ${rx + rw} ${y_pos} C ${rx+rw+15} ${y_pos+20}, ${rx+rw-20} ${y_pos+20}, ${rx+rw-20} ${y_pos}" fill="none" stroke="#2980b9" stroke-width="${stirrupStroke - 1}" stroke-linecap="round"/>`;
             }
             // Épingles verticales
             for (let i = 1; i < nb_a - 1; i++) {
                 const x_pos = x0 + c_px + i * esp_x;
-                svgContent += `<line x1="${x_pos}" y1="${ry}" x2="${x_pos}" y2="${ry + rh}" stroke="#2980b9" stroke-width="${stirrupStroke - 1}"/>`;
+                svgContent += `<line x1="${x_pos}" y1="${ry}" x2="${x_pos}" y2="${ry + rh}" stroke="#2980b9" stroke-width="${stirrupStroke - 1}" stroke-linecap="round"/>`;
                 svgContent += `<path d="M ${x_pos} ${ry} C ${x_pos+20} ${ry-15}, ${x_pos+20} ${ry+20}, ${x_pos} ${ry+20}" fill="none" stroke="#2980b9" stroke-width="${stirrupStroke - 1}" stroke-linecap="round"/>`;
                 svgContent += `<path d="M ${x_pos} ${ry + rh} C ${x_pos-20} ${ry+rh+15}, ${x_pos-20} ${ry+rh-20}, ${x_pos} ${ry+rh-20}" fill="none" stroke="#2980b9" stroke-width="${stirrupStroke - 1}" stroke-linecap="round"/>`;
             }
@@ -556,9 +556,13 @@ effets du second ordre via la méthode de la courbure nominale.
                 // Aciers verticaux
                 const cElev_px = (enrobage / 100) * scaleElev;
                 const esp_x_elev = nb_a > 1 ? (wElev_px - 2*cElev_px) / (nb_a - 1) : 0;
+                const bar_w = Math.max(radius_bar * 0.8, 4);
                 for (let i = 0; i < nb_a; i++) {
                     const x_pos = xE + cElev_px + i * esp_x_elev;
-                    svgContent += `<line x1="${x_pos}" y1="${yE}" x2="${x_pos}" y2="${yE+hElev_px}" stroke="#c0392b" stroke-width="${Math.max(radius_bar * 0.8, 4)}"/>`;
+                    // Ajout d'une baïonnette (coudage pour attente) au sommet
+                    const dir = (i < nb_a / 2) ? 1 : (i === (nb_a - 1) / 2 ? 0 : -1);
+                    const crank = 8 * dir;
+                    svgContent += `<path d="M ${x_pos} ${yE+hElev_px+15} L ${x_pos} ${yE + 35} L ${x_pos + crank} ${yE + 15} L ${x_pos + crank} ${yE - 15}" fill="none" stroke="#c0392b" stroke-width="${bar_w}" stroke-linejoin="round" stroke-linecap="round"/>`;
                 }
 
                 // Cadres
@@ -569,8 +573,8 @@ effets du second ordre via la méthode de la courbure nominale.
 
                 for (let j = 0; j < nb_cadres; j++) {
                     const y_pos = yE + y_offset + j * sElev_px;
-                    svgContent += `<line x1="${xE+cElev_px-4}" y1="${y_pos}" x2="${xE+wElev_px-cElev_px+4}" y2="${y_pos}" stroke="#2980b9" stroke-width="4"/>`;
-                    svgContent += `<path d="M ${xE+cElev_px} ${y_pos} C ${xE+cElev_px+15} ${y_pos-15}, ${xE+cElev_px+15} ${y_pos+15}, ${xE+cElev_px} ${y_pos}" fill="none" stroke="#2980b9" stroke-width="3"/>`;
+                    svgContent += `<line x1="${xE+cElev_px-4}" y1="${y_pos}" x2="${xE+wElev_px-cElev_px+4}" y2="${y_pos}" stroke="#2980b9" stroke-width="4" stroke-linecap="round"/>`;
+                    svgContent += `<path d="M ${xE+cElev_px} ${y_pos} C ${xE+cElev_px+15} ${y_pos-15}, ${xE+cElev_px+15} ${y_pos+15}, ${xE+cElev_px} ${y_pos}" fill="none" stroke="#2980b9" stroke-width="3" stroke-linecap="round"/>`;
                 }
 
                 // Cotes

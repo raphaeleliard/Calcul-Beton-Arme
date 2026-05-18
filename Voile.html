@@ -296,6 +296,11 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
             const y0 = (svgSize - h_px) / 2;
             
             const c_px = c_nom * scale;
+            
+            const tsData = TS_SPECS[selectedTS];
+            const diam_px = (tsData.diam / 1000) * scale;
+            const r_bar = Math.max(diam_px / 2, 3);
+            const strokeW = Math.max(diam_px, 3);
             const totalSection = TS_SPECS[selectedTS].section * currentResults.nappesCount;
 
             let svgContent = `<svg viewBox="0 0 ${svgSize} ${svgSize}" xmlns="http://www.w3.org/2000/svg" id="voilesvg" style="width: 100%; height: 100%;">`;
@@ -325,20 +330,21 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
 
             nappesY.forEach(ny => {
                 // Ligne horizontale TS
-                svgContent += `<line x1="${x0}" y1="${ny}" x2="${x0+w_px}" y2="${ny}" stroke="#c0392b" stroke-width="3"/>`;
+                svgContent += `<line x1="${x0}" y1="${ny}" x2="${x0+w_px}" y2="${ny}" stroke="#c0392b" stroke-width="${strokeW}" stroke-linecap="round"/>`;
                 // Points verticaux TS
                 for(let i=0; i<=nb_points; i++) {
                     const nx = x0 + offset_x + (i * esp_ts);
-                    svgContent += `<circle cx="${nx}" cy="${ny}" r="4" fill="#c0392b"/>`;
+                    svgContent += `<circle cx="${nx}" cy="${ny}" r="${r_bar}" fill="#c0392b"/>`;
                 }
             });
 
             if (currentResults.nappesCount === 2) {
+                const epingleW = Math.max(strokeW * 0.8, 2);
                 for(let i=1; i<nb_points; i+=2) {
                     const nx = x0 + offset_x + (i * esp_ts);
-                    svgContent += `<line x1="${nx}" y1="${nappesY[0]}" x2="${nx}" y2="${nappesY[1]}" stroke="#2980b9" stroke-width="2"/>`;
-                    svgContent += `<path d="M ${nx} ${nappesY[0]} C ${nx+15} ${nappesY[0]+15}, ${nx-15} ${nappesY[0]+15}, ${nx} ${nappesY[0]}" fill="none" stroke="#2980b9" stroke-width="2"/>`;
-                    svgContent += `<path d="M ${nx} ${nappesY[1]} C ${nx-15} ${nappesY[1]-15}, ${nx+15} ${nappesY[1]-15}, ${nx} ${nappesY[1]}" fill="none" stroke="#2980b9" stroke-width="2"/>`;
+                    svgContent += `<line x1="${nx}" y1="${nappesY[0]}" x2="${nx}" y2="${nappesY[1]}" stroke="#2980b9" stroke-width="${epingleW}" stroke-linecap="round"/>`;
+                    svgContent += `<path d="M ${nx} ${nappesY[0]} C ${nx+15} ${nappesY[0]+15}, ${nx-15} ${nappesY[0]+15}, ${nx} ${nappesY[0]}" fill="none" stroke="#2980b9" stroke-width="${epingleW}" stroke-linecap="round" stroke-linejoin="round"/>`;
+                    svgContent += `<path d="M ${nx} ${nappesY[1]} C ${nx-15} ${nappesY[1]-15}, ${nx+15} ${nappesY[1]-15}, ${nx} ${nappesY[1]}" fill="none" stroke="#2980b9" stroke-width="${epingleW}" stroke-linecap="round" stroke-linejoin="round"/>`;
                 }
             }
 
@@ -376,12 +382,15 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
 
                 svgContent += `<rect x="${xF}" y="${yF}" width="${wF_px}" height="${hF_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
                 
+                const tsDataF = TS_SPECS[selectedTS];
+                const diam_px_F = (tsDataF.diam / 1000) * scaleF;
+                const strokeWF = Math.max(diam_px_F, 3);
                 const esp_ts_F = (TS_SPECS[selectedTS].esp / 1000) * scaleF;
                 const nb_lines = Math.floor(wF_px / esp_ts_F);
                 
                 for(let i=1; i<nb_lines; i++) {
-                    svgContent += `<line x1="${xF + i*esp_ts_F}" y1="${yF}" x2="${xF + i*esp_ts_F}" y2="${yF+hF_px}" stroke="#c0392b" stroke-width="3"/>`;
-                    svgContent += `<line x1="${xF}" y1="${yF + i*esp_ts_F}" x2="${xF+wF_px}" y2="${yF + i*esp_ts_F}" stroke="#c0392b" stroke-width="3"/>`;
+                    svgContent += `<line x1="${xF + i*esp_ts_F}" y1="${yF}" x2="${xF + i*esp_ts_F}" y2="${yF+hF_px}" stroke="#c0392b" stroke-width="${strokeWF}" stroke-linecap="round"/>`;
+                    svgContent += `<line x1="${xF}" y1="${yF + i*esp_ts_F}" x2="${xF+wF_px}" y2="${yF + i*esp_ts_F}" stroke="#c0392b" stroke-width="${strokeWF}" stroke-linecap="round"/>`;
                 }
 
                 svgContent += `<line x1="${xF}" y1="${yF-30}" x2="${xF+wF_px}" y2="${yF-30}" stroke="${textColor}" stroke-width="1.5"/>`;

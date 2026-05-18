@@ -307,6 +307,7 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
         function drawSVG() {
             const container = document.getElementById('svgContainer');
             const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
+            const theme = document.documentElement.getAttribute('data-theme');
             
             const svgSize = 800;
             const margin = 140;
@@ -343,8 +344,10 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
 
                 // Nappe A (Barres longitudinales)
                 const yA = y0 + h_px - c_px;
-                const hook = 15 * (diamA/1000) * scale; // Longueur d'ancrage visuelle
-                svgContent += `<path d="M ${x0+c_px} ${yA-hook} L ${x0+c_px} ${yA} L ${x0+w_px-c_px} ${yA} L ${x0+w_px-c_px} ${yA-hook}" fill="none" stroke="#c0392b" stroke-width="4" stroke-linejoin="round"/>`;
+                const diamA_px = (diamA / 1000) * scale;
+                const strokeWA = Math.max(diamA_px, 4);
+                const hook = Math.max(15 * (diamA/1000) * scale, 25);
+                svgContent += `<path d="M ${x0+c_px} ${yA-hook} L ${x0+c_px} ${yA} L ${x0+w_px-c_px} ${yA} L ${x0+w_px-c_px} ${yA-hook}" fill="none" stroke="#c0392b" stroke-width="${strokeWA}" stroke-linejoin="round" stroke-linecap="round"/>`;
 
                 // Nappe B (Barres transversales, vues comme des cercles)
                 const radiusB = Math.max((diamB/1000)*scale/2, 4);
@@ -354,6 +357,17 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
                 for(let i=0; i<nb_B; i++) {
                     const bx = x0 + c_px + i * espace_B_px;
                     svgContent += `<circle cx="${bx}" cy="${yB}" r="${radiusB}" fill="#2980b9"/>`;
+                }
+
+                // Cote d'espacement des aciers de nappe B
+                if (nb_B > 1) {
+                    const startX = x0 + c_px;
+                    const endX = startX + espace_B_px;
+                    const coteY = y0 + h_px + 40;
+                    svgContent += `<line x1="${startX}" y1="${coteY}" x2="${endX}" y2="${coteY}" stroke="${textColor}" stroke-width="1.5"/>`;
+                    svgContent += `<line x1="${startX}" y1="${coteY-5}" x2="${startX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<line x1="${endX}" y1="${coteY-5}" x2="${endX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<text x="${(startX+endX)/2}" y="${coteY+15}" text-anchor="middle" font-size="14" fill="${textColor}">${currentResults.esp_B.toFixed(1)} cm</text>`;
                 }
 
                 // Cotes
@@ -404,18 +418,22 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
 
                 // Lignes d'armatures Nappe A (Lignes horizontales réparties sur B)
                 // La longueur des barres est A. Distribuées le long de B.
+                const diamA_px = (diamA / 1000) * scale;
+                const strokeWPlanA = Math.max(diamA_px, 3);
                 const esp_A_px = nb_A > 1 ? (wB_px - 2*c_px) / (nb_A - 1) : 0;
                 for(let i=0; i<nb_A; i++) {
                     const yL = y0 + c_px + i * esp_A_px;
-                    svgContent += `<line x1="${x0+c_px}" y1="${yL}" x2="${x0+wA_px-c_px}" y2="${yL}" stroke="#c0392b" stroke-width="2"/>`;
+                    svgContent += `<line x1="${x0+c_px}" y1="${yL}" x2="${x0+wA_px-c_px}" y2="${yL}" stroke="#c0392b" stroke-width="${strokeWPlanA}" stroke-linecap="round"/>`;
                 }
 
                 // Lignes d'armatures Nappe B (Lignes verticales réparties sur A)
                 // La longueur des barres est B. Distribuées le long de A.
+                const diamB_px = (diamB / 1000) * scale;
+                const strokeWPlanB = Math.max(diamB_px, 3);
                 const esp_B_px = nb_B > 1 ? (wA_px - 2*c_px) / (nb_B - 1) : 0;
                 for(let i=0; i<nb_B; i++) {
                     const xL = x0 + c_px + i * esp_B_px;
-                    svgContent += `<line x1="${xL}" y1="${y0+c_px}" x2="${xL}" y2="${y0+wB_px-c_px}" stroke="#2980b9" stroke-width="2"/>`;
+                    svgContent += `<line x1="${xL}" y1="${y0+c_px}" x2="${xL}" y2="${y0+wB_px-c_px}" stroke="#2980b9" stroke-width="${strokeWPlanB}" stroke-linecap="round"/>`;
                 }
 
                 // Cotes extérieures
@@ -428,6 +446,28 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
                 svgContent += `<line x1="${x0+wA_px+55}" y1="${y0}" x2="${x0+wA_px+65}" y2="${y0}" stroke="${textColor}" stroke-width="2"/>`;
                 svgContent += `<line x1="${x0+wA_px+55}" y1="${y0+wB_px}" x2="${x0+wA_px+65}" y2="${y0+wB_px}" stroke="${textColor}" stroke-width="2"/>`;
                 svgContent += `<text x="${x0+wA_px+75}" y="${y0+wB_px/2}" text-anchor="middle" font-size="16" fill="${textColor}" transform="rotate(90 ${x0+wA_px+75} ${y0+wB_px/2})">B = ${(B).toFixed(2)} m</text>`;
+
+                // Cotes d'espacement en plan (Nappe B - Espacement horizontal)
+                if (nb_B > 1) {
+                    const startX = x0 + c_px;
+                    const endX = startX + esp_B_px;
+                    const coteY = y0 + wB_px + 40;
+                    svgContent += `<line x1="${startX}" y1="${coteY}" x2="${endX}" y2="${coteY}" stroke="${textColor}" stroke-width="1.5"/>`;
+                    svgContent += `<line x1="${startX}" y1="${coteY-5}" x2="${startX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<line x1="${endX}" y1="${coteY-5}" x2="${endX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<text x="${(startX+endX)/2}" y="${coteY-10}" text-anchor="middle" font-size="14" fill="${textColor}">${currentResults.esp_B.toFixed(1)} cm</text>`;
+                }
+
+                // Cotes d'espacement en plan (Nappe A - Espacement vertical)
+                if (nb_A > 1) {
+                    const startY = y0 + c_px;
+                    const endY = startY + esp_A_px;
+                    const coteX = x0 - 40;
+                    svgContent += `<line x1="${coteX}" y1="${startY}" x2="${coteX}" y2="${endY}" stroke="${textColor}" stroke-width="1.5"/>`;
+                    svgContent += `<line x1="${coteX-5}" y1="${startY}" x2="${coteX+5}" y2="${startY}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<line x1="${coteX-5}" y1="${endY}" x2="${coteX+5}" y2="${endY}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<text x="${coteX-10}" y="${(startY+endY)/2}" alignment-baseline="middle" text-anchor="end" font-size="14" fill="${textColor}">${currentResults.esp_A.toFixed(1)} cm</text>`;
+                }
             }
 
             // ===== LÉGENDE INTÉGRÉE =====

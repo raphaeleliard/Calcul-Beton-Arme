@@ -172,97 +172,177 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
     </div>
 
     <script>
-        let selectedTS = 'ST25C';
-        let currentResults = null;
-        let currentView = 'coupe';
+        // ==========================================
+        // 2. ÉTAT ET ARCHITECTURE GLOBALE (State Pattern)
+        // L'architecture repose sur un état centralisé (AppState).
+        // ==========================================
+        const AppState = {
+            inputs: { h: 0.20, fck: 25, N_Ed: 300, V_Ed: 40, enrobage: 3.0, nappesCount: 2 },
+            selectedTS: 'ST25C',
+            currentView: 'coupe',
+            results: null
+        };
 
-        const voileInputs = ['h', 'fck', 'N_Ed', 'V_Ed', 'enrobage', 'nappesCount'];
+        const voileInputs = Object.keys(AppState.inputs);
+
+        // Initialisation de l'application
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+
+            // Restauration de l'état
+            voileInputs.forEach(id => {
+                const savedVal = localStorage.getItem(`voile_${id}`);
+                if (savedVal !== null) {
+                    AppState.inputs[id] = parseFloat(savedVal);
+                    const el = document.getElementById(id);
+                    if (el) el.value = savedVal;
+                }
+            });
+            
+            const savedTS = localStorage.getItem('voile_ts');
+            if (savedTS) AppState.selectedTS = savedTS;
+
+            bindEvents();
+            updateTSSelector();
+            runController();
+        });
+
+        function bindEvents() {
+            voileInputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('input', (e) => {
+                        AppState.inputs[id] = parseFloat(e.target.value) || 0;
+                        localStorage.setItem(`voile_${id}`, e.target.value);
+                        runController();
+                    });
+                }
+            });
+
+            document.querySelectorAll('.steel-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    AppState.selectedTS = e.target.dataset.ts;
+                    localStorage.setItem('voile_ts', AppState.selectedTS);
+                    updateTSSelector();
+                    runController();
+                });
+            });
+
+            window.onThemeChange = () => renderUI();
+        }
 
         function setView(view) {
-            currentView = view;
+            AppState.currentView = view;
             document.getElementById('btnViewCoupe').classList.toggle('active', view === 'coupe');
             document.getElementById('btnViewElev').classList.toggle('active', view === 'elevation');
-            if(currentResults) drawSVG();
+            renderUI();
+        }
+
+        function updateTSSelector() {
+            document.querySelectorAll('.steel-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.ts === AppState.selectedTS);
+            });
+        }
+
+        function getSVGTextColor() {
+            const theme = document.documentElement.getAttribute('data-theme');
+            return theme === 'dark' ? '#e0e0e0' : '#1e293b';
         }
 
         // ==========================================
-        // 1. CALCULS EUROCODE 2 (Bande 1m)
-        // J'ai programmé ici la détermination du cisaillement résistant et de la contrainte limite du béton pour les voiles.
+        // 1. LOGIQUE MÉTIER PURE (Calculs EC2 - Voiles)
+        // Je dimensionne la paroi pour le cisaillement et détermine 
+        // les sections d'armatures minimales verticales et horizontales.
         // ==========================================
-        function calculateEC2() {
-            // Sauvegarde dans le localStorage
-            voileInputs.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) localStorage.setItem(`voile_${id}`, el.value);
-            });
-
-            const h = parseFloat(document.getElementById('h').value);
-            const fck = parseFloat(document.getElementById('fck').value);
-            const N_Ed = parseFloat(document.getElementById('N_Ed').value); // kN/ml
-            const V_Ed = parseFloat(document.getElementById('V_Ed').value); // kN/ml
-            const c_nom = parseFloat(document.getElementById('enrobage').value) / 100; // m
-            const nappesCount = parseInt(document.getElementById('nappesCount').value);
+        function calculateEurocode2(params) {
+            const { h, fck, N_Ed, V_Ed, enrobage, nappesCount, selectedTS } = params;
+            const c_nom = enrobage / 100; // m
             
             const b = 1.0; // Bande de 1m
             const Ac = b * h; // m²
             const fcd = fck / 1.5;
 
-            // 1. Ferraillage Minimal (EC2 §9.6.2 & §9.6.3)
-            const As_vmin = 0.002 * Ac * 10000; // cm²/ml (Vertical)
-            const As_hmin = Math.max(0.25 * As_vmin, 0.001 * Ac * 10000); // cm²/ml (Horizontal)
-            const As_req = Math.max(As_vmin, As_hmin); // Le treillis C est isométrique, on prend le max
-
-            // 2. Effort Tranchant du Béton Non Armé (EC2 §6.2.2) : Je vérifie si la paroi béton peut reprendre seule le cisaillement.
-            const sigma_cp_calc = N_Ed / (Ac * 1000); // MPa
-            const sigma_cp = Math.min(sigma_cp_calc, 0.2 * fcd); // Limité par l'EC2
-            
-            // Hauteur utile (approximation avec diamètre moyen du TS)
+            // --- OPTIMISATION 1 : Hauteur utile (d) ---
+            // Si le voile a deux nappes, la hauteur utile se prend depuis la fibre comprimée
+            // jusqu'au centre de gravité de la nappe tendue.
+            // Si une seule nappe, elle est au centre (d = h/2), ce qui réduit drastiquement la capacité au cisaillement hors plan.
             const phi_ts = TS_SPECS[selectedTS].diam / 1000; // m
             let d = h - c_nom - (phi_ts / 2);
             if (nappesCount === 1) {
-                d = h / 2; // Nappe centrale (cas peu favorable pour le cisaillement hors plan)
+                d = h / 2;
             }
 
-            // Coefficient k
-            const k = Math.min(1 + Math.sqrt(200 / (d * 1000)), 2.0);
+            // --- OPTIMISATION 2 : Sections Minimales (EC2 §9.6.2 & §9.6.3) ---
+            const As_vmin = 0.002 * Ac * 10000; // cm²/ml (Vertical)
             
-            // Contrainte v_min
+            // L'acier horizontal doit valoir au moins 25% de l'acier vertical réel (ou min) 
+            // et au moins 0.1% de la section de béton.
+            const As_hmin = Math.max(0.25 * As_vmin, 0.001 * Ac * 10000); // cm²/ml (Horizontal)
+            
+            // Puisque j'utilise des treillis soudés structurels standard (ST...C) qui sont isométriques (même section croisée),
+            // l'acier requis pour le treillis est le max des deux.
+            const As_req = Math.max(As_vmin, As_hmin);
+
+            // Armatures fournies par le treillis
+            const tsData = TS_SPECS[selectedTS];
+            const As_prov = tsData.section * nappesCount;
+
+            // --- OPTIMISATION 3 : Vérification Cisaillement (EC2 §6.2.2) ---
+            // Je vérifie si la section de béton non armé transversalement (sans épingles/cadres) suffit.
+            const sigma_cp_calc = N_Ed / (Ac * 1000); // MPa
+            const sigma_cp = Math.min(sigma_cp_calc, 0.2 * fcd); // Limite normative à 0.2 fcd
+            
+            const k = Math.min(1 + Math.sqrt(200 / (d * 1000)), 2.0); // Effet d'échelle, max 2.0
             const v_min = 0.035 * Math.pow(k, 1.5) * Math.sqrt(fck); // MPa
 
-            // Résistance V_Rdc
-            const k1 = 0.15; // Annexe nationale
+            const k1 = 0.15; // Recommandation Annexe Nationale française
             const V_Rdc = (v_min + k1 * sigma_cp) * b * d * 1000; // kN/ml
 
-            currentResults = {
-                sigma_cp, d, V_Rdc, v_min, As_vmin, As_hmin, As_req, V_Ed, h, c_nom, nappesCount
-            };
+            let status = 'OK';
+            if (V_Ed > V_Rdc) {
+                status = 'ERROR_SHEAR';
+            } else if (As_prov < As_req) {
+                status = 'ERROR_STEEL';
+            }
 
-            updateUI();
+            return {
+                sigma_cp, d, V_Rdc, v_min, As_vmin, As_hmin, As_req, As_prov,
+                status
+            };
         }
 
-        function updateUI() {
-            // Mise à jour RDM
-            document.getElementById('res-sigma').innerText = currentResults.sigma_cp.toFixed(2);
-            document.getElementById('res-d').innerText = currentResults.d.toFixed(3);
-            document.getElementById('res-Vrdc').innerText = currentResults.V_Rdc.toFixed(1);
-            document.getElementById('res-vmin').innerText = currentResults.v_min.toFixed(3);
-            document.getElementById('res-As_v').innerText = currentResults.As_vmin.toFixed(2);
-            document.getElementById('res-As_h').innerText = currentResults.As_hmin.toFixed(2);
+        // ==========================================
+        // 3. CONTRÔLEUR ET VUE
+        // ==========================================
+        function runController() {
+            const params = {
+                ...AppState.inputs,
+                selectedTS: AppState.selectedTS
+            };
+            AppState.results = calculateEurocode2(params);
+            renderUI();
+        }
 
-            // Mise à jour TS
-            const tsData = TS_SPECS[selectedTS];
-            const totalSection = tsData.section * currentResults.nappesCount;
+        function renderUI() {
+            const res = AppState.results;
             
-            document.getElementById('tsUnit').innerText = tsData.section.toFixed(2);
-            document.getElementById('steelReq').innerText = currentResults.As_req.toFixed(2);
-            document.getElementById('steelChosen').innerText = totalSection.toFixed(2);
+            document.getElementById('res-sigma').innerText = res.sigma_cp.toFixed(2);
+            document.getElementById('res-d').innerText = res.d.toFixed(3);
+            document.getElementById('res-Vrdc').innerText = res.V_Rdc.toFixed(1);
+            document.getElementById('res-vmin').innerText = res.v_min.toFixed(3);
+            document.getElementById('res-As_v').innerText = res.As_vmin.toFixed(2);
+            document.getElementById('res-As_h').innerText = res.As_hmin.toFixed(2);
 
-            // Validation
+            document.getElementById('tsUnit').innerText = TS_SPECS[AppState.selectedTS].section.toFixed(2);
+            document.getElementById('steelReq').innerText = res.As_req.toFixed(2);
+            document.getElementById('steelChosen').innerText = res.As_prov.toFixed(2);
+
             const badge = document.getElementById('statusBadge');
-            if (currentResults.V_Ed > currentResults.V_Rdc) {
+            if (res.status === 'ERROR_SHEAR') {
                 badge.className = "status-badge status-red";
                 badge.innerText = "Épaisseur insuffisante (Cisaillement > V_Rdc)";
-            } else if (totalSection < currentResults.As_req) {
+            } else if (res.status === 'ERROR_STEEL') {
                 badge.className = "status-badge status-red";
                 badge.innerText = "Ferraillage Insuffisant";
             } else {
@@ -274,15 +354,19 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
         }
 
         // ==========================================
-        // 2. DESSIN DU PLAN (SVG)
-        // Pour illustrer ma démarche, je dessine les nappes de treillis soudé en coupe et en élévation.
+        // 4. RENDU SVG (COUPE ET PLAN)
+        // Je trace les nappes de treillis soudés.
         // ==========================================
         function drawSVG() {
             const container = document.getElementById('svgContainer');
             const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
-
-            const h = currentResults.h;
-            const c_nom = currentResults.c_nom;
+            
+            const p = AppState.inputs;
+            const res = AppState.results;
+            const tsData = TS_SPECS[AppState.selectedTS];
+            
+            const h = p.h;
+            const c_nom = p.enrobage / 100;
             
             const svgSize = 800;
             const margin = 120;
@@ -296,83 +380,72 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
             const y0 = (svgSize - h_px) / 2;
             
             const c_px = c_nom * scale;
-            
-            const tsData = TS_SPECS[selectedTS];
             const diam_px = (tsData.diam / 1000) * scale;
             const r_bar = Math.max(diam_px / 2, 3);
             const strokeW = Math.max(diam_px, 3);
-            const totalSection = TS_SPECS[selectedTS].section * currentResults.nappesCount;
 
             let svgContent = `<svg viewBox="0 0 ${svgSize} ${svgSize}" xmlns="http://www.w3.org/2000/svg" id="voilesvg" style="width: 100%; height: 100%;">`;
             
-            if (currentView === 'coupe') {
-            // Représentation de la continuité du voile (lignes hachurées sur les côtés)
-            svgContent += `<line x1="${x0}" y1="${y0-20}" x2="${x0}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2" stroke-dasharray="10,10"/>`;
-            svgContent += `<line x1="${x0+w_px}" y1="${y0-20}" x2="${x0+w_px}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2" stroke-dasharray="10,10"/>`;
+            if (AppState.currentView === 'coupe') {
+                svgContent += `<line x1="${x0}" y1="${y0-20}" x2="${x0}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2" stroke-dasharray="10,10"/>`;
+                svgContent += `<line x1="${x0+w_px}" y1="${y0-20}" x2="${x0+w_px}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2" stroke-dasharray="10,10"/>`;
 
-            // Section Béton (Haut/Bas Pleins)
-            svgContent += `<rect x="${x0}" y="${y0}" width="${w_px}" height="${h_px}" fill="${concreteFill}" stroke="none"/>`;
-            svgContent += `<line x1="${x0}" y1="${y0}" x2="${x0+w_px}" y2="${y0}" stroke="${concreteStroke}" stroke-width="3"/>`;
-            svgContent += `<line x1="${x0}" y1="${y0+h_px}" x2="${x0+w_px}" y2="${y0+h_px}" stroke="${concreteStroke}" stroke-width="3"/>`;
+                svgContent += `<rect x="${x0}" y="${y0}" width="${w_px}" height="${h_px}" fill="${concreteFill}" stroke="none"/>`;
+                svgContent += `<line x1="${x0}" y1="${y0}" x2="${x0+w_px}" y2="${y0}" stroke="${concreteStroke}" stroke-width="3"/>`;
+                svgContent += `<line x1="${x0}" y1="${y0+h_px}" x2="${x0+w_px}" y2="${y0+h_px}" stroke="${concreteStroke}" stroke-width="3"/>`;
 
-            // Treillis Soudés
-            const esp_ts = (TS_SPECS[selectedTS].esp / 1000) * scale;
-            const nb_points = Math.floor(w_px / esp_ts);
-            const offset_x = (w_px - (nb_points * esp_ts)) / 2;
-            
-            const nappesY = [];
-            if (currentResults.nappesCount === 1) {
-                nappesY.push(y0 + h_px / 2);
-            } else {
-                nappesY.push(y0 + c_px);
-                nappesY.push(y0 + h_px - c_px);
-            }
-
-            nappesY.forEach(ny => {
-                // Ligne horizontale TS
-                svgContent += `<line x1="${x0}" y1="${ny}" x2="${x0+w_px}" y2="${ny}" stroke="#c0392b" stroke-width="${strokeW}" stroke-linecap="round"/>`;
-                // Points verticaux TS
-                for(let i=0; i<=nb_points; i++) {
-                    const nx = x0 + offset_x + (i * esp_ts);
-                    svgContent += `<circle cx="${nx}" cy="${ny}" r="${r_bar}" fill="#c0392b"/>`;
+                const esp_ts = (tsData.esp / 1000) * scale;
+                const nb_points = Math.floor(w_px / esp_ts);
+                const offset_x = (w_px - (nb_points * esp_ts)) / 2;
+                
+                const nappesY = [];
+                if (p.nappesCount === 1) {
+                    nappesY.push(y0 + h_px / 2);
+                } else {
+                    nappesY.push(y0 + c_px);
+                    nappesY.push(y0 + h_px - c_px);
                 }
-            });
 
-            if (currentResults.nappesCount === 2) {
-                const epingleW = Math.max(strokeW * 0.8, 2);
-                for(let i=1; i<nb_points; i+=2) {
-                    const nx = x0 + offset_x + (i * esp_ts);
-                    svgContent += `<line x1="${nx}" y1="${nappesY[0]}" x2="${nx}" y2="${nappesY[1]}" stroke="#2980b9" stroke-width="${epingleW}" stroke-linecap="round"/>`;
-                    svgContent += `<path d="M ${nx} ${nappesY[0]} C ${nx+15} ${nappesY[0]+15}, ${nx-15} ${nappesY[0]+15}, ${nx} ${nappesY[0]}" fill="none" stroke="#2980b9" stroke-width="${epingleW}" stroke-linecap="round" stroke-linejoin="round"/>`;
-                    svgContent += `<path d="M ${nx} ${nappesY[1]} C ${nx-15} ${nappesY[1]-15}, ${nx+15} ${nappesY[1]-15}, ${nx} ${nappesY[1]}" fill="none" stroke="#2980b9" stroke-width="${epingleW}" stroke-linecap="round" stroke-linejoin="round"/>`;
+                nappesY.forEach(ny => {
+                    svgContent += `<line x1="${x0}" y1="${ny}" x2="${x0+w_px}" y2="${ny}" stroke="#c0392b" stroke-width="${strokeW}" stroke-linecap="round"/>`;
+                    for(let i=0; i<=nb_points; i++) {
+                        const nx = x0 + offset_x + (i * esp_ts);
+                        svgContent += `<circle cx="${nx}" cy="${ny}" r="${r_bar}" fill="#c0392b"/>`;
+                    }
+                });
+
+                if (p.nappesCount === 2) {
+                    const epingleW = Math.max(strokeW * 0.8, 2);
+                    for(let i=1; i<nb_points; i+=2) {
+                        const nx = x0 + offset_x + (i * esp_ts);
+                        svgContent += `<line x1="${nx}" y1="${nappesY[0]}" x2="${nx}" y2="${nappesY[1]}" stroke="#2980b9" stroke-width="${epingleW}" stroke-linecap="round"/>`;
+                        svgContent += `<path d="M ${nx} ${nappesY[0]} C ${nx+15} ${nappesY[0]+15}, ${nx-15} ${nappesY[0]+15}, ${nx} ${nappesY[0]}" fill="none" stroke="#2980b9" stroke-width="${epingleW}" stroke-linecap="round" stroke-linejoin="round"/>`;
+                        svgContent += `<path d="M ${nx} ${nappesY[1]} C ${nx-15} ${nappesY[1]-15}, ${nx+15} ${nappesY[1]-15}, ${nx} ${nappesY[1]}" fill="none" stroke="#2980b9" stroke-width="${epingleW}" stroke-linecap="round" stroke-linejoin="round"/>`;
+                    }
                 }
-            }
 
-            // Cotes (Largeur Bande)
-            svgContent += `<line x1="${x0}" y1="${y0-40}" x2="${x0}" y2="${y0-20}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0+w_px}" y1="${y0-40}" x2="${x0+w_px}" y2="${y0-20}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0}" y1="${y0-30}" x2="${x0+w_px}" y2="${y0-30}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<text x="${x0 + w_px/2}" y="${y0-40}" text-anchor="middle" font-size="16" fill="${textColor}" font-weight="bold">Bande b = 1.00 m</text>`;
+                svgContent += `<line x1="${x0}" y1="${y0-40}" x2="${x0}" y2="${y0-20}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0+w_px}" y1="${y0-40}" x2="${x0+w_px}" y2="${y0-20}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0}" y1="${y0-30}" x2="${x0+w_px}" y2="${y0-30}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<text x="${x0 + w_px/2}" y="${y0-40}" text-anchor="middle" font-size="16" fill="${textColor}" font-weight="bold">Bande b = 1.00 m</text>`;
 
-            // Cotes (Épaisseur h)
-            svgContent += `<line x1="${x0+w_px+20}" y1="${y0}" x2="${x0+w_px+40}" y2="${y0}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0+w_px+20}" y1="${y0+h_px}" x2="${x0+w_px+40}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0+w_px+30}" y1="${y0}" x2="${x0+w_px+30}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<text x="${x0+w_px+45}" y="${y0 + h_px/2}" alignment-baseline="middle" font-size="16" fill="${textColor}" font-weight="bold">h = ${(h*100).toFixed(0)} cm</text>`;
+                svgContent += `<line x1="${x0+w_px+20}" y1="${y0}" x2="${x0+w_px+40}" y2="${y0}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0+w_px+20}" y1="${y0+h_px}" x2="${x0+w_px+40}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0+w_px+30}" y1="${y0}" x2="${x0+w_px+30}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<text x="${x0+w_px+45}" y="${y0 + h_px/2}" alignment-baseline="middle" font-size="16" fill="${textColor}" font-weight="bold">h = ${(h*100).toFixed(0)} cm</text>`;
 
-            if (currentResults.nappesCount === 1) {
-                svgContent += `<line x1="${x0}" y1="${y0+h_px+20}" x2="${x0+h_px/2}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="1.5"/>`;
-                svgContent += `<line x1="${x0}" y1="${y0+h_px+15}" x2="${x0}" y2="${y0+h_px+25}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<line x1="${x0+h_px/2}" y1="${y0+h_px+15}" x2="${x0+h_px/2}" y2="${y0+h_px+25}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<text x="${x0+h_px/4}" y="${y0+h_px+40}" text-anchor="middle" font-size="12" fill="${textColor}">h/2</text>`;
+                if (p.nappesCount === 1) {
+                    svgContent += `<line x1="${x0}" y1="${y0+h_px+20}" x2="${x0+h_px/2}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="1.5"/>`;
+                    svgContent += `<line x1="${x0}" y1="${y0+h_px+15}" x2="${x0}" y2="${y0+h_px+25}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<line x1="${x0+h_px/2}" y1="${y0+h_px+15}" x2="${x0+h_px/2}" y2="${y0+h_px+25}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<text x="${x0+h_px/4}" y="${y0+h_px+40}" text-anchor="middle" font-size="12" fill="${textColor}">h/2</text>`;
+                } else {
+                    svgContent += `<line x1="${x0}" y1="${y0+h_px+20}" x2="${x0+c_px}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="1.5"/>`;
+                    svgContent += `<line x1="${x0}" y1="${y0+h_px+15}" x2="${x0}" y2="${y0+h_px+25}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<line x1="${x0+c_px}" y1="${y0+h_px+15}" x2="${x0+c_px}" y2="${y0+h_px+25}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<text x="${x0+c_px/2}" y="${y0+h_px+40}" text-anchor="middle" font-size="12" fill="${textColor}">c=${(p.enrobage).toFixed(1)}</text>`;
+                }
             } else {
-                svgContent += `<line x1="${x0}" y1="${y0+h_px+20}" x2="${x0+c_px}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="1.5"/>`;
-                svgContent += `<line x1="${x0}" y1="${y0+h_px+15}" x2="${x0}" y2="${y0+h_px+25}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<line x1="${x0+c_px}" y1="${y0+h_px+15}" x2="${x0+c_px}" y2="${y0+h_px+25}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<text x="${x0+c_px/2}" y="${y0+h_px+40}" text-anchor="middle" font-size="12" fill="${textColor}">c=${(c_nom*100).toFixed(1)}</text>`;
-            }
-            } else {
-                // VUE DE FACE (ÉLÉVATION)
                 const maxDimF = 1.0;
                 const scaleF = (svgSize - 2 * margin) / maxDimF;
                 const wF_px = maxDimF * scaleF;
@@ -382,26 +455,22 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
 
                 svgContent += `<rect x="${xF}" y="${yF}" width="${wF_px}" height="${hF_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
                 
-                const tsDataF = TS_SPECS[selectedTS];
-                const diam_px_F = (tsDataF.diam / 1000) * scaleF;
-                const strokeWF = Math.max(diam_px_F, 3);
-                const esp_ts_F = (TS_SPECS[selectedTS].esp / 1000) * scaleF;
+                const esp_ts_F = (tsData.esp / 1000) * scaleF;
                 const nb_lines = Math.floor(wF_px / esp_ts_F);
                 
                 for(let i=1; i<nb_lines; i++) {
-                    svgContent += `<line x1="${xF + i*esp_ts_F}" y1="${yF}" x2="${xF + i*esp_ts_F}" y2="${yF+hF_px}" stroke="#c0392b" stroke-width="${strokeWF}" stroke-linecap="round"/>`;
-                    svgContent += `<line x1="${xF}" y1="${yF + i*esp_ts_F}" x2="${xF+wF_px}" y2="${yF + i*esp_ts_F}" stroke="#c0392b" stroke-width="${strokeWF}" stroke-linecap="round"/>`;
+                    svgContent += `<line x1="${xF + i*esp_ts_F}" y1="${yF}" x2="${xF + i*esp_ts_F}" y2="${yF+hF_px}" stroke="#c0392b" stroke-width="${strokeW}" stroke-linecap="round"/>`;
+                    svgContent += `<line x1="${xF}" y1="${yF + i*esp_ts_F}" x2="${xF+wF_px}" y2="${yF + i*esp_ts_F}" stroke="#c0392b" stroke-width="${strokeW}" stroke-linecap="round"/>`;
                 }
 
                 svgContent += `<line x1="${xF}" y1="${yF-30}" x2="${xF+wF_px}" y2="${yF-30}" stroke="${textColor}" stroke-width="1.5"/>`;
                 svgContent += `<text x="${xF+wF_px/2}" y="${yF-40}" text-anchor="middle" font-size="16" fill="${textColor}" font-weight="bold">Bande = 1.00 m</text>`;
                 if (nb_lines > 2) {
                     svgContent += `<line x1="${xF+esp_ts_F}" y1="${yF+hF_px+30}" x2="${xF+2*esp_ts_F}" y2="${yF+hF_px+30}" stroke="${textColor}" stroke-width="1.5"/>`;
-                    svgContent += `<text x="${xF+1.5*esp_ts_F}" y="${yF+hF_px+50}" text-anchor="middle" font-size="14" fill="${textColor}">Maille ${TS_SPECS[selectedTS].esp} mm</text>`;
+                    svgContent += `<text x="${xF+1.5*esp_ts_F}" y="${yF+hF_px+50}" text-anchor="middle" font-size="14" fill="${textColor}">Maille ${tsData.esp} mm</text>`;
                 }
             }
 
-            // Légende
             svgContent += `
             <g transform="translate(${svgSize - 180}, ${svgSize - 155})">
                 <rect x="0" y="0" width="160" height="135" rx="6" ry="6" fill="${legendBg}" stroke="${concreteStroke}" stroke-width="1.5"/>
@@ -409,8 +478,8 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
                 <line x1="15" y1="50" x2="35" y2="50" stroke="#c0392b" stroke-width="3"/>
                 <circle cx="25" cy="50" r="4" fill="#c0392b"/>
                 <text x="45" y="55" font-size="15" fill="${textColor}">Treillis Soudé</text>
-                <text x="15" y="85" font-size="14" font-weight="bold" fill="${textColor}">Section: ${totalSection.toFixed(2)} cm²/ml</text>
-                <text x="15" y="115" font-size="14" font-weight="bold" fill="${textColor}">Treillis: ${selectedTS}</text>
+                <text x="15" y="85" font-size="14" font-weight="bold" fill="${textColor}">Section: ${res.As_prov.toFixed(2)} cm²/ml</text>
+                <text x="15" y="115" font-size="14" font-weight="bold" fill="${textColor}">Treillis: ${AppState.selectedTS}</text>
             </g>`;
 
             svgContent += '</svg>';
@@ -418,76 +487,28 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
         }
 
         // ==========================================
-        // 3. INITIALISATION ET ÉVÉNEMENTS
-        // Je gère la reprise des données sauvegardées localement pour fluidifier l'utilisation d'une session à l'autre.
-        // ==========================================
-        function updateTSSelector() {
-            document.querySelectorAll('.steel-btn').forEach(btn => {
-                const ts = btn.dataset.ts;
-                if (ts === selectedTS) {
-                    btn.classList.add('active');
-                } else {
-                    btn.classList.remove('active');
-                }
-            });
-        }
-
-        window.addEventListener('DOMContentLoaded', () => {
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            document.documentElement.setAttribute('data-theme', savedTheme);
-
-            // Restaurer les valeurs du formulaire
-            voileInputs.forEach(id => {
-                const savedVal = localStorage.getItem(`voile_${id}`);
-                if (savedVal) {
-                    const el = document.getElementById(id);
-                    if (el) el.value = savedVal;
-                }
-            });
-            const savedTS = localStorage.getItem('voile_ts');
-            if (savedTS) selectedTS = savedTS;
-            updateTSSelector();
-
-            document.getElementById('voileForm').addEventListener('input', calculateEC2);
-            document.getElementById('nappesCount').addEventListener('change', calculateEC2);
-
-            document.querySelectorAll('.steel-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    selectedTS = e.target.dataset.ts;
-                    localStorage.setItem('voile_ts', selectedTS);
-                    updateTSSelector();
-                    calculateEC2();
-                });
-            });
-
-            window.onThemeChange = calculateEC2;
-
-            calculateEC2();
-        });
-
-        // ==========================================
-        // 4. EXPORT & PÉDAGOGIE
-        // Je synthétise l'apprentissage normatif au travers de pop-ups claires sur mes justifications de calcul.
+        // 5. EXPORT & PÉDAGOGIE
+        // J'explique le calcul de portance au cisaillement du voile béton.
         // ==========================================
         function showFormula(type) {
             let msg = "";
             switch(type) {
-                case 'sigma_cp': msg = "Contrainte de compression σ_cp = N_Ed / Ac\nLimitée à 0.2 × fcd par l'EC2 (Annexe Nationale)."; break;
-                case 'd': msg = "Hauteur utile d = h - enrobage - Ø_ts / 2\nSi une seule nappe centrale est utilisée, d = h/2."; break;
-                case 'V_Rdc': msg = "Cisaillement Résistant V_Rd,c = (v_min + k1 × σ_cp) × b × d\nLe béton seul reprend l'effort tranchant si V_Ed ≤ V_Rdc."; break;
-                case 'vmin': msg = "v_min = 0.035 × k^(3/2) × fck^(1/2)\nAvec k = 1 + √(200/d) ≤ 2.0 (Effet d'échelle)."; break;
-                case 'As_vmin': msg = "Ferraillage Vertical Minimum (EC2 9.6.2)\nAs,v,min = 0.002 × Ac"; break;
-                case 'As_hmin': msg = "Ferraillage Horizontal Minimum (EC2 9.6.3)\nAs,h,min = max(0.25 × As,v,min ; 0.001 × Ac)"; break;
+                case 'sigma_cp': msg = "Contrainte de compression σ_cp = N_Ed / Ac\nLimitée à 0.2 × fcd par l'EC2. Je m'assure de l'absence de surcontrainte excessive."; break;
+                case 'd': msg = "Hauteur utile d = h - enrobage - Ø_ts / 2\nAttention: si j'utilise une seule nappe centrale, alors d = h/2, ce qui réduit considérablement la résistance hors-plan."; break;
+                case 'V_Rdc': msg = "Cisaillement Résistant V_Rd,c = (v_min + k1 × σ_cp) × b × d\nJe vérifie que le béton non armé transversalement (sans épingles/cadres de mur) peut reprendre seul l'effort tranchant V_Ed."; break;
+                case 'vmin': msg = "v_min = 0.035 × k^(3/2) × fck^(1/2)\nAvec le facteur d'échelle k = 1 + √(200/d) ≤ 2.0. Je borne inférieurement la résistance au cisaillement."; break;
+                case 'As_vmin': msg = "Ferraillage Vertical Minimum (EC2 §9.6.2)\nAs,v,min = 0.002 × Ac. C'est l'exigence minimale pour éviter la ruine fragile d'un voile."; break;
+                case 'As_hmin': msg = "Ferraillage Horizontal Minimum (EC2 §9.6.3)\nAs,h,min = max(0.25 × As,v,min ; 0.001 × Ac). Pour éviter la fissuration due au retrait et aux gradients thermiques."; break;
             }
-            showModal("Détails du calcul", msg);
+            showModal("Détails du calcul EC2", msg);
         }
 
         function exportAsPNG() {
-            exportPlanAsPNG('svgContainer', `ferraillage_voile_${currentView}_${new Date().toISOString().slice(0,10)}.png`, calculateEC2);
+            exportPlanAsPNG('svgContainer', `ferraillage_voile_${AppState.currentView}_${new Date().toISOString().slice(0,10)}.png`, renderUI);
         }
 
         function exportAsSVG() {
-            exportPlanAsSVG('svgContainer', `ferraillage_voile_${currentView}_${new Date().toISOString().slice(0,10)}.svg`, calculateEC2);
+            exportPlanAsSVG('svgContainer', `ferraillage_voile_${AppState.currentView}_${new Date().toISOString().slice(0,10)}.svg`, renderUI);
         }
     </script>
     <script src="script.js"></script>

@@ -187,66 +187,143 @@ en vérifiant le cisaillement et en optimisant les aciers de répartition.
     </div>
 
     <script>
-        let diamMain = 10;
-        let diamRep = 8;
-        let currentResults = null;
-        let currentView = 'coupe';
-        const dalleInputs = ['L', 'h', 'G', 'Q', 'fck', 'enrobage', 'espacementInput', 'espRepInput'];
+        // ==========================================
+        // 2. ÉTAT ET ARCHITECTURE GLOBALE (State Pattern)
+        // J'ai isolé l'état de l'application dans un objet unique (AppState).
+        // Cela me permet de séparer complètement la logique métier (calculs)
+        // de la logique d'affichage (UI).
+        // ==========================================
+        const AppState = {
+            inputs: { L: 4.0, h: 0.20, G: 6.0, Q: 2.5, fck: 25, enrobage: 3.0, espacementInput: 15, espRepInput: 20 },
+            diamMain: 10,
+            diamRep: 8,
+            currentView: 'coupe',
+            results: null
+        };
+
+        const dalleInputs = Object.keys(AppState.inputs);
+
+        // Initialisation de l'application
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+
+            // Restauration de l'état
+            dalleInputs.forEach(id => {
+                const savedVal = localStorage.getItem(`dalle_${id}`);
+                if (savedVal !== null) {
+                    AppState.inputs[id] = parseFloat(savedVal);
+                    const el = document.getElementById(id);
+                    if (el) el.value = savedVal;
+                }
+            });
+            
+            const savedDiamMain = localStorage.getItem('dalle_diamMain');
+            if (savedDiamMain) AppState.diamMain = parseInt(savedDiamMain);
+            const savedDiamRep = localStorage.getItem('dalle_diamRep');
+            if (savedDiamRep) AppState.diamRep = parseInt(savedDiamRep);
+            
+            bindEvents();
+            updateSteelSelectors();
+            runController();
+        });
+
+        function bindEvents() {
+            // J'écoute les modifications des champs de saisie pour déclencher le recalcul
+            dalleInputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('input', (e) => {
+                        AppState.inputs[id] = parseFloat(e.target.value) || 0;
+                        localStorage.setItem(`dalle_${id}`, e.target.value);
+                        runController();
+                    });
+                }
+            });
+
+            document.querySelectorAll('#sel-Main .steel-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    AppState.diamMain = parseInt(e.target.dataset.diameter);
+                    localStorage.setItem('dalle_diamMain', AppState.diamMain);
+                    updateSteelSelectors();
+                    runController();
+                });
+            });
+            
+            document.querySelectorAll('#sel-Rep .steel-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    AppState.diamRep = parseInt(e.target.dataset.diameter);
+                    localStorage.setItem('dalle_diamRep', AppState.diamRep);
+                    updateSteelSelectors();
+                    runController();
+                });
+            });
+
+            window.onThemeChange = () => renderUI();
+        }
 
         function setView(view) {
-            currentView = view;
+            AppState.currentView = view;
             document.getElementById('btnViewCoupe').classList.toggle('active', view === 'coupe');
             document.getElementById('btnViewPlan').classList.toggle('active', view === 'plan');
-            if(currentResults) drawSVG();
+            renderUI();
+        }
+
+        function updateSteelSelectors() {
+            document.querySelectorAll('#sel-Main .steel-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.diameter) === AppState.diamMain);
+            });
+            document.querySelectorAll('#sel-Rep .steel-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.diameter) === AppState.diamRep);
+            });
+        }
+
+        function getSVGTextColor() {
+            const theme = document.documentElement.getAttribute('data-theme');
+            return theme === 'dark' ? '#e0e0e0' : '#1e293b';
         }
 
         // ==========================================
-        // 1. CALCULS EUROCODE 2 (Bande de 1m)
-        // J'utilise ici la méthode de la bande de 1 mètre pour modéliser le comportement en flexion de la dalle.
+        // 1. LOGIQUE MÉTIER PURE (Calculs Eurocode 2 - Dalle)
+        // Je garantis l'intégrité de la norme EC2 ici, sans aucune dépendance au DOM.
         // ==========================================
-        function calculateEC2() {
-            // Je sauvegarde l'état dans le localStorage pour améliorer l'expérience utilisateur
-            dalleInputs.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) localStorage.setItem(`dalle_${id}`, el.value);
-            });
-
-            const L = parseFloat(document.getElementById('L').value);
-            const h = parseFloat(document.getElementById('h').value);
+        function calculateEurocode2(params) {
+            const { L, h, G, Q, fck, enrobage, espacementInput, espRepInput, diamMain, diamRep } = params;
+            
             const b = 1.0; // Bande de 1m fixe
-            const fck = parseFloat(document.getElementById('fck').value);
-            const G = parseFloat(document.getElementById('G').value);
-            const Q = parseFloat(document.getElementById('Q').value);
-            const c_nom = parseFloat(document.getElementById('enrobage').value) / 100;
-            let espacement = parseFloat(document.getElementById('espacementInput').value);
-            let esp_rep = parseFloat(document.getElementById('espRepInput').value);
+            const c_nom = enrobage / 100;
+            const espacement = espacementInput; // cm
+            const esp_rep = espRepInput; // cm
 
-            // Matériaux
-            const fcd = fck / 1.5;
+            // Constantes matériaux
+            const gammaC = 1.5;
+            const gammaS = 1.15;
+            const fcd = fck / gammaC;
             const fyk = 500;
-            const fyd = fyk / 1.15;
+            const fyd = fyk / gammaS;
             const fctm = 0.30 * Math.pow(fck, 2/3);
 
-            // Je calcule la hauteur utile 'd' en déduisant l'enrobage et le demi-diamètre des aciers
+            // --- OPTIMISATION 1 : Hauteur utile exacte ---
+            // Je déduis rigoureusement le demi-diamètre de l'armature principale.
             const d = h - c_nom - (diamMain / 1000 / 2);
 
-            // RDM : J'évalue les sollicitations maximales (Moment ELU et Effort Tranchant)
-            const p_elu = 1.35 * G + 1.5 * Q; // kN/m² -> kN/ml
+            // RDM : Moments et Effort tranchant (isostatique)
+            const p_elu = 1.35 * G + 1.5 * Q; // kN/ml
             const Med = (p_elu * Math.pow(L, 2)) / 8; // kN.m/ml
             const Ved = (p_elu * L) / 2; // kN/ml
 
-            // Calcul Acier Longitudinal
+            // Flexion
             const Med_MN = Med / 1000;
             const mu_cu = Med_MN / (b * Math.pow(d, 2) * fcd);
             
             let As_req = 0;
             let status = 'OK';
 
-            // Acier minimum réglementaire (EC2 §9.2.1.1)
+            // Acier minimum réglementaire (EC2 §9.2.1.1 et 9.3.1.1)
             const As_min = Math.max(0.26 * (fctm / fyk) * b * d, 0.0013 * b * d) * 10000; // cm²/ml
 
             if (mu_cu > 0.371) {
-                status = 'ERROR_MUCU'; // Nécessite aciers comprimés ou épaisseur insuffisante
+                status = 'ERROR_MUCU'; 
             } else {
                 const alpha = 1.25 * (1 - Math.sqrt(1 - 2 * mu_cu));
                 const z = d * (1 - 0.4 * alpha);
@@ -254,82 +331,100 @@ en vérifiant le cisaillement et en optimisant les aciers de répartition.
                 As_req = Math.max(As_req, As_min);
             }
 
-            // Ferraillage fourni
-            const sectionPerBar = STEEL_SPECS[diamMain].section;
+            // Aciers fournis
+            const sectionPerBarMain = STEEL_SPECS[diamMain].section;
             const nbBarres_per_m = 100 / espacement;
-            const As_prov = sectionPerBar * nbBarres_per_m;
+            const As_prov = sectionPerBarMain * nbBarres_per_m;
 
-            // Acier de répartition (EC2 §9.3.1.1)
-            const As_rep = Math.max(0.20 * As_prov, As_min);
+            // --- OPTIMISATION 2 : Aciers de répartition et Espacements max ---
+            // L'EC2 impose que l'acier de répartition soit au moins 20% de l'armature principale (EC2 §9.3.1.1)
+            const As_rep_req = Math.max(0.20 * As_prov, As_min);
             
             const sectionPerBarRep = STEEL_SPECS[diamRep].section;
             const As_prov_rep = sectionPerBarRep * (100 / esp_rep);
 
-            // Vérification Effort Tranchant du Béton Non Armé (EC2 §6.2.2)
-            const k = Math.min(1 + Math.sqrt(200 / (d * 1000)), 2.0);
-            const rho_l = Math.min(As_prov / (b * d * 10000), 0.02);
+            // Effort Tranchant (EC2 §6.2.2 - Eléments sans armatures d'effort tranchant)
+            // Je calcule la résistance du béton seul (V_Rdc)
+            const k = Math.min(1 + Math.sqrt(200 / (d * 1000)), 2.0); // k limite à 2.0
+            const rho_l = Math.min(As_prov / (b * d * 10000), 0.02); // rho_l limite à 2%
             const v_min = 0.035 * Math.pow(k, 1.5) * Math.sqrt(fck);
-            const C_Rdc = 0.18 / 1.5;
+            const C_Rdc = 0.18 / gammaC;
             const v_Rdc = C_Rdc * k * Math.pow(100 * rho_l * fck, 1/3);
             
             const V_Rdc = Math.max(v_Rdc, v_min) * b * d * 1000; // kN/ml
 
             if (Ved > V_Rdc && status !== 'ERROR_MUCU') {
-                status = 'ERROR_SHEAR'; // Le béton ne peut pas reprendre l'effort tranchant seul
+                status = 'ERROR_SHEAR';
             }
 
-            // Espacements max (EC2)
-            const s_max_main = Math.min(3 * (h * 100), 40); // max 40 cm
+            // Espacements maximum (EC2 §9.3.1.1)
+            const s_max_main = Math.min(3 * (h * 100), 40); // 3h <= 400 mm
+            const s_max_rep = Math.min(3.5 * (h * 100), 45); // 3.5h <= 450 mm
             
-            // Espacement net (distance libre)
+            // Espacement net pour le bétonnage
             const esp_net = espacement - (diamMain / 10);
 
-            currentResults = {
-                L, h, b, c_nom, d,
-                Med, Ved, mu_cu, As_req, As_min, As_prov, As_prov_rep, As_rep,
-                V_Rdc, status, s_max_main, espacement, esp_net, esp_rep
+            return {
+                Med, Ved, As_req, As_min, As_prov, As_prov_rep, As_rep_req,
+                V_Rdc, status, s_max_main, s_max_rep, esp_net, d
             };
-
-            updateUI();
         }
 
-        function updateUI() {
-            document.getElementById('res-Med').innerText = currentResults.Med.toFixed(2);
-            document.getElementById('res-Ved').innerText = currentResults.Ved.toFixed(1);
-            document.getElementById('res-As_req').innerText = currentResults.status === 'ERROR_MUCU' ? "Erreur" : currentResults.As_req.toFixed(2);
-            document.getElementById('res-Vrdc').innerText = currentResults.V_Rdc.toFixed(1);
-            document.getElementById('res-As_rep').innerText = currentResults.As_rep.toFixed(2);
-            document.getElementById('res-As_min').innerText = currentResults.As_min.toFixed(2);
+        // ==========================================
+        // 3. CONTRÔLEUR ET VUE
+        // ==========================================
+        function runController() {
+            const params = {
+                ...AppState.inputs,
+                diamMain: AppState.diamMain,
+                diamRep: AppState.diamRep
+            };
+            AppState.results = calculateEurocode2(params);
+            renderUI();
+        }
 
-            document.getElementById('info-diamMain').innerText = diamMain;
-            document.getElementById('info-espMain').innerText = currentResults.espacement;
-            document.getElementById('info-secMain').innerText = currentResults.As_prov.toFixed(2);
-            document.getElementById('req-secMain').innerText = currentResults.As_req.toFixed(2);
+        function renderUI() {
+            const res = AppState.results;
+            const p = AppState.inputs;
+            
+            // Textes
+            document.getElementById('res-Med').innerText = res.Med.toFixed(2);
+            document.getElementById('res-Ved').innerText = res.Ved.toFixed(1);
+            document.getElementById('res-As_req').innerText = res.status === 'ERROR_MUCU' ? "Erreur" : res.As_req.toFixed(2);
+            document.getElementById('res-Vrdc').innerText = res.V_Rdc.toFixed(1);
+            document.getElementById('res-As_rep').innerText = res.As_rep_req.toFixed(2);
+            document.getElementById('res-As_min').innerText = res.As_min.toFixed(2);
 
-            document.getElementById('info-diamRep').innerText = diamRep;
-            document.getElementById('info-espRep').innerText = currentResults.esp_rep;
-            document.getElementById('info-secRep').innerText = currentResults.As_prov_rep.toFixed(2);
-            document.getElementById('req-secRep').innerText = currentResults.As_rep.toFixed(2);
+            document.getElementById('info-diamMain').innerText = AppState.diamMain;
+            document.getElementById('info-espMain').innerText = p.espacementInput;
+            document.getElementById('info-secMain').innerText = res.As_prov.toFixed(2);
+            document.getElementById('req-secMain').innerText = res.As_req.toFixed(2);
 
+            document.getElementById('info-diamRep').innerText = AppState.diamRep;
+            document.getElementById('info-espRep').innerText = p.espRepInput;
+            document.getElementById('info-secRep').innerText = res.As_prov_rep.toFixed(2);
+            document.getElementById('req-secRep').innerText = res.As_rep_req.toFixed(2);
+
+            // Validation globale
             const badge = document.getElementById('statusBadge');
-            if (currentResults.status === 'ERROR_MUCU') {
+            if (res.status === 'ERROR_MUCU') {
                 badge.className = "status-badge status-red";
-                badge.innerText = "Épaisseur h insuffisante (Moment trop élevé)";
-            } else if (currentResults.status === 'ERROR_SHEAR') {
+                badge.innerText = "Épaisseur h insuffisante (Compression)";
+            } else if (res.status === 'ERROR_SHEAR') {
                 badge.className = "status-badge status-red";
                 badge.innerText = "Risque Cisaillement (V_Ed > V_Rdc)";
-            } else if (currentResults.As_prov < currentResults.As_req) {
+            } else if (res.As_prov < res.As_req) {
                 badge.className = "status-badge status-red";
                 badge.innerText = "Ferraillage Principal Insuffisant";
-            } else if (currentResults.As_prov_rep < currentResults.As_rep) {
+            } else if (res.As_prov_rep < res.As_rep_req) {
                 badge.className = "status-badge status-red";
                 badge.innerText = "Acier Répartition Insuffisant";
-            } else if (currentResults.esp_net < Math.max(2.5, diamMain / 10)) {
+            } else if (res.esp_net < Math.max(2.5, AppState.diamMain / 10)) {
                 badge.className = "status-badge status-red";
                 badge.innerText = "Aciers trop rapprochés (Bétonnage)";
-            } else if (currentResults.espacement > currentResults.s_max_main) {
+            } else if (p.espacementInput > res.s_max_main || p.espRepInput > res.s_max_rep) {
                 badge.className = "status-badge status-orange";
-                badge.innerText = `Espacement > ${currentResults.s_max_main} cm (EC2)`;
+                badge.innerText = `Espacement > Limite EC2`;
             } else {
                 badge.className = "status-badge status-green";
                 badge.innerText = "Dalle Conforme";
@@ -339,16 +434,19 @@ en vérifiant le cisaillement et en optimisant les aciers de répartition.
         }
 
         // ==========================================
-        // 2. DESSIN DU PLAN (SVG)
-        // J'ai conçu cette fonction pour générer un plan de ferraillage dynamique et à l'échelle via l'API SVG du navigateur.
+        // 4. GÉNÉRATION SVG
+        // Je dessine dynamiquement la bande de 1m.
         // ==========================================
         function drawSVG() {
             const container = document.getElementById('svgContainer');
             const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
+            
+            const p = AppState.inputs;
+            const res = AppState.results;
 
-            const h = currentResults.h;
-            const c_nom = currentResults.c_nom;
-            const esp = currentResults.espacement; // cm
+            const h = p.h;
+            const c_nom = p.enrobage / 100;
+            const esp = p.espacementInput; 
             
             const svgSize = 800;
             const margin = 160;
@@ -362,75 +460,65 @@ en vérifiant le cisaillement et en optimisant les aciers de répartition.
             const y0 = (svgSize - h_px) / 2;
             
             const c_px = c_nom * scale;
-            const diam_px = (diamMain / 1000) * scale;
-            const diam_rep_px = (diamRep / 1000) * scale;
+            const diam_px = (AppState.diamMain / 1000) * scale;
+            const diam_rep_px = (AppState.diamRep / 1000) * scale;
             
             const r_bar = Math.max(diam_px / 2, 6);
             const r_rep = Math.max(diam_rep_px / 2, 4);
 
             let svgContent = `<svg viewBox="0 0 ${svgSize} ${svgSize}" xmlns="http://www.w3.org/2000/svg" id="dallesvg" style="width: 100%; height: 100%;">`;
             
-            if (currentView === 'coupe') {
-            // Lignes de continuité de la dalle (côtés hachurés)
-            svgContent += `<line x1="${x0}" y1="${y0-20}" x2="${x0}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2" stroke-dasharray="10,10"/>`;
-            svgContent += `<line x1="${x0+w_px}" y1="${y0-20}" x2="${x0+w_px}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2" stroke-dasharray="10,10"/>`;
+            if (AppState.currentView === 'coupe') {
+                svgContent += `<line x1="${x0}" y1="${y0-20}" x2="${x0}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2" stroke-dasharray="10,10"/>`;
+                svgContent += `<line x1="${x0+w_px}" y1="${y0-20}" x2="${x0+w_px}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2" stroke-dasharray="10,10"/>`;
 
-            // Section Béton
-            svgContent += `<rect x="${x0}" y="${y0}" width="${w_px}" height="${h_px}" fill="${concreteFill}" stroke="none"/>`;
-            svgContent += `<line x1="${x0}" y1="${y0}" x2="${x0+w_px}" y2="${y0}" stroke="${concreteStroke}" stroke-width="3"/>`;
-            svgContent += `<line x1="${x0}" y1="${y0+h_px}" x2="${x0+w_px}" y2="${y0+h_px}" stroke="${concreteStroke}" stroke-width="3"/>`;
+                svgContent += `<rect x="${x0}" y="${y0}" width="${w_px}" height="${h_px}" fill="${concreteFill}" stroke="none"/>`;
+                svgContent += `<line x1="${x0}" y1="${y0}" x2="${x0+w_px}" y2="${y0}" stroke="${concreteStroke}" stroke-width="3"/>`;
+                svgContent += `<line x1="${x0}" y1="${y0+h_px}" x2="${x0+w_px}" y2="${y0+h_px}" stroke="${concreteStroke}" stroke-width="3"/>`;
 
-            // Aciers Principaux (Cercles au bas)
-            const esp_px = (esp / 100) * scale;
-            const nb_points = Math.floor(w_px / esp_px);
-            const offset_x = (w_px - (nb_points * esp_px)) / 2;
-            const y_main = y0 + h_px - c_px - r_bar;
+                const esp_px = (esp / 100) * scale;
+                const nb_points = Math.floor(w_px / esp_px);
+                const offset_x = (w_px - (nb_points * esp_px)) / 2;
+                const y_main = y0 + h_px - c_px - r_bar;
 
-            for(let i=0; i<=nb_points; i++) {
-                const nx = x0 + offset_x + (i * esp_px);
-                svgContent += `<circle cx="${nx}" cy="${y_main}" r="${r_bar}" fill="#c0392b"/>`;
-            }
+                for(let i=0; i<=nb_points; i++) {
+                    const nx = x0 + offset_x + (i * esp_px);
+                    svgContent += `<circle cx="${nx}" cy="${y_main}" r="${r_bar}" fill="#c0392b"/>`;
+                }
 
-            // Acier de répartition (Ligne horizontale posée sur les aciers principaux)
-            const y_rep = y_main - r_bar - r_rep;
-            const strokeRepCoupe = Math.max(diam_rep_px, 2);
-            svgContent += `<line x1="${x0}" y1="${y_rep}" x2="${x0+w_px}" y2="${y_rep}" stroke="#2980b9" stroke-width="${strokeRepCoupe}" stroke-linecap="round"/>`;
-            
-            // Cote d'enrobage (c)
-            svgContent += `<line x1="${x0-20}" y1="${y0+h_px}" x2="${x0-50}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0-20}" y1="${y0+h_px-c_px}" x2="${x0-50}" y2="${y0+h_px-c_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0-40}" y1="${y0+h_px}" x2="${x0-40}" y2="${y0+h_px-c_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<text x="${x0-55}" y="${y0+h_px-c_px/2}" text-anchor="middle" font-size="12" fill="${textColor}" transform="rotate(-90 ${x0-55} ${y0+h_px-c_px/2})">c=${(c_nom*100).toFixed(1)}</text>`;
+                const y_rep = y_main - r_bar - r_rep;
+                const strokeRepCoupe = Math.max(diam_rep_px, 2);
+                svgContent += `<line x1="${x0}" y1="${y_rep}" x2="${x0+w_px}" y2="${y_rep}" stroke="#2980b9" stroke-width="${strokeRepCoupe}" stroke-linecap="round"/>`;
+                
+                svgContent += `<line x1="${x0-20}" y1="${y0+h_px}" x2="${x0-50}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0-20}" y1="${y0+h_px-c_px}" x2="${x0-50}" y2="${y0+h_px-c_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0-40}" y1="${y0+h_px}" x2="${x0-40}" y2="${y0+h_px-c_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<text x="${x0-55}" y="${y0+h_px-c_px/2}" text-anchor="middle" font-size="12" fill="${textColor}" transform="rotate(-90 ${x0-55} ${y0+h_px-c_px/2})">c=${(c_nom*100).toFixed(1)}</text>`;
 
-            // Cote Hauteur Utile (d)
-            const d_px = currentResults.d * scale;
-            svgContent += `<line x1="${x0+w_px+50}" y1="${y0}" x2="${x0+w_px+70}" y2="${y0}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0+w_px+50}" y1="${y0+d_px}" x2="${x0+w_px+70}" y2="${y0+d_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0+w_px+60}" y1="${y0}" x2="${x0+w_px+60}" y2="${y0+d_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<text x="${x0+w_px+75}" y="${y0+d_px/2}" alignment-baseline="middle" font-size="14" fill="${textColor}">d</text>`;
+                const d_px = res.d * scale;
+                svgContent += `<line x1="${x0+w_px+50}" y1="${y0}" x2="${x0+w_px+70}" y2="${y0}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0+w_px+50}" y1="${y0+d_px}" x2="${x0+w_px+70}" y2="${y0+d_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0+w_px+60}" y1="${y0}" x2="${x0+w_px+60}" y2="${y0+d_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<text x="${x0+w_px+75}" y="${y0+d_px/2}" alignment-baseline="middle" font-size="14" fill="${textColor}">d</text>`;
 
-            // Cotes (Largeur Bande)
-            svgContent += `<line x1="${x0}" y1="${y0-40}" x2="${x0}" y2="${y0-20}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0+w_px}" y1="${y0-40}" x2="${x0+w_px}" y2="${y0-20}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0}" y1="${y0-30}" x2="${x0+w_px}" y2="${y0-30}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<text x="${x0 + w_px/2}" y="${y0-40}" text-anchor="middle" font-size="16" fill="${textColor}" font-weight="bold">Bande b = 1.00 m</text>`;
+                svgContent += `<line x1="${x0}" y1="${y0-40}" x2="${x0}" y2="${y0-20}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0+w_px}" y1="${y0-40}" x2="${x0+w_px}" y2="${y0-20}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0}" y1="${y0-30}" x2="${x0+w_px}" y2="${y0-30}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<text x="${x0 + w_px/2}" y="${y0-40}" text-anchor="middle" font-size="16" fill="${textColor}" font-weight="bold">Bande b = 1.00 m</text>`;
 
-            // Cotes (Épaisseur h)
-            svgContent += `<line x1="${x0+w_px+20}" y1="${y0}" x2="${x0+w_px+40}" y2="${y0}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0+w_px+20}" y1="${y0+h_px}" x2="${x0+w_px+40}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${x0+w_px+30}" y1="${y0}" x2="${x0+w_px+30}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<text x="${x0+w_px+45}" y="${y0 + h_px/2}" alignment-baseline="middle" font-size="16" fill="${textColor}" font-weight="bold">h = ${(h*100).toFixed(0)} cm</text>`;
+                svgContent += `<line x1="${x0+w_px+20}" y1="${y0}" x2="${x0+w_px+40}" y2="${y0}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0+w_px+20}" y1="${y0+h_px}" x2="${x0+w_px+40}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${x0+w_px+30}" y1="${y0}" x2="${x0+w_px+30}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<text x="${x0+w_px+45}" y="${y0 + h_px/2}" alignment-baseline="middle" font-size="16" fill="${textColor}" font-weight="bold">h = ${(h*100).toFixed(0)} cm</text>`;
 
-            // Cotes d'espacement des aciers
-            const startX = x0 + offset_x + esp_px;
-            const endX = startX + esp_px;
-            const coteY = y0 + h_px + 40;
-            svgContent += `<line x1="${startX}" y1="${coteY}" x2="${endX}" y2="${coteY}" stroke="${textColor}" stroke-width="1.5"/>`;
-            svgContent += `<line x1="${startX}" y1="${coteY-5}" x2="${startX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
-            svgContent += `<line x1="${endX}" y1="${coteY-5}" x2="${endX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
-            svgContent += `<text x="${(startX+endX)/2}" y="${coteY-10}" text-anchor="middle" font-size="14" fill="${textColor}">${esp.toFixed(1)} cm</text>`;
+                const startX = x0 + offset_x + esp_px;
+                const endX = startX + esp_px;
+                const coteY = y0 + h_px + 40;
+                svgContent += `<line x1="${startX}" y1="${coteY}" x2="${endX}" y2="${coteY}" stroke="${textColor}" stroke-width="1.5"/>`;
+                svgContent += `<line x1="${startX}" y1="${coteY-5}" x2="${startX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<line x1="${endX}" y1="${coteY-5}" x2="${endX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
+                svgContent += `<text x="${(startX+endX)/2}" y="${coteY-10}" text-anchor="middle" font-size="14" fill="${textColor}">${esp.toFixed(1)} cm</text>`;
             } else {
-                // VUE EN PLAN
                 const maxDimPlan = 1.0;
                 const scaleP = (svgSize - 2 * margin) / maxDimPlan;
                 const wP_px = maxDimPlan * scaleP;
@@ -445,14 +533,16 @@ en vérifiant le cisaillement et en optimisant les aciers de répartition.
                 const esp_pxP = (esp / 100) * scaleP;
                 const nb_main = Math.floor(wP_px / esp_pxP);
                 const offset_xP = (wP_px - (nb_main * esp_pxP)) / 2;
+                
                 for (let i = 0; i <= nb_main; i++) {
                     const lx = xP + offset_xP + i*esp_pxP;
                     svgContent += `<line x1="${lx}" y1="${yP + strokeMain/2}" x2="${lx}" y2="${yP+hP_px - strokeMain/2}" stroke="#c0392b" stroke-width="${strokeMain}" stroke-linecap="round"/>`;
                 }
 
-                const esp_rep_px = (currentResults.esp_rep / 100) * scaleP;
+                const esp_rep_px = (p.espRepInput / 100) * scaleP;
                 const nb_rep = Math.floor(hP_px / esp_rep_px);
                 const offset_yP = (hP_px - (nb_rep * esp_rep_px)) / 2;
+                
                 for (let j = 0; j <= nb_rep; j++) {
                     const ly = yP + offset_yP + j*esp_rep_px;
                     svgContent += `<line x1="${xP + strokeRep/2}" y1="${ly}" x2="${xP+wP_px - strokeRep/2}" y2="${ly}" stroke="#2980b9" stroke-width="${strokeRep}" stroke-linecap="round"/>`;
@@ -461,7 +551,6 @@ en vérifiant le cisaillement et en optimisant les aciers de répartition.
                 svgContent += `<line x1="${xP}" y1="${yP-30}" x2="${xP+wP_px}" y2="${yP-30}" stroke="${textColor}" stroke-width="1.5"/>`;
                 svgContent += `<text x="${xP+wP_px/2}" y="${yP-40}" text-anchor="middle" font-size="16" fill="${textColor}" font-weight="bold">Bande 1.00 m</text>`;
                 
-                // Cotes d'espacement en plan (Aciers Principaux - Espacement horizontal)
                 if (nb_main >= 1) {
                     const startX = xP + offset_xP;
                     const endX = startX + esp_pxP;
@@ -472,7 +561,6 @@ en vérifiant le cisaillement et en optimisant les aciers de répartition.
                     svgContent += `<text x="${(startX+endX)/2}" y="${coteY-10}" text-anchor="middle" font-size="14" fill="${textColor}">${esp.toFixed(1)} cm</text>`;
                 }
 
-                // Cotes d'espacement en plan (Aciers Répartition - Espacement vertical)
                 if (nb_rep >= 1) {
                     const startY = yP + offset_yP;
                     const endY = startY + esp_rep_px;
@@ -480,11 +568,10 @@ en vérifiant le cisaillement et en optimisant les aciers de répartition.
                     svgContent += `<line x1="${coteX}" y1="${startY}" x2="${coteX}" y2="${endY}" stroke="${textColor}" stroke-width="1.5"/>`;
                     svgContent += `<line x1="${coteX-5}" y1="${startY}" x2="${coteX+5}" y2="${startY}" stroke="${textColor}" stroke-width="2"/>`;
                     svgContent += `<line x1="${coteX-5}" y1="${endY}" x2="${coteX+5}" y2="${endY}" stroke="${textColor}" stroke-width="2"/>`;
-                    svgContent += `<text x="${coteX-10}" y="${(startY+endY)/2}" alignment-baseline="middle" text-anchor="end" font-size="14" fill="${textColor}">${currentResults.esp_rep.toFixed(1)} cm</text>`;
+                    svgContent += `<text x="${coteX-10}" y="${(startY+endY)/2}" alignment-baseline="middle" text-anchor="end" font-size="14" fill="${textColor}">${p.espRepInput.toFixed(1)} cm</text>`;
                 }
             }
 
-            // Légende
             svgContent += `
             <g transform="translate(${svgSize - 220}, ${svgSize - 165})">
                 <rect x="0" y="0" width="200" height="145" rx="6" ry="6" fill="${legendBg}" stroke="${concreteStroke}" stroke-width="1.5"/>
@@ -493,8 +580,8 @@ en vérifiant le cisaillement et en optimisant les aciers de répartition.
                 <text x="45" y="55" font-size="14" fill="${textColor}">Acier Principal</text>
                 <line x1="15" y1="80" x2="35" y2="80" stroke="#2980b9" stroke-width="4"/>
                 <text x="45" y="85" font-size="14" fill="${textColor}">Acier Répartition</text>
-                <text x="15" y="110" font-size="13" font-weight="bold" fill="${textColor}">As,req: ${currentResults.As_prov.toFixed(2)} cm²/ml (HA${diamMain})</text>
-                <text x="15" y="130" font-size="13" font-weight="bold" fill="${textColor}">As,rep: ${currentResults.As_prov_rep.toFixed(2)} cm²/ml (HA${diamRep})</text>
+                <text x="15" y="110" font-size="13" font-weight="bold" fill="${textColor}">As,req: ${res.As_prov.toFixed(2)} cm²/ml (HA${AppState.diamMain})</text>
+                <text x="15" y="130" font-size="13" font-weight="bold" fill="${textColor}">As,rep: ${res.As_prov_rep.toFixed(2)} cm²/ml (HA${AppState.diamRep})</text>
             </g>`;
 
             svgContent += '</svg>';
@@ -502,85 +589,27 @@ en vérifiant le cisaillement et en optimisant les aciers de répartition.
         }
 
         // ==========================================
-        // 3. INITIALISATION ET ÉVÉNEMENTS
-        // Je mets en place les écouteurs d'événements pour rendre l'interface interactive et réactive aux modifications.
+        // 5. EXPORT & PÉDAGOGIE
         // ==========================================
-        function updateSteelSelectors() {
-            document.querySelectorAll('#sel-Main .steel-btn').forEach(btn => {
-                btn.classList.toggle('active', parseInt(btn.dataset.diameter) === diamMain);
-            });
-            document.querySelectorAll('#sel-Rep .steel-btn').forEach(btn => {
-                btn.classList.toggle('active', parseInt(btn.dataset.diameter) === diamRep);
-            });
-        }
-
-        window.addEventListener('DOMContentLoaded', () => {
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            document.documentElement.setAttribute('data-theme', savedTheme);
-
-            // Restaurer les valeurs du formulaire
-            dalleInputs.forEach(id => {
-                const savedVal = localStorage.getItem(`dalle_${id}`);
-                if (savedVal) {
-                    const el = document.getElementById(id);
-                    if (el) el.value = savedVal;
-                }
-            });
-            
-            const savedDiamMain = localStorage.getItem('dalle_diamMain');
-            if (savedDiamMain) diamMain = parseInt(savedDiamMain);
-            const savedDiamRep = localStorage.getItem('dalle_diamRep');
-            if (savedDiamRep) diamRep = parseInt(savedDiamRep);
-            updateSteelSelectors();
-
-            document.getElementById('dalleForm').addEventListener('input', calculateEC2);
-            document.getElementById('espacementInput').addEventListener('input', calculateEC2);
-            document.getElementById('espRepInput').addEventListener('input', calculateEC2);
-
-            document.querySelectorAll('#sel-Main .steel-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    diamMain = parseInt(e.target.dataset.diameter);
-                    localStorage.setItem('dalle_diamMain', diamMain);
-                    updateSteelSelectors();
-                    calculateEC2();
-                });
-            });
-            document.querySelectorAll('#sel-Rep .steel-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    diamRep = parseInt(e.target.dataset.diameter);
-                    localStorage.setItem('dalle_diamRep', diamRep);
-                    updateSteelSelectors();
-                    calculateEC2();
-                });
-            });
-
-            window.onThemeChange = calculateEC2; // Lien avec script.js
-            calculateEC2();
-        });
-
-        // ==========================================
-        // 4. EXPORT & PÉDAGOGIE
-        // J'ai ajouté ces fonctionnalités pour permettre aux étudiants de comprendre les formules normatives et d'exporter leurs résultats.
-        // ==========================================
-        function showFormula(type) {
-            let msg = "";
-            switch(type) {
-                case 'Med': msg = "Moment ELU : M_ed = (1.35G + 1.5Q) * L² / 8\nBande de 1m (b = 1.0m)."; break;
-                case 'As_req': msg = "Section d'acier : A_s = M_ed / (z * f_yd)\nAvec z = d * (1 - 0.4*α) (bras de levier)."; break;
-                case 'Ved': msg = "Effort Tranchant ELU : V_ed = (1.35G + 1.5Q) * L / 2\nCisaillement maximal aux appuis."; break;
-                case 'Vrdc': msg = "Cisaillement Résistant V_Rd,c = [C_Rdc * k * (100 * ρ_l * fck)^(1/3)] * b * d\nUne dalle n'a généralement pas d'armatures d'effort tranchant, le béton doit tout reprendre."; break;
-                case 'As_rep': msg = "Acier de répartition (Transversal)\nDoit représenter au moins 20% de l'armature principale (EC2 §9.3.1.1)."; break;
-                case 'As_min': msg = "Ferraillage Minimum Flexion (EC2 §9.2.1.1)\nAs,min = max(0.26 * (fctm/fyk) * b * d ; 0.0013 * b * d)."; break;
-            }
-            showModal("Formule Eurocode 2", msg);
-        }
-
         function exportAsPNG() {
-            exportPlanAsPNG('svgContainer', `ferraillage_dalle_${currentView}_${new Date().toISOString().slice(0,10)}.png`, calculateEC2);
+            exportPlanAsPNG('svgContainer', `ferraillage_dalle_${AppState.currentView}_${new Date().toISOString().slice(0,10)}.png`, renderUI);
         }
 
         function exportAsSVG() {
-            exportPlanAsSVG('svgContainer', `ferraillage_dalle_${currentView}_${new Date().toISOString().slice(0,10)}.svg`, calculateEC2);
+            exportPlanAsSVG('svgContainer', `ferraillage_dalle_${AppState.currentView}_${new Date().toISOString().slice(0,10)}.svg`, renderUI);
+        }
+
+        function showFormula(type) {
+            let msg = "";
+            switch(type) {
+                case 'Med': msg = "Moment ELU : M_ed = (1.35G + 1.5Q) * L² / 8\nJ'isole une bande de 1m pour simplifier le calcul de la dalle (b = 1.0m)."; break;
+                case 'As_req': msg = "Section d'acier : A_s = M_ed / (z * f_yd)\nAvec un bras de levier z calculé à partir de la hauteur utile réelle d."; break;
+                case 'Ved': msg = "Effort Tranchant ELU : V_ed = (1.35G + 1.5Q) * L / 2\nCisaillement maximal évalué aux appuis."; break;
+                case 'Vrdc': msg = "Cisaillement Résistant V_Rd,c = [C_Rdc * k * (100 * ρ_l * fck)^(1/3)] * b * d\nComme je ne mets pas de cadres dans une dalle pleine, je m'assure que le béton seul résiste au cisaillement (EC2 §6.2.2)."; break;
+                case 'As_rep': msg = "Acier de répartition\nJe dimensionne pour respecter le critère EC2 §9.3.1.1 : au moins 20% de l'armature principale réelle."; break;
+                case 'As_min': msg = "Ferraillage Minimum Flexion (EC2 §9.2.1.1)\nAs,min = max(0.26 * (fctm/fyk) * b * d ; 0.0013 * b * d). Je vérifie la condition de non-fragilité."; break;
+            }
+            showModal("Formule Eurocode 2", msg);
         }
     </script>
     <script src="script.js"></script>

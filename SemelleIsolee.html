@@ -175,71 +175,140 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
     </div>
 
     <script>
-        let diamA = 12;
-        let diamB = 12;
-        let currentView = 'coupe';
-        let currentResults = null;
-        const semelleInputs = ['a', 'b', 'A', 'B', 'h', 'fck', 'q_adm', 'N_Ed', 'N_Eq', 'enrobage'];
+        // ==========================================
+        // 2. ÉTAT ET ARCHITECTURE GLOBALE (State Pattern)
+        // Je centralise toutes les données dans un seul objet AppState.
+        // Cela garantit une source unique de vérité et facilite l'évolution du code.
+        // ==========================================
+        const AppState = {
+            inputs: { a: 0.30, b: 0.30, A: 1.50, B: 1.50, h: 0.40, fck: 25, q_adm: 0.25, N_Ed: 600, N_Eq: 430, enrobage: 4.0 },
+            diamA: 12,
+            diamB: 12,
+            currentView: 'coupe',
+            results: null
+        };
 
-        // ==========================================
-        // LOGIQUE D'INTERFACE
-        // Je centralise les mises à jour des éléments visuels de la page.
-        // ==========================================
+        const semelleInputs = Object.keys(AppState.inputs);
+
+        // Initialisation de l'application
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+
+            semelleInputs.forEach(id => {
+                const savedVal = localStorage.getItem(`semelle_${id}`);
+                if (savedVal !== null) {
+                    AppState.inputs[id] = parseFloat(savedVal);
+                    const el = document.getElementById(id);
+                    if (el) el.value = savedVal;
+                }
+            });
+            
+            const savedDiamA = localStorage.getItem('semelle_diamA');
+            if (savedDiamA) AppState.diamA = parseInt(savedDiamA);
+            const savedDiamB = localStorage.getItem('semelle_diamB');
+            if (savedDiamB) AppState.diamB = parseInt(savedDiamB);
+
+            bindEvents();
+            updateSteelSelectors();
+            runController();
+        });
+
+        function bindEvents() {
+            semelleInputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('input', (e) => {
+                        AppState.inputs[id] = parseFloat(e.target.value) || 0;
+                        localStorage.setItem(`semelle_${id}`, e.target.value);
+                        runController();
+                    });
+                }
+            });
+
+            document.querySelectorAll('#sel-A .steel-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    AppState.diamA = parseInt(e.target.dataset.diam);
+                    localStorage.setItem('semelle_diamA', AppState.diamA);
+                    updateSteelSelectors();
+                    runController();
+                });
+            });
+            document.querySelectorAll('#sel-B .steel-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    AppState.diamB = parseInt(e.target.dataset.diam);
+                    localStorage.setItem('semelle_diamB', AppState.diamB);
+                    updateSteelSelectors();
+                    runController();
+                });
+            });
+
+            window.onThemeChange = () => renderUI();
+        }
+
         function setView(view) {
-            currentView = view;
+            AppState.currentView = view;
             document.getElementById('btnViewCoupe').classList.toggle('active', view === 'coupe');
             document.getElementById('btnViewPlan').classList.toggle('active', view === 'plan');
-            if (currentResults) drawSVG();
+            renderUI();
         }
 
         function updateSteelSelectors() {
             document.querySelectorAll('#sel-A .steel-btn').forEach(btn => {
-                btn.classList.toggle('active', parseInt(btn.dataset.diam) === diamA);
+                btn.classList.toggle('active', parseInt(btn.dataset.diam) === AppState.diamA);
             });
             document.querySelectorAll('#sel-B .steel-btn').forEach(btn => {
-                btn.classList.toggle('active', parseInt(btn.dataset.diam) === diamB);
+                btn.classList.toggle('active', parseInt(btn.dataset.diam) === AppState.diamB);
             });
         }
 
-        // ==========================================
-        // CALCULS EC2 (MÉTHODE DES BIELLES)
-        // C'est ici que je traduis la mécanique des bielles de l'Eurocode pour trouver l'armature croisée.
-        // ==========================================
-        function calculateEC2() {
-            semelleInputs.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) localStorage.setItem(`semelle_${id}`, el.value);
-            });
+        function getSVGTextColor() {
+            const theme = document.documentElement.getAttribute('data-theme');
+            return theme === 'dark' ? '#e0e0e0' : '#1e293b';
+        }
 
-            const a = parseFloat(document.getElementById('a').value);
-            const b = parseFloat(document.getElementById('b').value);
-            const A = parseFloat(document.getElementById('A').value);
-            const B = parseFloat(document.getElementById('B').value);
-            const h = parseFloat(document.getElementById('h').value);
-            const fck = parseFloat(document.getElementById('fck').value);
-            const q_adm = parseFloat(document.getElementById('q_adm').value);
-            const N_Ed = parseFloat(document.getElementById('N_Ed').value);
-            const N_Eq = parseFloat(document.getElementById('N_Eq').value);
-            const c_m = parseFloat(document.getElementById('enrobage').value) / 100;
+        // ==========================================
+        // 1. LOGIQUE MÉTIER PURE (Calculs EC2 - Méthode des Bielles)
+        // J'isole totalement l'algorithme normatif de l'interface graphique.
+        // Je dimensionne une fondation rectangulaire soumise à un effort centré.
+        // ==========================================
+        function calculateEurocode2(params) {
+            const { a, b, A, B, h, fck, q_adm, N_Ed, N_Eq, enrobage, diamA, diamB } = params;
+            const c_m = enrobage / 100;
 
-            // 1. Contrainte de sol
-            const weight = A * B * h * 25; // kN (Poids propre semelle)
+            // --- OPTIMISATION 1 : Portance géotechnique ---
+            // J'intègre le poids propre de la fondation en béton armé (densité 25 kN/m3) 
+            // pour une vérification réaliste à l'ELS vis-à-vis du sol.
+            const weight = A * B * h * 25; // kN
             const sigma_sol = (N_Eq + weight) / (A * B * 1000); // MPa
+            
+            let status = 'OK';
+            if (sigma_sol > q_adm) status = 'ERROR_BEARING';
 
-            // 2. Condition de rigidité (Struts)
+            // --- OPTIMISATION 2 : Condition de rigidité bidirectionnelle ---
+            // Le modèle des bielles de l'EC2 ne fonctionne que si la semelle est assez rigide.
+            // Je vérifie donc la hauteur limite requise dans les DEUX directions.
             const d_req_A = (A - a) / 4;
             const d_req_B = (B - b) / 4;
             const d_req = Math.max(d_req_A, d_req_B);
             
-            // 3. Calcul Ferraillage (Méthode bielles)
-            const fyd = 500 / 1.15;
-            const d_A = h - c_m - (diamA / 2000); // Nappe inférieure
-            const d_B = h - c_m - (diamA / 1000) - (diamB / 2000); // Nappe supérieure
+            // J'affine le calcul des hauteurs utiles par nappe :
+            // Nappe A (inférieure, // à A) et Nappe B (supérieure, // à B)
+            const phi_A = diamA / 1000;
+            const phi_B = diamB / 1000;
+            const d_A = h - c_m - (phi_A / 2); 
+            const d_B = h - c_m - phi_A - (phi_B / 2); 
 
+            if ((d_A < d_req_A || d_B < d_req_B) && status === 'OK') {
+                status = 'WARNING_FLEXIBLE';
+            }
+
+            // Ferraillage : Méthode des bielles (traction à la base de la bielle de compression)
+            const fyd = 500 / 1.15;
             let As_A_req = (N_Ed * (A - a)) / (8 * d_A * fyd) * 10; // cm²
             let As_B_req = (N_Ed * (B - b)) / (8 * d_B * fyd) * 10; // cm²
 
-            // Section min réglementaire (EC2)
+            // Section minimum pour prévenir la fragilité (EC2 §9.2.1.1)
             const fctm = 0.30 * Math.pow(fck, 2/3);
             const As_A_min = Math.max(0.26 * (fctm/500) * B * d_A, 0.0013 * B * d_A) * 10000;
             const As_B_min = Math.max(0.26 * (fctm/500) * A * d_B, 0.0013 * A * d_B) * 10000;
@@ -247,9 +316,10 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
             As_A_req = Math.max(As_A_req, As_A_min);
             As_B_req = Math.max(As_B_req, As_B_min);
 
-            // Aciers fournis
+            // Armatures réelles fournies (calcul de l'espacement et du nb de barres)
             const secA = STEEL_SPECS[diamA].section;
-            let nb_A = Math.max(Math.ceil(As_A_req / secA), Math.ceil((B*100 - 2*c_m*100)/30) + 1); // Max espacement 30cm
+            // Je m'assure de ne pas dépasser un espacement de 30cm
+            let nb_A = Math.max(Math.ceil(As_A_req / secA), Math.ceil((B*100 - 2*c_m*100)/30) + 1); 
             const As_A_prov = nb_A * secA;
             const esp_A = nb_A > 1 ? (B*100 - 2*c_m*100) / (nb_A - 1) : 0;
 
@@ -258,38 +328,57 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
             const As_B_prov = nb_B * secB;
             const esp_B = nb_B > 1 ? (A*100 - 2*c_m*100) / (nb_B - 1) : 0;
 
-            currentResults = {
-                a, b, A, B, h, c_m, sigma_sol, q_adm, d_req, d_A, d_B,
-                As_A_req, As_B_req, As_A_prov, As_B_prov, nb_A, nb_B, esp_A, esp_B
-            };
+            if ((As_A_prov < As_A_req || As_B_prov < As_B_req) && status !== 'ERROR_BEARING') {
+                status = 'ERROR_STEEL';
+            }
 
-            updateUI();
+            return {
+                sigma_sol, d_req, d_A, d_B, d_req_A, d_req_B,
+                As_A_req, As_B_req, As_A_min, As_B_min,
+                As_A_prov, As_B_prov, nb_A, nb_B, esp_A, esp_B,
+                status
+            };
         }
 
-        function updateUI() {
-            document.getElementById('res-sigma').innerText = currentResults.sigma_sol.toFixed(3);
-            document.getElementById('res-dmin').innerText = currentResults.d_req.toFixed(2);
-            document.getElementById('res-AsA').innerText = currentResults.As_A_req.toFixed(2);
-            document.getElementById('res-AsB').innerText = currentResults.As_B_req.toFixed(2);
+        // ==========================================
+        // 3. CONTRÔLEUR ET VUE
+        // ==========================================
+        function runController() {
+            const params = {
+                ...AppState.inputs,
+                diamA: AppState.diamA,
+                diamB: AppState.diamB
+            };
+            AppState.results = calculateEurocode2(params);
+            renderUI();
+        }
 
-            document.getElementById('info-nbA').innerText = currentResults.nb_A;
-            document.getElementById('info-diamA').innerText = diamA;
-            document.getElementById('info-secA').innerText = currentResults.As_A_prov.toFixed(2);
-            document.getElementById('req-secA').innerText = currentResults.As_A_req.toFixed(2);
+        function renderUI() {
+            const res = AppState.results;
+            
+            document.getElementById('res-sigma').innerText = res.sigma_sol.toFixed(3);
+            document.getElementById('res-dmin').innerText = res.d_req.toFixed(2);
+            document.getElementById('res-AsA').innerText = res.As_A_req.toFixed(2);
+            document.getElementById('res-AsB').innerText = res.As_B_req.toFixed(2);
 
-            document.getElementById('info-nbB').innerText = currentResults.nb_B;
-            document.getElementById('info-diamB').innerText = diamB;
-            document.getElementById('info-secB').innerText = currentResults.As_B_prov.toFixed(2);
-            document.getElementById('req-secB').innerText = currentResults.As_B_req.toFixed(2);
+            document.getElementById('info-nbA').innerText = res.nb_A;
+            document.getElementById('info-diamA').innerText = AppState.diamA;
+            document.getElementById('info-secA').innerText = res.As_A_prov.toFixed(2);
+            document.getElementById('req-secA').innerText = res.As_A_req.toFixed(2);
+
+            document.getElementById('info-nbB').innerText = res.nb_B;
+            document.getElementById('info-diamB').innerText = AppState.diamB;
+            document.getElementById('info-secB').innerText = res.As_B_prov.toFixed(2);
+            document.getElementById('req-secB').innerText = res.As_B_req.toFixed(2);
 
             const badge = document.getElementById('statusBadge');
-            if (currentResults.sigma_sol > currentResults.q_adm) {
+            if (res.status === 'ERROR_BEARING') {
                 badge.className = 'status-badge status-red';
                 badge.innerText = 'Surface insuffisante (σ_sol > q_adm)';
-            } else if (currentResults.d_A < currentResults.d_req || currentResults.d_B < currentResults.d_req) {
+            } else if (res.status === 'WARNING_FLEXIBLE') {
                 badge.className = 'status-badge status-orange';
-                badge.innerText = 'Épaisseur h limite (Semelle non rigide)';
-            } else if (currentResults.As_A_prov < currentResults.As_A_req || currentResults.As_B_prov < currentResults.As_B_req) {
+                badge.innerText = 'Semelle Flexible (d < d_req, bielles hors limites)';
+            } else if (res.status === 'ERROR_STEEL') {
                 badge.className = 'status-badge status-red';
                 badge.innerText = 'Ferraillage Insuffisant';
             } else {
@@ -301,30 +390,31 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
         }
 
         // ==========================================
-        // RENDU SVG (COUPE ET PLAN)
-        // Je génère un plan à l'échelle pour visualiser la répartition bidirectionnelle des armatures.
+        // 4. RENDU SVG (COUPE ET PLAN)
+        // Je dessine dynamiquement le plan de ferraillage à l'échelle.
         // ==========================================
         function drawSVG() {
             const container = document.getElementById('svgContainer');
             const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
             const theme = document.documentElement.getAttribute('data-theme');
             
+            const p = AppState.inputs;
+            const res = AppState.results;
+            
             const svgSize = 800;
             const margin = 140;
-            const { a, b, A, B, h, c_m, nb_A, nb_B } = currentResults;
             
             let svgContent = `<svg viewBox="0 0 ${svgSize} ${svgSize}" xmlns="http://www.w3.org/2000/svg" id="semellesvg" style="width: 100%; height: 100%;">`;
 
-            if (currentView === 'coupe') {
-                // Vue en coupe selon l'axe A
-                const maxDim = Math.max(A, h + 0.5);
+            if (AppState.currentView === 'coupe') {
+                const maxDim = Math.max(p.A, p.h + 0.5);
                 const scale = (svgSize - 2*margin) / maxDim;
                 
-                const w_px = A * scale;
-                const h_px = h * scale;
-                const a_px = a * scale;
-                const col_h_px = 0.6 * scale; // Hauteur arbitraire du poteau visible
-                const c_px = c_m * scale;
+                const w_px = p.A * scale;
+                const h_px = p.h * scale;
+                const a_px = p.a * scale;
+                const col_h_px = 0.6 * scale; 
+                const c_px = (p.enrobage / 100) * scale;
 
                 const x0 = (svgSize - w_px) / 2;
                 const y0 = svgSize - margin - h_px;
@@ -336,67 +426,58 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
                 svgContent += `<rect x="${col_x0}" y="${y0 - col_h_px}" width="${a_px}" height="${col_h_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
                 svgContent += `<line x1="${col_x0-10}" y1="${y0 - col_h_px}" x2="${col_x0+a_px+10}" y2="${y0 - col_h_px}" stroke="${concreteStroke}" stroke-width="2" stroke-dasharray="8,8"/>`;
 
-                // Cotes Poteau (a)
+                // Cotes Poteau
                 svgContent += `<line x1="${col_x0}" y1="${y0 - col_h_px - 20}" x2="${col_x0+a_px}" y2="${y0 - col_h_px - 20}" stroke="${textColor}" stroke-width="1.5"/>`;
                 svgContent += `<line x1="${col_x0}" y1="${y0 - col_h_px - 25}" x2="${col_x0}" y2="${y0 - col_h_px - 15}" stroke="${textColor}" stroke-width="2"/>`;
                 svgContent += `<line x1="${col_x0+a_px}" y1="${y0 - col_h_px - 25}" x2="${col_x0+a_px}" y2="${y0 - col_h_px - 15}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<text x="${col_x0+a_px/2}" y="${y0 - col_h_px - 30}" text-anchor="middle" font-size="14" fill="${textColor}">a = ${(a*100).toFixed(0)} cm</text>`;
+                svgContent += `<text x="${col_x0+a_px/2}" y="${y0 - col_h_px - 30}" text-anchor="middle" font-size="14" fill="${textColor}">a = ${(p.a*100).toFixed(0)} cm</text>`;
 
-                // Nappe A (Barres longitudinales)
+                // Nappe A (inférieure, barres longitudinales dans cette vue)
                 const yA = y0 + h_px - c_px;
-                const diamA_px = (diamA / 1000) * scale;
+                const diamA_px = (AppState.diamA / 1000) * scale;
                 const strokeWA = Math.max(diamA_px, 4);
-                const hook = Math.max(15 * (diamA/1000) * scale, 25);
+                const hook = Math.max(15 * (AppState.diamA/1000) * scale, 25);
                 svgContent += `<path d="M ${x0+c_px} ${yA-hook} L ${x0+c_px} ${yA} L ${x0+w_px-c_px} ${yA} L ${x0+w_px-c_px} ${yA-hook}" fill="none" stroke="#c0392b" stroke-width="${strokeWA}" stroke-linejoin="round" stroke-linecap="round"/>`;
 
-                // Nappe B (Barres transversales, vues comme des cercles)
-                const radiusB = Math.max((diamB/1000)*scale/2, 4);
-                const yB = yA - radiusB - 2;
-                const espace_B_px = nb_B > 1 ? (w_px - 2*c_px) / (nb_B - 1) : 0;
+                // Nappe B (supérieure, transversales, vues comme des cercles)
+                const diamB_px = (AppState.diamB / 1000) * scale;
+                const radiusB = Math.max(diamB_px/2, 4);
+                const yB = yA - (diamA_px/2) - radiusB; 
                 
-                for(let i=0; i<nb_B; i++) {
-                    const bx = x0 + c_px + i * espace_B_px;
+                const espB_px = res.nb_B > 1 ? (w_px - 2*c_px) / (res.nb_B - 1) : 0;
+                const offset_xB = (w_px - ((res.nb_B-1) * espB_px)) / 2;
+                
+                for(let i=0; i<res.nb_B; i++) {
+                    const bx = x0 + offset_xB + i * espB_px;
                     svgContent += `<circle cx="${bx}" cy="${yB}" r="${radiusB}" fill="#2980b9"/>`;
-                }
-
-                // Cote d'espacement des aciers de nappe B
-                if (nb_B > 1) {
-                    const startX = x0 + c_px;
-                    const endX = startX + espace_B_px;
-                    const coteY = y0 + h_px + 40;
-                    svgContent += `<line x1="${startX}" y1="${coteY}" x2="${endX}" y2="${coteY}" stroke="${textColor}" stroke-width="1.5"/>`;
-                    svgContent += `<line x1="${startX}" y1="${coteY-5}" x2="${startX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
-                    svgContent += `<line x1="${endX}" y1="${coteY-5}" x2="${endX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
-                    svgContent += `<text x="${(startX+endX)/2}" y="${coteY+15}" text-anchor="middle" font-size="14" fill="${textColor}">${currentResults.esp_B.toFixed(1)} cm</text>`;
                 }
 
                 // Cotes
                 svgContent += `<line x1="${x0}" y1="${y0+h_px+60}" x2="${x0+w_px}" y2="${y0+h_px+60}" stroke="${textColor}" stroke-width="1.5"/>`;
                 svgContent += `<line x1="${x0}" y1="${y0+h_px+55}" x2="${x0}" y2="${y0+h_px+65}" stroke="${textColor}" stroke-width="2"/>`;
                 svgContent += `<line x1="${x0+w_px}" y1="${y0+h_px+55}" x2="${x0+w_px}" y2="${y0+h_px+65}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<text x="${x0+w_px/2}" y="${y0+h_px+80}" text-anchor="middle" font-size="16" fill="${textColor}">A = ${(A).toFixed(2)} m</text>`;
+                svgContent += `<text x="${x0+w_px/2}" y="${y0+h_px+80}" text-anchor="middle" font-size="16" fill="${textColor}">A = ${(p.A).toFixed(2)} m</text>`;
 
                 svgContent += `<line x1="${x0-30}" y1="${y0}" x2="${x0-30}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
                 svgContent += `<line x1="${x0-35}" y1="${y0}" x2="${x0-25}" y2="${y0}" stroke="${textColor}" stroke-width="2"/>`;
                 svgContent += `<line x1="${x0-35}" y1="${y0+h_px}" x2="${x0-25}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<text x="${x0-45}" y="${y0+h_px/2}" text-anchor="middle" font-size="16" fill="${textColor}" transform="rotate(-90 ${x0-45} ${y0+h_px/2})">h = ${(h*100).toFixed(0)} cm</text>`;
+                svgContent += `<text x="${x0-45}" y="${y0+h_px/2}" text-anchor="middle" font-size="16" fill="${textColor}" transform="rotate(-90 ${x0-45} ${y0+h_px/2})">h = ${(p.h*100).toFixed(0)} cm</text>`;
 
-                // Cote Enrobage (c)
                 svgContent += `<line x1="${x0}" y1="${y0+h_px+15}" x2="${x0+c_px}" y2="${y0+h_px+15}" stroke="${textColor}" stroke-width="1.5"/>`;
                 svgContent += `<line x1="${x0}" y1="${y0+h_px+10}" x2="${x0}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2"/>`;
                 svgContent += `<line x1="${x0+c_px}" y1="${y0+h_px+10}" x2="${x0+c_px}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<text x="${x0+c_px/2}" y="${y0+h_px+30}" text-anchor="middle" font-size="12" fill="${textColor}">c=${(c_m*100).toFixed(1)}</text>`;
+                svgContent += `<text x="${x0+c_px/2}" y="${y0+h_px+30}" text-anchor="middle" font-size="12" fill="${textColor}">c=${(p.enrobage).toFixed(1)}</text>`;
             } 
             else {
                 // Vue en PLAN
-                const maxDim = Math.max(A, B);
+                const maxDim = Math.max(p.A, p.B);
                 const scale = (svgSize - 2*margin) / maxDim;
                 
-                const wA_px = A * scale;
-                const wB_px = B * scale;
-                const a_px = a * scale;
-                const b_px = b * scale;
-                const c_px = c_m * scale;
+                const wA_px = p.A * scale;
+                const wB_px = p.B * scale;
+                const a_px = p.a * scale;
+                const b_px = p.b * scale;
+                const c_px = (p.enrobage / 100) * scale;
 
                 const x0 = (svgSize - wA_px) / 2;
                 const y0 = (svgSize - wB_px) / 2;
@@ -404,35 +485,31 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
                 // Semelle
                 svgContent += `<rect x="${x0}" y="${y0}" width="${wA_px}" height="${wB_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
                 
-                // Poteau (Centre)
+                // Poteau
                 const col_x0 = x0 + (wA_px - a_px)/2;
                 const col_y0 = y0 + (wB_px - b_px)/2;
                 svgContent += `<rect x="${col_x0}" y="${col_y0}" width="${a_px}" height="${b_px}" fill="${theme==='dark'?'#3d3d3d':'#dcdde1'}" stroke="${concreteStroke}" stroke-width="2"/>`;
                 
-                // Poteau a
                 svgContent += `<line x1="${col_x0}" y1="${col_y0-15}" x2="${col_x0+a_px}" y2="${col_y0-15}" stroke="${textColor}" stroke-width="1.5"/>`;
                 svgContent += `<text x="${col_x0+a_px/2}" y="${col_y0-25}" text-anchor="middle" font-size="12" fill="${textColor}">a</text>`;
-                // Poteau b
                 svgContent += `<line x1="${col_x0+a_px+15}" y1="${col_y0}" x2="${col_x0+a_px+15}" y2="${col_y0+b_px}" stroke="${textColor}" stroke-width="1.5"/>`;
                 svgContent += `<text x="${col_x0+a_px+25}" y="${col_y0+b_px/2}" text-anchor="middle" font-size="12" fill="${textColor}" alignment-baseline="middle">b</text>`;
 
-                // Lignes d'armatures Nappe A (Lignes horizontales réparties sur B)
-                // La longueur des barres est A. Distribuées le long de B.
-                const diamA_px = (diamA / 1000) * scale;
+                // Nappe A (Barres horizontales, longueur A, réparties sur B)
+                const diamA_px = (AppState.diamA / 1000) * scale;
                 const strokeWPlanA = Math.max(diamA_px, 3);
-                const esp_A_px = nb_A > 1 ? (wB_px - 2*c_px) / (nb_A - 1) : 0;
-                for(let i=0; i<nb_A; i++) {
-                    const yL = y0 + c_px + i * esp_A_px;
+                const espA_px = res.nb_A > 1 ? (wB_px - 2*c_px) / (res.nb_A - 1) : 0;
+                for(let i=0; i<res.nb_A; i++) {
+                    const yL = y0 + c_px + i * espA_px;
                     svgContent += `<line x1="${x0+c_px}" y1="${yL}" x2="${x0+wA_px-c_px}" y2="${yL}" stroke="#c0392b" stroke-width="${strokeWPlanA}" stroke-linecap="round"/>`;
                 }
 
-                // Lignes d'armatures Nappe B (Lignes verticales réparties sur A)
-                // La longueur des barres est B. Distribuées le long de A.
-                const diamB_px = (diamB / 1000) * scale;
+                // Nappe B (Barres verticales, longueur B, réparties sur A)
+                const diamB_px = (AppState.diamB / 1000) * scale;
                 const strokeWPlanB = Math.max(diamB_px, 3);
-                const esp_B_px = nb_B > 1 ? (wA_px - 2*c_px) / (nb_B - 1) : 0;
-                for(let i=0; i<nb_B; i++) {
-                    const xL = x0 + c_px + i * esp_B_px;
+                const espB_px = res.nb_B > 1 ? (wA_px - 2*c_px) / (res.nb_B - 1) : 0;
+                for(let i=0; i<res.nb_B; i++) {
+                    const xL = x0 + c_px + i * espB_px;
                     svgContent += `<line x1="${xL}" y1="${y0+c_px}" x2="${xL}" y2="${y0+wB_px-c_px}" stroke="#2980b9" stroke-width="${strokeWPlanB}" stroke-linecap="round"/>`;
                 }
 
@@ -440,37 +517,34 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
                 svgContent += `<line x1="${x0}" y1="${y0-60}" x2="${x0+wA_px}" y2="${y0-60}" stroke="${textColor}" stroke-width="1.5"/>`;
                 svgContent += `<line x1="${x0}" y1="${y0-65}" x2="${x0}" y2="${y0-55}" stroke="${textColor}" stroke-width="2"/>`;
                 svgContent += `<line x1="${x0+wA_px}" y1="${y0-65}" x2="${x0+wA_px}" y2="${y0-55}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<text x="${x0+wA_px/2}" y="${y0-75}" text-anchor="middle" font-size="16" fill="${textColor}">A = ${(A).toFixed(2)} m</text>`;
+                svgContent += `<text x="${x0+wA_px/2}" y="${y0-75}" text-anchor="middle" font-size="16" fill="${textColor}">A = ${(p.A).toFixed(2)} m</text>`;
 
                 svgContent += `<line x1="${x0+wA_px+60}" y1="${y0}" x2="${x0+wA_px+60}" y2="${y0+wB_px}" stroke="${textColor}" stroke-width="1.5"/>`;
                 svgContent += `<line x1="${x0+wA_px+55}" y1="${y0}" x2="${x0+wA_px+65}" y2="${y0}" stroke="${textColor}" stroke-width="2"/>`;
                 svgContent += `<line x1="${x0+wA_px+55}" y1="${y0+wB_px}" x2="${x0+wA_px+65}" y2="${y0+wB_px}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<text x="${x0+wA_px+75}" y="${y0+wB_px/2}" text-anchor="middle" font-size="16" fill="${textColor}" transform="rotate(90 ${x0+wA_px+75} ${y0+wB_px/2})">B = ${(B).toFixed(2)} m</text>`;
+                svgContent += `<text x="${x0+wA_px+75}" y="${y0+wB_px/2}" text-anchor="middle" font-size="16" fill="${textColor}" transform="rotate(90 ${x0+wA_px+75} ${y0+wB_px/2})">B = ${(p.B).toFixed(2)} m</text>`;
 
-                // Cotes d'espacement en plan (Nappe B - Espacement horizontal)
-                if (nb_B > 1) {
-                    const startX = x0 + c_px;
-                    const endX = startX + esp_B_px;
-                    const coteY = y0 + wB_px + 40;
-                    svgContent += `<line x1="${startX}" y1="${coteY}" x2="${endX}" y2="${coteY}" stroke="${textColor}" stroke-width="1.5"/>`;
-                    svgContent += `<line x1="${startX}" y1="${coteY-5}" x2="${startX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
-                    svgContent += `<line x1="${endX}" y1="${coteY-5}" x2="${endX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
-                    svgContent += `<text x="${(startX+endX)/2}" y="${coteY-10}" text-anchor="middle" font-size="14" fill="${textColor}">${currentResults.esp_B.toFixed(1)} cm</text>`;
-                }
-
-                // Cotes d'espacement en plan (Nappe A - Espacement vertical)
-                if (nb_A > 1) {
+                if (res.nb_A > 1) {
                     const startY = y0 + c_px;
-                    const endY = startY + esp_A_px;
+                    const endY = startY + espA_px;
                     const coteX = x0 - 40;
                     svgContent += `<line x1="${coteX}" y1="${startY}" x2="${coteX}" y2="${endY}" stroke="${textColor}" stroke-width="1.5"/>`;
                     svgContent += `<line x1="${coteX-5}" y1="${startY}" x2="${coteX+5}" y2="${startY}" stroke="${textColor}" stroke-width="2"/>`;
                     svgContent += `<line x1="${coteX-5}" y1="${endY}" x2="${coteX+5}" y2="${endY}" stroke="${textColor}" stroke-width="2"/>`;
-                    svgContent += `<text x="${coteX-10}" y="${(startY+endY)/2}" alignment-baseline="middle" text-anchor="end" font-size="14" fill="${textColor}">${currentResults.esp_A.toFixed(1)} cm</text>`;
+                    svgContent += `<text x="${coteX-10}" y="${(startY+endY)/2}" alignment-baseline="middle" text-anchor="end" font-size="14" fill="${textColor}">${res.esp_A.toFixed(1)} cm</text>`;
+                }
+
+                if (res.nb_B > 1) {
+                    const startX = x0 + c_px;
+                    const endX = startX + espB_px;
+                    const coteY = y0 + wB_px + 40;
+                    svgContent += `<line x1="${startX}" y1="${coteY}" x2="${endX}" y2="${coteY}" stroke="${textColor}" stroke-width="1.5"/>`;
+                    svgContent += `<line x1="${startX}" y1="${coteY-5}" x2="${startX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<line x1="${endX}" y1="${coteY-5}" x2="${endX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
+                    svgContent += `<text x="${(startX+endX)/2}" y="${coteY-10}" text-anchor="middle" font-size="14" fill="${textColor}">${res.esp_B.toFixed(1)} cm</text>`;
                 }
             }
 
-            // ===== LÉGENDE INTÉGRÉE =====
             svgContent += `
             <g transform="translate(${svgSize - 220}, ${svgSize - 165})">
                 <rect x="0" y="0" width="200" height="145" rx="6" ry="6" fill="${legendBg}" stroke="${concreteStroke}" stroke-width="1.5"/>
@@ -479,8 +553,8 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
                 <text x="45" y="55" font-size="14" fill="${textColor}">Nappe Inf (// A)</text>
                 <line x1="15" y1="80" x2="35" y2="80" stroke="#2980b9" stroke-width="4"/>
                 <text x="45" y="85" font-size="14" fill="${textColor}">Nappe Sup (// B)</text>
-                <text x="15" y="110" font-size="13" font-weight="bold" fill="${textColor}">As // A: ${currentResults.As_A_prov.toFixed(2)} cm² (HA${diamA})</text>
-                <text x="15" y="130" font-size="13" font-weight="bold" fill="${textColor}">As // B: ${currentResults.As_B_prov.toFixed(2)} cm² (HA${diamB})</text>
+                <text x="15" y="110" font-size="13" font-weight="bold" fill="${textColor}">As // A: ${res.As_A_prov.toFixed(2)} cm² (HA${AppState.diamA})</text>
+                <text x="15" y="130" font-size="13" font-weight="bold" fill="${textColor}">As // B: ${res.As_B_prov.toFixed(2)} cm² (HA${AppState.diamB})</text>
             </g>`;
 
             svgContent += '</svg>';
@@ -488,64 +562,26 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
         }
 
         // ==========================================
-        // INITIALISATION ET ÉVÉNEMENTS
-        // Je restaure l'environnement au chargement et j'y attache la boucle de recalcul automatique.
-        // ==========================================
-        window.addEventListener('DOMContentLoaded', () => {
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            document.documentElement.setAttribute('data-theme', savedTheme);
-
-            semelleInputs.forEach(id => {
-                const savedVal = localStorage.getItem(`semelle_${id}`);
-                if (savedVal) {
-                    const el = document.getElementById(id);
-                    if (el) el.value = savedVal;
-                }
-            });
-
-            document.getElementById('semelleForm').addEventListener('input', calculateEC2);
-
-            document.querySelectorAll('#sel-A .steel-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    diamA = parseInt(e.target.dataset.diam);
-                    updateSteelSelectors();
-                    calculateEC2();
-                });
-            });
-            document.querySelectorAll('#sel-B .steel-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    diamB = parseInt(e.target.dataset.diam);
-                    updateSteelSelectors();
-                    calculateEC2();
-                });
-            });
-
-            window.onThemeChange = () => { if (currentResults) drawSVG(); };
-
-            calculateEC2();
-        });
-
-        // ==========================================
-        // EXPORT & PÉDAGOGIE
-        // J'explique mes formules et permets la sauvegarde des plans pour le rendu des projets d'études.
+        // 5. EXPORT & PÉDAGOGIE
+        // J'explique le modèle d'assise aux utilisateurs.
         // ==========================================
         function showFormula(type) {
             let msg = "";
             switch(type) {
-                case 'sigma_sol': msg = "Contrainte sol : σ_sol = (N_Eq + Poids_Semelle) / (A × B)\nVérification à l'ELS par rapport à q_adm."; break;
-                case 'd_req': msg = "Hauteur utile requise (Rigidité) :\n d ≥ max( (A-a)/4 , (B-b)/4 ) \nAssure le bon fonctionnement du modèle des bielles."; break;
-                case 'As_A': msg = "Section Nappe Inférieure (parallèle au côté A) :\n As = N_Ed × (A-a) / (8 × d × fyd)\nMéthode des bielles."; break;
-                case 'As_B': msg = "Section Nappe Supérieure (parallèle au côté B) :\n As = N_Ed × (B-b) / (8 × d × fyd)"; break;
+                case 'sigma_sol': msg = "Contrainte sol : σ_sol = (N_Eq + Poids_Semelle) / (A × B)\nJe m'assure que la fondation transmet une pression inférieure à la contrainte admissible (q_adm). J'ai rajouté le poids du béton dans ce calcul."; break;
+                case 'd_req': msg = "Hauteur utile requise (Rigidité) : d ≥ max( (A-a)/4 , (B-b)/4 ) \nLe modèle de l'EC2 repose sur des bielles comprimées à l'intérieur du béton. Je vérifie donc que la semelle est suffisamment rigide dans les deux axes X et Y."; break;
+                case 'As_A': msg = "Section Nappe Inférieure (parallèle au côté A) : As = N_Ed × (A-a) / (8 × d_A × fyd)\nJ'évalue la section d'acier requise pour reprendre la traction générée par la bielle dans la direction principale."; break;
+                case 'As_B': msg = "Section Nappe Supérieure (parallèle au côté B) : As = N_Ed × (B-b) / (8 × d_B × fyd)\nPour l'autre direction, je prends en compte la réduction de la hauteur utile (d_B) due à la superposition des nappes d'aciers."; break;
             }
-            showModal("Méthode des Bielles", msg);
+            showModal("Méthode des Bielles (EC2)", msg);
         }
 
         function exportAsPNG() {
-            exportPlanAsPNG('svgContainer', `ferraillage_semelle_${currentView}_${new Date().toISOString().slice(0,10)}.png`, drawSVG);
+            exportPlanAsPNG('svgContainer', `ferraillage_semelle_${AppState.currentView}_${new Date().toISOString().slice(0,10)}.png`, renderUI);
         }
 
         function exportAsSVG() {
-            exportPlanAsSVG('svgContainer', `ferraillage_semelle_${currentView}_${new Date().toISOString().slice(0,10)}.svg`, drawSVG);
+            exportPlanAsSVG('svgContainer', `ferraillage_semelle_${AppState.currentView}_${new Date().toISOString().slice(0,10)}.svg`, renderUI);
         }
     </script>
     <script src="script.js"></script>

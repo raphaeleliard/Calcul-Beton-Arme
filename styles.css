@@ -11,36 +11,40 @@ clair/sombre et concevoir une interface propre et responsive.
    1. VARIABLES & THÈMES
    ========================================== */
 :root {
-    --bg-color: #f4f7f6;
-    --surface-color: #ffffff;
+    --bg-gradient: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+    --surface-color: rgba(255, 255, 255, 0.65);
+    --inner-bg: rgba(255, 255, 255, 0.5);
     --text-main: #2c3e50;
     --text-muted: #7f8c8d;
     --primary: #3498db;
     --primary-hover: #2980b9;
-    --border-color: #e0e0e0;
-    --shadow: 0 4px 10px rgba(0,0,0,0.08);
+    --border-color: rgba(255, 255, 255, 0.4);
+    --shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
     --danger: #e74c3c;
     --warning: #f39c12;
     --success: #2ecc71;
     --transition: all 0.3s ease;
+    --glass-blur: blur(16px);
 }
 
 [data-theme="dark"] {
-    --bg-color: #121212;
-    --surface-color: #1e1e1e;
+    --bg-gradient: radial-gradient(circle at top left, #12151c 0%, #000000 100%);
+    --surface-color: rgba(18, 18, 18, 0.5);
+    --inner-bg: rgba(0, 0, 0, 0.4);
     --text-main: #e0e0e0;
     --text-muted: #a0a0a0;
     --primary: #4dabf7;
     --primary-hover: #3b8cd9;
-    --border-color: #333333;
-    --shadow: 0 4px 10px rgba(0,0,0,0.5);
+    --border-color: rgba(255, 255, 255, 0.08);
+    --shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: var(--bg-color);
+    background: var(--bg-gradient);
+    background-attachment: fixed;
     color: var(--text-main);
     line-height: 1.5;
     display: flex;
@@ -54,6 +58,8 @@ body {
    ========================================== */
 header {
     background-color: var(--surface-color);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
     padding: 1rem 2rem;
     display: flex;
     justify-content: space-between;
@@ -87,6 +93,8 @@ header {
 
 .panel {
     background-color: var(--surface-color); border-radius: 12px; padding: 1.5rem;
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
     box-shadow: var(--shadow); border: 1px solid var(--border-color);
 }
 .panel-contact { padding: 2.5rem; }
@@ -106,6 +114,8 @@ p { margin-bottom: 1rem; color: var(--text-muted); font-size: 1.05rem; }
 .modules-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
 .module-card {
     background-color: var(--surface-color); border: 1px solid var(--border-color);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
     border-radius: 12px; padding: 1.5rem; text-decoration: none; color: var(--text-main);
     box-shadow: var(--shadow); transition: var(--transition); display: flex; flex-direction: column; gap: 10px;
 }
@@ -125,7 +135,7 @@ p { margin-bottom: 1rem; color: var(--text-muted); font-size: 1.05rem; }
 label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.3rem; }
 input, select {
     width: 100%; padding: 0.5rem; border: 1px solid var(--border-color);
-    border-radius: 6px; background: var(--bg-color); color: var(--text-main);
+    border-radius: 6px; background: var(--inner-bg); color: var(--text-main);
 }
 
 /* ==========================================
@@ -133,7 +143,7 @@ input, select {
    ========================================== */
 .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .result-card {
-    background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 8px;
+    background: var(--inner-bg); border: 1px solid var(--border-color); border-radius: 8px;
     padding: 1rem; text-align: center; cursor: pointer; transition: var(--transition);
 }
 .result-card:hover { border-color: var(--primary); transform: translateY(-2px); }
@@ -152,7 +162,7 @@ input, select {
    7. FERRAILLAGE & INTERFACE SVG
    ========================================== */
 .svg-container {
-    width: 100%; aspect-ratio: 1; background-color: var(--bg-color);
+    width: 100%; aspect-ratio: 1; background-color: var(--inner-bg);
     border: 1px dashed var(--border-color); border-radius: 8px;
     display: flex; justify-content: center; align-items: center;
 }
@@ -163,19 +173,19 @@ svg { max-width: 100%; max-height: 100%; }
     gap: 0.5rem; margin-bottom: 1rem;
 }
 .steel-btn {
-    padding: 0.4rem; border: 2px solid var(--border-color); background: var(--bg-color);
+    padding: 0.4rem; border: 2px solid var(--border-color); background: var(--inner-bg);
     color: var(--text-main); border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition);
 }
 .steel-btn:hover { border-color: var(--primary); }
 .steel-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
 
-.ferraillage-info { font-size: 0.85rem; background: var(--bg-color); padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; }
+.ferraillage-info { font-size: 0.85rem; background: var(--inner-bg); padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; }
 .ferraillage-info div { margin: 0.3rem 0; }
 .info-label { font-weight: 600; color: var(--primary); }
 
 .view-toggles { display: flex; gap: 10px; margin-bottom: 1rem; }
 .view-btn {
-    flex: 1; padding: 0.5rem; border: 2px solid var(--border-color); background: var(--surface-color);
+    flex: 1; padding: 0.5rem; border: 2px solid var(--border-color); background: var(--inner-bg);
     color: var(--text-main); border-radius: 6px; cursor: pointer; font-weight: 600; transition: var(--transition);
 }
 .view-btn:hover { border-color: var(--primary); }
@@ -196,7 +206,10 @@ svg { max-width: 100%; max-height: 100%; }
 .portfolio-link { display: inline-block; margin-top: 1rem; padding: 0.8rem 1.5rem; background-color: var(--primary); color: white; text-decoration: none; border-radius: 8px; font-weight: bold; transition: var(--transition); }
 .portfolio-link:hover { background-color: var(--primary-hover); transform: translateY(-2px); }
 
-footer { text-align: center; padding: 1rem; color: var(--text-muted); font-size: 0.9rem; background-color: var(--surface-color); border-top: 1px solid var(--border-color); width: 100%; margin-top: auto; }
+footer { text-align: center; padding: 1rem; color: var(--text-muted); font-size: 0.9rem; background-color: var(--surface-color);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-top: 1px solid var(--border-color); width: 100%; margin-top: auto; }
 
 /* ==========================================
    9. MODALES (POP-UPS)
@@ -210,6 +223,8 @@ footer { text-align: center; padding: 1rem; color: var(--text-muted); font-size:
 .modal-overlay.active { opacity: 1; visibility: visible; }
 .modal-content {
     background: var(--surface-color); padding: 2rem; border-radius: 12px;
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
     max-width: 500px; width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
     border: 1px solid var(--border-color); transform: translateY(-20px);
     transition: var(--transition);

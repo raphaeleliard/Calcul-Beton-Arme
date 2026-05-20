@@ -31,7 +31,7 @@ const TS_SPECS = {
 
 // ==========================================
 // GESTION GLOBALE DU THÈME (Clair / Sombre)
-// J'assure ici la persistance de l'expérience utilisateur vis-à-vis des préférences système ou des choix manuels.
+// Persistance du thème vis-à-vis des préférences système ou des choix manuels.
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ==========================================
 // UTILITAIRES D'EXPORT (PNG / SVG)
-// J'ai programmé ces fonctions pour convertir et télécharger dynamiquement les rendus DOM SVG vers des fichiers locaux exploitables.
+// Fonctions pour convertir et télécharger dynamiquement les rendus DOM SVG vers des fichiers locaux exploitables.
 // ==========================================
 function exportPlanAsPNG(svgContainerId, filename, drawCallback) {
     const container = document.getElementById(svgContainerId);
@@ -100,25 +100,9 @@ function exportPlanAsPNG(svgContainerId, filename, drawCallback) {
     img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
 }
 
-function exportPlanAsSVG(svgContainerId, filename, drawCallback) {
-    const container = document.getElementById(svgContainerId);
-    let svg = container.tagName.toLowerCase() === 'svg' ? container : container.querySelector('svg');
-    if (!svg) return alert('Générez d\'abord le ferraillage !');
-
-    const currentTheme = document.documentElement.getAttribute('data-theme');
-    document.documentElement.setAttribute('data-theme', 'light'); if (drawCallback) drawCallback();
-    
-    svg = document.getElementById(svgContainerId).tagName.toLowerCase() === 'svg' ? document.getElementById(svgContainerId) : document.querySelector(`#${svgContainerId} svg`);
-    const blob = new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url;
-    link.download = filename; link.click(); URL.revokeObjectURL(url);
-    
-    document.documentElement.setAttribute('data-theme', currentTheme); if (drawCallback) drawCallback();
-}
-
 // ==========================================
 // UTILITAIRES SVG (Couleurs)
-// Je gère ici les palettes d'interface du canvas selon le mode sombre/clair courant.
+// Gestion des palettes d'interface du canvas selon le mode sombre/clair courant.
 // ==========================================
 function getThemeColors() {
     const theme = document.documentElement.getAttribute('data-theme');
@@ -132,7 +116,7 @@ function getThemeColors() {
 
 // ==========================================
 // GESTION GLOBALE DES MODALES (POP-UPS)
-// J'ai codé ce composant réutilisable pour afficher mes notes pédagogiques sans quitter le contexte de la page.
+// Composant réutilisable pour afficher des notes pédagogiques sans quitter le contexte de la page.
 // ==========================================
 function showModal(title, content) {
     let overlay = document.getElementById('globalModalOverlay');
@@ -152,4 +136,86 @@ function showModal(title, content) {
 function closeModal() {
     const overlay = document.getElementById('globalModalOverlay');
     if (overlay) overlay.classList.remove('active');
+}
+
+// ==========================================
+// UTILITAIRES DE RENDU : TEXTE ET MATHÉMATIQUES
+// ==========================================
+
+/**
+ * Parse une chaîne pseudo-LaTeX en HTML propre pour injection DOM (garanti sans casse).
+ * Utile pour afficher les formules dans l'UI avant capture html2canvas.
+ * @param {string} eq La chaîne brute (ex: "M_{Ed} \le V_{Rd,c} * \lambda")
+ * @returns {string} HTML formaté
+ */
+function formatEquation(eq) {
+    if (!eq) return '';
+    let formatted = eq.toString();
+    
+    // 1. Dictionnaire des symboles Unicode compatibles
+    const symbols = {
+        '\\lambda': 'λ', '\\beta': 'β', '\\alpha': 'α', '\\theta': 'θ',
+        '\\mu': 'μ', '\\sigma': 'σ', '\\rho': 'ρ', '\\phi': 'Ø',
+        '<=': '≤', '>=': '≥', '!=': '≠', '~=': '≈', '*': '×'
+    };
+    
+    for (const [key, value] of Object.entries(symbols)) {
+        formatted = formatted.split(key).join(value);
+    }
+
+    // 2. Gestion des indices (ex: M_Ed ou M_{Ed,max})
+    formatted = formatted.replace(/_\{([^}]+)\}/g, '<sub>$1</sub>');
+    formatted = formatted.replace(/_([a-zA-Z0-9]+)/g, '<sub>$1</sub>');
+    
+    // 3. Gestion des exposants (ex: L^2 ou L^{2.5})
+    formatted = formatted.replace(/\^\{([^}]+)\}/g, '<sup>$1</sup>');
+    formatted = formatted.replace(/\^([a-zA-Z0-9]+)/g, '<sup>$1</sup>');
+
+    return formatted;
+}
+
+// ==========================================
+// UTILITAIRES DE RENDU : SVG & DESSIN
+// ==========================================
+
+/**
+ * Génère une ligne de cote (dimension) SVG optimisée.
+ * Calcule automatiquement les normales pour décaler la ligne et pivoter le texte sans superposition.
+ */
+function drawDimensionLine(x1, y1, x2, y2, value, unit = "cm", offset = 30, textColor = "#000", strokeColor = "#7f8c8d") {
+    // Vecteur directeur
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    if (length === 0) return '';
+    
+    // Vecteur unitaire et normale (perpendiculaire)
+    const nx = dx / length;
+    const ny = dy / length;
+    const px = -ny; 
+    const py = nx;
+    
+    // Points décalés
+    const ox1 = x1 + px * offset;
+    const oy1 = y1 + py * offset;
+    const ox2 = x2 + px * offset;
+    const oy2 = y2 + py * offset;
+    
+    const midX = (ox1 + ox2) / 2;
+    const midY = (oy1 + oy2) / 2;
+    
+    // Orientation du texte (pour qu'il soit toujours lisible à l'endroit)
+    const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+    const textAngle = (angle > 90 || angle < -90) ? angle + 180 : angle;
+    const textShift = offset > 0 ? -6 : 16; 
+
+    return `
+        <line x1="${x1}" y1="${y1}" x2="${ox1}" y2="${oy1}" stroke="${strokeColor}" stroke-dasharray="3,3" stroke-width="1"/>
+        <line x1="${x2}" y1="${y2}" x2="${ox2}" y2="${oy2}" stroke="${strokeColor}" stroke-dasharray="3,3" stroke-width="1"/>
+        <line x1="${ox1}" y1="${oy1}" x2="${ox2}" y2="${oy2}" stroke="${strokeColor}" stroke-width="1.5"/>
+        <line x1="${ox1-px*4-nx*4}" y1="${oy1-py*4-ny*4}" x2="${ox1+px*4+nx*4}" y2="${oy1+py*4+ny*4}" stroke="${strokeColor}" stroke-width="2"/>
+        <line x1="${ox2-px*4-nx*4}" y1="${oy2-py*4-ny*4}" x2="${ox2+px*4+nx*4}" y2="${oy2+py*4+ny*4}" stroke="${strokeColor}" stroke-width="2"/>
+        <rect x="${midX-20}" y="${midY+textShift-10}" width="40" height="14" fill="var(--surface-color)" opacity="0.8" rx="2"/>
+        <text x="${midX}" y="${midY}" text-anchor="middle" font-size="14" fill="${textColor}" transform="rotate(${textAngle} ${midX} ${midY}) translate(0, ${textShift})">${value} ${unit}</text>
+    `;
 }

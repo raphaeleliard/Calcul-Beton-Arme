@@ -15,6 +15,8 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
     <title>Calcul Semelle Isolée - EC2 Assistant</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏗️</text></svg>">
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script>
         (function() {
             const savedTheme = localStorage.getItem('theme') || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
@@ -168,8 +170,8 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
             
             <!-- Boutons d'export -->
             <div class="export-buttons">
-                <button class="export-btn" onclick="exportAsPNG()">📥 PNG</button>
-                <button class="export-btn" onclick="exportAsSVG()">📥 SVG</button>
+                <button class="export-btn" id="exportPNG" onclick="exportAsPNG()">📥 PNG</button>
+                <button class="export-btn" id="exportPDF" onclick="exportAsPDF()">📥 PDF</button>
             </div>
         </aside>
     </div>
@@ -177,8 +179,7 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
     <script>
         // ==========================================
         // 2. ÉTAT ET ARCHITECTURE GLOBALE (State Pattern)
-        // Je centralise toutes les données dans un seul objet AppState.
-        // Cela garantit une source unique de vérité et facilite l'évolution du code.
+        // Centralisation de toutes les données dans un seul objet AppState pour garantir une source unique de vérité et faciliter l'évolution du code.
         // ==========================================
         const AppState = {
             inputs: { a: 0.30, b: 0.30, A: 1.50, B: 1.50, h: 0.40, fck: 25, q_adm: 0.25, N_Ed: 600, N_Eq: 430, enrobage: 4.0 },
@@ -269,15 +270,14 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
 
         // ==========================================
         // 1. LOGIQUE MÉTIER PURE (Calculs EC2 - Méthode des Bielles)
-        // J'isole totalement l'algorithme normatif de l'interface graphique.
-        // Je dimensionne une fondation rectangulaire soumise à un effort centré.
+        // Dimensionnement d'une fondation rectangulaire soumise à un effort centré.
         // ==========================================
         function calculateEurocode2(params) {
             const { a, b, A, B, h, fck, q_adm, N_Ed, N_Eq, enrobage, diamA, diamB } = params;
             const c_m = enrobage / 100;
 
             // --- OPTIMISATION 1 : Portance géotechnique ---
-            // J'intègre le poids propre de la fondation en béton armé (densité 25 kN/m3) 
+            // Intégration du poids propre de la fondation en béton armé (densité 25 kN/m3) 
             // pour une vérification réaliste à l'ELS vis-à-vis du sol.
             const weight = A * B * h * 25; // kN
             const sigma_sol = (N_Eq + weight) / (A * B * 1000); // MPa
@@ -287,12 +287,12 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
 
             // --- OPTIMISATION 2 : Condition de rigidité bidirectionnelle ---
             // Le modèle des bielles de l'EC2 ne fonctionne que si la semelle est assez rigide.
-            // Je vérifie donc la hauteur limite requise dans les DEUX directions.
+            // Vérification de la hauteur limite requise dans les DEUX directions.
             const d_req_A = (A - a) / 4;
             const d_req_B = (B - b) / 4;
             const d_req = Math.max(d_req_A, d_req_B);
             
-            // J'affine le calcul des hauteurs utiles par nappe :
+            // Calcul des hauteurs utiles par nappe :
             // Nappe A (inférieure, // à A) et Nappe B (supérieure, // à B)
             const phi_A = diamA / 1000;
             const phi_B = diamB / 1000;
@@ -318,7 +318,7 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
 
             // Armatures réelles fournies (calcul de l'espacement et du nb de barres)
             const secA = STEEL_SPECS[diamA].section;
-            // Je m'assure de ne pas dépasser un espacement de 30cm
+            // L'espacement ne doit pas dépasser 30cm
             let nb_A = Math.max(Math.ceil(As_A_req / secA), Math.ceil((B*100 - 2*c_m*100)/30) + 1); 
             const As_A_prov = nb_A * secA;
             const esp_A = nb_A > 1 ? (B*100 - 2*c_m*100) / (nb_A - 1) : 0;
@@ -391,7 +391,7 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
 
         // ==========================================
         // 4. RENDU SVG (COUPE ET PLAN)
-        // Je dessine dynamiquement le plan de ferraillage à l'échelle.
+        // Dessin dynamique du plan de ferraillage à l'échelle.
         // ==========================================
         function drawSVG() {
             const container = document.getElementById('svgContainer');
@@ -563,15 +563,14 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
 
         // ==========================================
         // 5. EXPORT & PÉDAGOGIE
-        // J'explique le modèle d'assise aux utilisateurs.
         // ==========================================
         function showFormula(type) {
             let msg = "";
             switch(type) {
-                case 'sigma_sol': msg = "Contrainte sol : σ_sol = (N_Eq + Poids_Semelle) / (A × B)\nJe m'assure que la fondation transmet une pression inférieure à la contrainte admissible (q_adm). J'ai rajouté le poids du béton dans ce calcul."; break;
-                case 'd_req': msg = "Hauteur utile requise (Rigidité) : d ≥ max( (A-a)/4 , (B-b)/4 ) \nLe modèle de l'EC2 repose sur des bielles comprimées à l'intérieur du béton. Je vérifie donc que la semelle est suffisamment rigide dans les deux axes X et Y."; break;
-                case 'As_A': msg = "Section Nappe Inférieure (parallèle au côté A) : As = N_Ed × (A-a) / (8 × d_A × fyd)\nJ'évalue la section d'acier requise pour reprendre la traction générée par la bielle dans la direction principale."; break;
-                case 'As_B': msg = "Section Nappe Supérieure (parallèle au côté B) : As = N_Ed × (B-b) / (8 × d_B × fyd)\nPour l'autre direction, je prends en compte la réduction de la hauteur utile (d_B) due à la superposition des nappes d'aciers."; break;
+                case 'sigma_sol': msg = "Contrainte sol : σ_sol = (N_Eq + Poids_Semelle) / (A × B)\nVérification que la fondation transmet une pression inférieure à la contrainte admissible (q_adm). Le poids du béton est inclus dans ce calcul."; break;
+                case 'd_req': msg = "Hauteur utile requise (Rigidité) : d ≥ max( (A-a)/4 , (B-b)/4 ) \nLe modèle de l'EC2 repose sur des bielles comprimées à l'intérieur du béton. Vérification que la semelle est suffisamment rigide dans les deux axes X et Y."; break;
+                case 'As_A': msg = "Section Nappe Inférieure (parallèle au côté A) : As = N_Ed × (A-a) / (8 × d_A × fyd)\nÉvaluation de la section d'acier requise pour reprendre la traction générée par la bielle dans la direction principale."; break;
+                case 'As_B': msg = "Section Nappe Supérieure (parallèle au côté B) : As = N_Ed × (B-b) / (8 × d_B × fyd)\nPour l'autre direction, prise en compte de la réduction de la hauteur utile (d_B) due à la superposition des nappes d'aciers."; break;
             }
             showModal("Méthode des Bielles (EC2)", msg);
         }
@@ -580,8 +579,142 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
             exportPlanAsPNG('svgContainer', `ferraillage_semelle_${AppState.currentView}_${new Date().toISOString().slice(0,10)}.png`, renderUI);
         }
 
-        function exportAsSVG() {
-            exportPlanAsSVG('svgContainer', `ferraillage_semelle_${AppState.currentView}_${new Date().toISOString().slice(0,10)}.svg`, renderUI);
+        async function exportAsPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+
+            const p = AppState.inputs;
+            const res = AppState.results;
+
+            const setStyle = (style) => {
+                switch(style) {
+                    case 'h1': doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(52, 152, 219); break;
+                    case 'h2': doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(44, 62, 80); break;
+                    case 'normal': doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(44, 62, 80); break;
+                    case 'italic': doc.setFont('helvetica', 'italic'); doc.setFontSize(10); doc.setTextColor(44, 62, 80); break;
+                    case 'bold': doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(44, 62, 80); break;
+                    case 'muted': doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(127, 140, 141); break;
+                }
+            };
+
+            let y = 20;
+
+            // --- HEADER ---
+            setStyle('h1');
+            doc.text('Note de Calcul - Semelle Isolée', 15, y);
+            y += 6;
+            setStyle('muted');
+            doc.text(`Généré par EC2 Assistant (Outil Pédagogique par Raphaël ELIARD) - Date: ${new Date().toLocaleDateString()}`, 15, y);
+            y += 4;
+            doc.setLineWidth(0.5);
+            doc.setDrawColor(224, 224, 224);
+            doc.line(15, y, 195, y);
+            y += 10;
+
+            // --- HYPOTHESES ---
+            setStyle('h2');
+            doc.text('1. Hypothèses et Données', 15, y);
+            y += 8;
+            setStyle('normal');
+            doc.text(`- Dimensions du poteau (a * b) : ${p.a.toFixed(2)} * ${p.b.toFixed(2)} m`, 20, y);
+            doc.text(`- Dimensions de la semelle (A * B) : ${p.A.toFixed(2)} * ${p.B.toFixed(2)} m`, 105, y);
+            y += 6;
+            doc.text(`- Hauteur de la semelle (h) : ${p.h.toFixed(2)} m`, 20, y);
+            doc.text(`- Classe du béton : C${p.fck}/${p.fck+5}`, 105, y);
+            y += 6;
+            doc.text(`- Contrainte sol adm. (q_adm) : ${p.q_adm.toFixed(3)} MPa`, 20, y);
+            doc.text(`- Enrobage (c) : ${p.enrobage.toFixed(1)} cm`, 105, y);
+            y += 6;
+            doc.text(`- Charge ELS (N_Eq) : ${p.N_Eq.toFixed(2)} kN`, 20, y);
+            doc.text(`- Charge ELU (N_Ed) : ${p.N_Ed.toFixed(2)} kN`, 105, y);
+            y += 12;
+
+            // --- CALCULS ---
+            setStyle('h2');
+            doc.text('2. Détail des calculs (Eurocode 2)', 15, y);
+            y += 8;
+            
+            setStyle('bold');
+            doc.text('2.1 Vérification de la portance du sol (ELS) :', 20, y);
+            y += 5;
+            setStyle('normal');
+            doc.text('La contrainte transmise au sol inclut le poids propre de la fondation.', 25, y);
+            y += 5;
+            setStyle('italic');
+            doc.text(`Contrainte exercee (sigma_sol) = (N_Eq + Poids) / (A * B) = ${res.sigma_sol.toFixed(3)} MPa`, 25, y);
+            y += 5;
+            doc.text(`Verification : ${res.sigma_sol <= p.q_adm ? 'Conforme (sigma_sol <= q_adm)' : 'Non conforme (sigma_sol > q_adm)'}`, 25, y);
+            y += 8;
+
+            setStyle('bold');
+            doc.text('2.2 Condition de rigidité (Méthode des bielles) :', 20, y);
+            y += 5;
+            setStyle('normal');
+            doc.text('Vérification que la géométrie est suffisamment rigide dans les deux directions.', 25, y);
+            y += 5;
+            setStyle('italic');
+            doc.text(`Hauteur utile requise direction A (d_req_A) = (A - a) / 4 = ${res.d_req_A.toFixed(3)} m`, 25, y);
+            y += 5;
+            doc.text(`Hauteur utile requise direction B (d_req_B) = (B - b) / 4 = ${res.d_req_B.toFixed(3)} m`, 25, y);
+            y += 5;
+            doc.text(`Hauteurs utiles reelles : d_A = ${res.d_A.toFixed(3)} m  |  d_B = ${res.d_B.toFixed(3)} m  ->  ${res.d_A >= res.d_req_A && res.d_B >= res.d_req_B ? 'Semelle rigide (OK)' : 'Semelle flexible'}`, 25, y);
+            y += 8;
+
+            setStyle('bold');
+            doc.text('2.3 Calcul du ferraillage bidirectionnel :', 20, y);
+            y += 5;
+            setStyle('normal');
+            doc.text('Détermination des sections d\'armatures nécessaires pour les deux nappes.', 25, y);
+            y += 5;
+            setStyle('italic');
+            doc.text(`Nappe inferieure (// a A) : As,A,req = N_Ed * (A - a) / (8 * d_A * fyd) = ${res.As_A_req.toFixed(2)} cm2`, 25, y);
+            y += 5;
+            doc.text(`Nappe superieure (// a B) : As,B,req = N_Ed * (B - b) / (8 * d_B * fyd) = ${res.As_B_req.toFixed(2)} cm2`, 25, y);
+            y += 12;
+
+            // --- RESULTATS ---
+            setStyle('h2');
+            doc.text('3. Sections d\'armatures choisies', 15, y);
+            y += 8;
+            setStyle('normal');
+            doc.text('Nappe inferieure (Parallele au cote A) :', 20, y);
+            y += 5;
+            setStyle('italic');
+            doc.text(`${res.nb_A} HA${AppState.diamA}  ->  Section fournie = ${res.As_A_prov.toFixed(2)} cm2 (Req: ${res.As_A_req.toFixed(2)})`, 25, y);
+            y += 7;
+            setStyle('normal');
+            doc.text('Nappe superieure (Parallele au cote B) :', 20, y);
+            y += 5;
+            setStyle('italic');
+            doc.text(`${res.nb_B} HA${AppState.diamB}  ->  Section fournie = ${res.As_B_prov.toFixed(2)} cm2 (Req: ${res.As_B_req.toFixed(2)})`, 25, y);
+            y += 12;
+
+            // --- SVG CAPTURE ---
+            setStyle('h2');
+            doc.text('4. Plan de Ferraillage (Vue en plan)', 15, y);
+            y += 5;
+            const svgContainer = document.getElementById('svgContainer');
+            const previousView = AppState.currentView;
+            setView('plan');
+
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            document.documentElement.setAttribute('data-theme', 'light');
+            renderUI();
+
+            const canvas = await html2canvas(svgContainer, { backgroundColor: '#ffffff', scale: 3 });
+            const imgData = canvas.toDataURL('image/png');
+            
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            setView(previousView);
+
+            const imgProps = doc.getImageProperties(imgData);
+            const pdfWidth = 180;
+            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+            if (y + pdfHeight > 280) { doc.addPage(); y = 20; }
+            doc.addImage(imgData, 'PNG', 15, y, pdfWidth, pdfHeight);
+
+            // --- SAVE ---
+            doc.save(`note_calcul_semelle_isolee_${new Date().toISOString().slice(0,10)}.pdf`);
         }
     </script>
     <script src="script.js"></script>

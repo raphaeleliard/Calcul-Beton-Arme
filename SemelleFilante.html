@@ -14,6 +14,8 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
     <title>Calcul Semelle Filante - EC2 Assistant</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏗️</text></svg>">
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script>
         (function() {
             const savedTheme = localStorage.getItem('theme') || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
@@ -168,8 +170,8 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
             
             <!-- Boutons d'export -->
             <div class="export-buttons">
-                <button class="export-btn" onclick="exportAsPNG()">📥 PNG</button>
-                <button class="export-btn" onclick="exportAsSVG()">📥 SVG</button>
+                <button class="export-btn" id="exportPNG" onclick="exportAsPNG()">📥 PNG</button>
+                <button class="export-btn" id="exportPDF" onclick="exportAsPDF()">📥 PDF</button>
             </div>
         </aside>
     </div>
@@ -267,8 +269,7 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
 
         // ==========================================
         // 1. LOGIQUE MÉTIER PURE (Calculs EC2 - Semelle Filante)
-        // Je traite la fondation filante comme une bande de 1 mètre, 
-        // avec vérification géotechnique et structurelle par les bielles.
+        // La fondation filante est traitée comme une bande de 1 mètre, avec vérification géotechnique et structurelle par les bielles.
         // ==========================================
         function calculateEurocode2(params) {
             const { a, B, h, fck, q_adm, N_Ed, N_Eq, enrobage, espMain, espRep, diamMain, diamRep } = params;
@@ -278,7 +279,7 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
             const fctm = 0.30 * Math.pow(fck, 2/3);
 
             // --- OPTIMISATION 1 : Portance géotechnique exacte ---
-            // Le poids propre (béton = 25 kN/m3) s'ajoute à la descente de charge
+            // Le poids propre (béton = 25 kN/m3) s'ajoute à la descente de charges
             const weight = B * 1.0 * h * 25; // kN/ml
             const sigma_sol = (N_Eq + weight) / (B * 1.0 * 1000); // MPa
             
@@ -289,7 +290,7 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
             // Le modèle des bielles de compression suppose une semelle rigide
             const d_req = (B - a) / 4;
             const phi_l = diamMain / 1000;
-            // Je calcule la hauteur utile exacte pour la nappe inférieure (transversale)
+            // Calcul de la hauteur utile exacte pour la nappe inférieure (transversale)
             const d = h - c_nom - (phi_l / 2);
             
             if (d < d_req && status === 'OK') status = 'WARNING_FLEXIBLE';
@@ -412,10 +413,7 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
                 svgContent += `<rect x="${col_x0}" y="${y0 - col_h_px}" width="${a_px}" height="${col_h_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
                 svgContent += `<line x1="${col_x0-10}" y1="${y0 - col_h_px}" x2="${col_x0+a_px+10}" y2="${y0 - col_h_px}" stroke="${concreteStroke}" stroke-width="2" stroke-dasharray="8,8"/>`;
 
-                svgContent += `<line x1="${col_x0}" y1="${y0 - col_h_px - 20}" x2="${col_x0+a_px}" y2="${y0 - col_h_px - 20}" stroke="${textColor}" stroke-width="1.5"/>`;
-                svgContent += `<line x1="${col_x0}" y1="${y0 - col_h_px - 25}" x2="${col_x0}" y2="${y0 - col_h_px - 15}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<line x1="${col_x0+a_px}" y1="${y0 - col_h_px - 25}" x2="${col_x0+a_px}" y2="${y0 - col_h_px - 15}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<text x="${col_x0+a_px/2}" y="${y0 - col_h_px - 30}" text-anchor="middle" font-size="14" fill="${textColor}">a = ${(p.a*100).toFixed(0)} cm</text>`;
+                svgContent += drawDimensionLine(col_x0, y0 - col_h_px, col_x0+a_px, y0 - col_h_px, `a = ${(p.a*100).toFixed(0)}`, "cm", -20, textColor, textColor);
 
                 const yMain = y0 + h_px - c_px;
                 const diamMain_px = (AppState.diamMain / 1000) * scale;
@@ -436,20 +434,9 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
                     svgContent += `<circle cx="${bx}" cy="${yRep}" r="${radiusRep}" fill="#2980b9"/>`;
                 }
 
-                svgContent += `<line x1="${x0}" y1="${y0+h_px+60}" x2="${x0+w_px}" y2="${y0+h_px+60}" stroke="${textColor}" stroke-width="1.5"/>`;
-                svgContent += `<line x1="${x0}" y1="${y0+h_px+55}" x2="${x0}" y2="${y0+h_px+65}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<line x1="${x0+w_px}" y1="${y0+h_px+55}" x2="${x0+w_px}" y2="${y0+h_px+65}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<text x="${x0+w_px/2}" y="${y0+h_px+80}" text-anchor="middle" font-size="16" fill="${textColor}">B = ${(p.B).toFixed(2)} m</text>`;
-
-                svgContent += `<line x1="${x0-30}" y1="${y0}" x2="${x0-30}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-                svgContent += `<line x1="${x0-35}" y1="${y0}" x2="${x0-25}" y2="${y0}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<line x1="${x0-35}" y1="${y0+h_px}" x2="${x0-25}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<text x="${x0-45}" y="${y0+h_px/2}" text-anchor="middle" font-size="16" fill="${textColor}" transform="rotate(-90 ${x0-45} ${y0+h_px/2})">h = ${(p.h*100).toFixed(0)} cm</text>`;
-
-                svgContent += `<line x1="${x0}" y1="${y0+h_px+15}" x2="${x0+c_px}" y2="${y0+h_px+15}" stroke="${textColor}" stroke-width="1.5"/>`;
-                svgContent += `<line x1="${x0}" y1="${y0+h_px+10}" x2="${x0}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<line x1="${x0+c_px}" y1="${y0+h_px+10}" x2="${x0+c_px}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<text x="${x0+c_px/2}" y="${y0+h_px+30}" text-anchor="middle" font-size="12" fill="${textColor}">c=${(p.enrobage).toFixed(1)}</text>`;
+                svgContent += drawDimensionLine(x0, y0+h_px, x0+w_px, y0+h_px, `B = ${(p.B).toFixed(2)}`, "m", 60, textColor, textColor);
+                svgContent += drawDimensionLine(x0, y0, x0, y0+h_px, `h = ${(p.h*100).toFixed(0)}`, "cm", 30, textColor, textColor);
+                svgContent += drawDimensionLine(x0, y0+h_px, x0+c_px, y0+h_px, `c=${(p.enrobage).toFixed(1)}`, "", 15, textColor, textColor);
             } 
             else {
                 const maxDim = Math.max(p.B, 1.0);
@@ -491,34 +478,19 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
                     svgContent += `<line x1="${xL}" y1="${y0 + strokeWRep/2}" x2="${xL}" y2="${y0+h_px - strokeWRep/2}" stroke="#2980b9" stroke-width="${strokeWRep}" stroke-linecap="round"/>`;
                 }
 
-                svgContent += `<line x1="${x0}" y1="${y0-60}" x2="${x0+w_px}" y2="${y0-60}" stroke="${textColor}" stroke-width="1.5"/>`;
-                svgContent += `<line x1="${x0}" y1="${y0-65}" x2="${x0}" y2="${y0-55}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<line x1="${x0+w_px}" y1="${y0-65}" x2="${x0+w_px}" y2="${y0-55}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<text x="${x0+w_px/2}" y="${y0-75}" text-anchor="middle" font-size="16" fill="${textColor}" font-weight="bold">B = ${(p.B).toFixed(2)} m</text>`;
-
-                svgContent += `<line x1="${x0+w_px+30}" y1="${y0}" x2="${x0+w_px+30}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-                svgContent += `<line x1="${x0+w_px+25}" y1="${y0}" x2="${x0+w_px+35}" y2="${y0}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<line x1="${x0+w_px+25}" y1="${y0+h_px}" x2="${x0+w_px+35}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="2"/>`;
-                svgContent += `<text x="${x0+w_px+45}" y="${y0+h_px/2}" text-anchor="middle" font-size="16" fill="${textColor}" font-weight="bold" transform="rotate(90 ${x0+w_px+45} ${y0+h_px/2})">Bande 1.00 m</text>`;
+                svgContent += drawDimensionLine(x0, y0, x0+w_px, y0, `B = ${(p.B).toFixed(2)}`, "m", -60, textColor, textColor);
+                svgContent += drawDimensionLine(x0+w_px, y0, x0+w_px, y0+h_px, "Bande 1.00", "m", -30, textColor, textColor);
 
                 if (nb_rep >= 1) {
                     const startX = x0 + offset_x;
                     const endX = startX + espRep_px;
-                    const coteY = y0 + h_px + 40;
-                    svgContent += `<line x1="${startX}" y1="${coteY}" x2="${endX}" y2="${coteY}" stroke="${textColor}" stroke-width="1.5"/>`;
-                    svgContent += `<line x1="${startX}" y1="${coteY-5}" x2="${startX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
-                    svgContent += `<line x1="${endX}" y1="${coteY-5}" x2="${endX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
-                    svgContent += `<text x="${(startX+endX)/2}" y="${coteY-10}" text-anchor="middle" font-size="14" fill="${textColor}">${p.espRep.toFixed(1)} cm</text>`;
+                    svgContent += drawDimensionLine(startX, y0+h_px, endX, y0+h_px, p.espRep.toFixed(1), "cm", 40, textColor, textColor);
                 }
 
                 if (nb_main >= 1) {
                     const startY = y0 + offset_y;
                     const endY = startY + espMain_px;
-                    const coteX = x0 - 40;
-                    svgContent += `<line x1="${coteX}" y1="${startY}" x2="${coteX}" y2="${endY}" stroke="${textColor}" stroke-width="1.5"/>`;
-                    svgContent += `<line x1="${coteX-5}" y1="${startY}" x2="${coteX+5}" y2="${startY}" stroke="${textColor}" stroke-width="2"/>`;
-                    svgContent += `<line x1="${coteX-5}" y1="${endY}" x2="${coteX+5}" y2="${endY}" stroke="${textColor}" stroke-width="2"/>`;
-                    svgContent += `<text x="${coteX-10}" y="${(startY+endY)/2}" alignment-baseline="middle" text-anchor="end" font-size="14" fill="${textColor}">${p.espMain.toFixed(1)} cm</text>`;
+                    svgContent += drawDimensionLine(x0, startY, x0, endY, p.espMain.toFixed(1), "cm", 40, textColor, textColor);
                 }
             }
 
@@ -540,15 +512,14 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
 
         // ==========================================
         // 5. EXPORT & PÉDAGOGIE
-        // J'encadre l'utilisateur avec mes explications sur la méthode des bielles et la condition de rigidité.
         // ==========================================
         function showFormula(type) {
             let msg = "";
             switch(type) {
-                case 'sigma_sol': msg = "Contrainte sol : σ_sol = (N_Eq + Poids_Semelle) / (B × 1.0m)\nJe vérifie à l'ELS que la pression exercée reste inférieure à la contrainte admissible (q_adm) pour éviter le poinçonnement du sol."; break;
-                case 'd_req': msg = "Hauteur utile requise (Rigidité) : d ≥ (B-a)/4 \nJe m'assure que la semelle est assez épaisse pour que le modèle de diffusion des efforts par bielles de béton fonctionne. Sinon, le calcul doit se faire en flexion pure."; break;
-                case 'As_req': msg = "Section Principale Transversale : As = N_Ed × (B-a) / (8 × d × fyd)\nJ'applique la méthode simplifiée des bielles pour équilibrer la traction à la base de la fondation."; break;
-                case 'As_rep': msg = "Section de Répartition Longitudinale : As,rep ≥ 0.20 × As,req\nJe dispose des aciers de chaînage représentant au moins 20% des aciers principaux, conformément à la norme EC2."; break;
+                case 'sigma_sol': msg = "Contrainte sol : σ_sol = (N_Eq + Poids_Semelle) / (B × 1.0m)\nVérification à l'ELS que la pression exercée reste inférieure à la contrainte admissible (q_adm) pour éviter le poinçonnement du sol."; break;
+                case 'd_req': msg = "Hauteur utile requise (Rigidité) : d ≥ (B-a)/4 \nVérification que la semelle est assez épaisse pour que le modèle de diffusion des efforts par bielles de béton fonctionne. Sinon, le calcul doit se faire en flexion pure."; break;
+                case 'As_req': msg = "Section Principale Transversale : As = N_Ed × (B-a) / (8 × d × fyd)\nApplication de la méthode simplifiée des bielles pour équilibrer la traction à la base de la fondation."; break;
+                case 'As_rep': msg = "Section de Répartition Longitudinale : As,rep ≥ 0.20 × As_req\nDisposition des aciers de chaînage représentant au moins 20% des aciers principaux, conformément à la norme EC2."; break;
             }
             showModal("Formule Eurocode 2", msg);
         }
@@ -557,8 +528,140 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
             exportPlanAsPNG('svgContainer', `ferraillage_semelle_filante_${AppState.currentView}_${new Date().toISOString().slice(0,10)}.png`, renderUI);
         }
 
-        function exportAsSVG() {
-            exportPlanAsSVG('svgContainer', `ferraillage_semelle_filante_${AppState.currentView}_${new Date().toISOString().slice(0,10)}.svg`, renderUI);
+        async function exportAsPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+
+            const p = AppState.inputs;
+            const res = AppState.results;
+
+            const setStyle = (style) => {
+                switch(style) {
+                    case 'h1': doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(52, 152, 219); break;
+                    case 'h2': doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(44, 62, 80); break;
+                    case 'normal': doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(44, 62, 80); break;
+                    case 'italic': doc.setFont('helvetica', 'italic'); doc.setFontSize(10); doc.setTextColor(44, 62, 80); break;
+                    case 'bold': doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(44, 62, 80); break;
+                    case 'muted': doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(127, 140, 141); break;
+                }
+            };
+
+            let y = 20;
+
+            // --- HEADER ---
+            setStyle('h1');
+            doc.text('Note de Calcul - Semelle Filante', 15, y);
+            y += 6;
+            setStyle('muted');
+            doc.text(`Généré par EC2 Assistant (Outil Pédagogique par Raphaël ELIARD) - Date: ${new Date().toLocaleDateString()}`, 15, y);
+            y += 4;
+            doc.setLineWidth(0.5);
+            doc.setDrawColor(224, 224, 224);
+            doc.line(15, y, 195, y);
+            y += 10;
+
+            // --- HYPOTHESES ---
+            setStyle('h2');
+            doc.text('1. Hypothèses et Données', 15, y);
+            y += 8;
+            setStyle('normal');
+            doc.text(`- Épaisseur du voile (a) : ${p.a.toFixed(2)} m`, 20, y);
+            doc.text(`- Largeur de la semelle (B) : ${p.B.toFixed(2)} m`, 105, y);
+            y += 6;
+            doc.text(`- Hauteur de la semelle (h) : ${p.h.toFixed(2)} m`, 20, y);
+            doc.text(`- Classe du béton : C${p.fck}/${p.fck+5}`, 105, y);
+            y += 6;
+            doc.text(`- Contrainte sol adm. (q_adm) : ${p.q_adm.toFixed(3)} MPa`, 20, y);
+            doc.text(`- Enrobage (c) : ${p.enrobage.toFixed(1)} cm`, 105, y);
+            y += 6;
+            doc.text(`- Charge ELS (N_Eq) : ${p.N_Eq.toFixed(2)} kN/ml`, 20, y);
+            doc.text(`- Charge ELU (N_Ed) : ${p.N_Ed.toFixed(2)} kN/ml`, 105, y);
+            y += 12;
+
+            // --- CALCULS ---
+            setStyle('h2');
+            doc.text('2. Détail des calculs (Eurocode 2)', 15, y);
+            y += 8;
+            
+            setStyle('bold');
+            doc.text('2.1 Vérification de la portance du sol (ELS) :', 20, y);
+            y += 5;
+            setStyle('normal');
+            doc.text('La contrainte transmise au sol inclut le poids propre de la fondation.', 25, y);
+            y += 5;
+            setStyle('italic');
+            doc.text(`Contrainte exercee (sigma_sol) = (N_Eq + Poids) / B = ${res.sigma_sol.toFixed(3)} MPa`, 25, y);
+            y += 5;
+            doc.text(`Verification : ${res.sigma_sol <= p.q_adm ? 'Conforme (sigma_sol <= q_adm)' : 'Non conforme (sigma_sol > q_adm)'}`, 25, y);
+            y += 8;
+
+            setStyle('bold');
+            doc.text('2.2 Condition de rigidité (Méthode des bielles) :', 20, y);
+            y += 5;
+            setStyle('normal');
+            doc.text('Vérification que la géométrie permet la diffusion des efforts par bielles comprimées.', 25, y);
+            y += 5;
+            setStyle('italic');
+            doc.text(`Hauteur utile requise (d_req) = (B - a) / 4 = ${res.d_req.toFixed(3)} m`, 25, y);
+            y += 5;
+            doc.text(`Hauteur utile reelle (d) = ${res.d.toFixed(3)} m  ->  ${res.d >= res.d_req ? 'Semelle rigide (OK)' : 'Semelle flexible (Attention)'}`, 25, y);
+            y += 8;
+
+            setStyle('bold');
+            doc.text('2.3 Calcul du ferraillage (Méthode des bielles) :', 20, y);
+            y += 5;
+            setStyle('normal');
+            doc.text('Détermination des armatures de traction à la base.', 25, y);
+            y += 5;
+            setStyle('italic');
+            doc.text(`Aciers transversaux (As,req) = N_Ed * (B - a) / (8 * d * fyd) = ${res.As_req.toFixed(2)} cm2/ml`, 25, y);
+            y += 5;
+            doc.text(`Aciers longit. (As,rep) = max(20% As,req, As,min) = ${res.As_rep_req.toFixed(2)} cm2/ml`, 25, y);
+            y += 12;
+
+            // --- RESULTATS ---
+            setStyle('h2');
+            doc.text('3. Sections d\'armatures choisies', 15, y);
+            y += 8;
+            setStyle('normal');
+            doc.text('Armatures principales (Transversales) :', 20, y);
+            y += 5;
+            setStyle('italic');
+            doc.text(`HA${AppState.diamMain} espacement ${p.espMain} cm  ->  Section fournie = ${res.As_prov_main.toFixed(2)} cm2/ml (Req: ${res.As_req.toFixed(2)})`, 25, y);
+            y += 7;
+            setStyle('normal');
+            doc.text('Armatures de repartition (Longitudinales) :', 20, y);
+            y += 5;
+            setStyle('italic');
+            doc.text(`HA${AppState.diamRep} espacement ${p.espRep} cm  ->  Section fournie = ${res.As_prov_rep.toFixed(2)} cm2/ml (Req: ${res.As_rep_req.toFixed(2)})`, 25, y);
+            y += 12;
+
+            // --- SVG CAPTURE ---
+            setStyle('h2');
+            doc.text('4. Plan de Ferraillage (Coupe)', 15, y);
+            y += 5;
+            const svgContainer = document.getElementById('svgContainer');
+            const previousView = AppState.currentView;
+            setView('coupe');
+
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            document.documentElement.setAttribute('data-theme', 'light');
+            renderUI();
+
+            const canvas = await html2canvas(svgContainer, { backgroundColor: '#ffffff', scale: 3 });
+            const imgData = canvas.toDataURL('image/png');
+            
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            setView(previousView);
+
+            const imgProps = doc.getImageProperties(imgData);
+            const pdfWidth = 180;
+            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+            if (y + pdfHeight > 280) { doc.addPage(); y = 20; }
+            doc.addImage(imgData, 'PNG', 15, y, pdfWidth, pdfHeight);
+
+            // --- SAVE ---
+            doc.save(`note_calcul_semelle_filante_${new Date().toISOString().slice(0,10)}.pdf`);
         }
     </script>
     <script src="script.js"></script>

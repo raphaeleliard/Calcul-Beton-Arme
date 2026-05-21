@@ -303,6 +303,7 @@ effets du second ordre via la méthode de la courbure nominale.
             // --- OPTIMISATION 1 : Flambement et Imperfections géométriques ---
             const l0 = beta * L; // Longueur efficace (m)
             const I_min = (Math.max(a, b) * Math.pow(Math.min(a, b), 3)) / 12; // m⁴
+            const max_dim = Math.max(a, b);
             const i_gyr = Math.min(a, b) / Math.sqrt(12); // Rayon de giration (m)
             const lambda = l0 / i_gyr;
 
@@ -317,7 +318,6 @@ effets du second ordre via la méthode de la courbure nominale.
             const c_nom = enrobage / 100; // m
             const phi_l = diameter / 1000; // m
             const phi_t = 0.008; // cadres de 8mm
-            const max_dim = Math.max(a, b);
             const d = max_dim - c_nom - phi_t - (phi_l / 2); // m
 
             // Imperfection géométrique (EC2 §5.2)
@@ -355,15 +355,19 @@ effets du second ordre via la méthode de la courbure nominale.
             
             // Évaluation simplifiée pour l'effort de flexion
             let As_req_M = 0;
-            if (M_Ed_tot > 0 && z > 0) {
-                 As_req_M = (M_Ed_tot * 10) / (z * 100 * fyd_cm2); // kN.cm / (cm * kN/cm²) => cm²
+            if (M_Ed_tot > 0 && z > 0.001) {
+                 As_req_M = M_Ed_tot / (z * fyd_cm2); // [kN.m] / ([m] * [kN/cm²]) => cm²
             }
             
             // Addition pour estimer un acier global (approche simplifiée et conservative)
             As_req = As_req_N + As_req_M;
             As_req = Math.max(As_req, As_min);
 
-            return { l0, lambda, N_cr, e_tot, e_2, As_req, As_min, As_max, fcd, fyd_cm2, Ac, N_Rd_c, d };
+            return { 
+                l0, lambda, N_cr, e_tot, e_2, e_i, e_M, i_gyr, max_dim,
+                As_req, As_req_N, As_req_M, As_min, As_max, 
+                fcd, fyd_cm2, Ac, N_Rd_c, d, z, M_Ed_tot 
+            };
         }
 
         // ==========================================
@@ -689,40 +693,61 @@ effets du second ordre via la méthode de la courbure nominale.
             y += 8;
             
             setStyle('bold');
-            doc.text('2.1 Analyse du flambement :', 20, y);
+            doc.text('2.1 Propriétés des matériaux et section :', 20, y);
             y += 5;
             setStyle('normal');
-            doc.text('Détermination de la longueur de flambement et de l\'élancement du poteau.', 25, y);
+            doc.text(`- Béton fcd = alpha_cc * fck / gamma_c = 1.0 * ${p.fck} / 1.5 = ${res.fcd.toFixed(2)} MPa`, 25, y);
             y += 5;
-            setStyle('italic');
-            doc.text(`Longueur efficace (l0) = beta (coeff) * L (hauteur) = ${res.l0.toFixed(2)} m`, 25, y);
+            doc.text(`- Acier fyd = fyk / gamma_s = ${p.fyk} / 1.15 = ${(p.fyk/1.15).toFixed(2)} MPa (soit ${res.fyd_cm2.toFixed(3)} kN/cm²)`, 25, y);
             y += 5;
-            doc.text(`Elancement (lambda) = l0 / i (rayon de giration) = ${res.lambda.toFixed(1)}`, 25, y);
+            doc.text(`- Section de béton Ac = a * b = ${p.a.toFixed(2)} * ${p.b.toFixed(2)} = ${(res.Ac/10000).toFixed(3)} m²`, 25, y);
             y += 8;
 
             setStyle('bold');
-            doc.text('2.2 Excentricités et effets du 2nd ordre :', 20, y);
+            doc.text('2.2 Analyse de la stabilité (Flambement) :', 20, y);
             y += 5;
             setStyle('normal');
-            doc.text('Majoration du moment pour prendre en compte les imperfections géométriques et le flambement.', 25, y);
+            doc.text(`- Longueur efficace l0 = beta * L = ${p.beta} * ${p.L.toFixed(2)} = ${res.l0.toFixed(2)} m`, 25, y);
+            y += 5;
+            doc.text(`- Rayon de giration i = ${Math.min(p.a, p.b).toFixed(2)} / sqrt(12) = ${res.i_gyr.toFixed(4)} m`, 25, y);
+            y += 5;
+            doc.text(`- Elancement lambda = l0 / i = ${res.l0.toFixed(2)} / ${res.i_gyr.toFixed(4)} = ${res.lambda.toFixed(1)}`, 25, y);
             y += 5;
             setStyle('italic');
-            doc.text(`Excentricite du 2nd ordre (e2) = ${res.e_2.toFixed(4)} m`, 25, y);
-            y += 5;
-            doc.text(`Excentricite totale (e_tot) = e_M (1er ordre) + e_i (imperf.) + e2 (2nd ordre) = ${res.e_tot.toFixed(4)} m`, 25, y);
+            doc.text(res.lambda > 31 ? "lambda > 31 : Les effets du second ordre doivent être pris en compte." : "lambda <= 31 : Effets du second ordre négligeables selon critère simplifié.", 25, y);
             y += 8;
 
             setStyle('bold');
-            doc.text('2.3 Calcul des aciers longitudinaux :', 20, y);
+            doc.text('2.3 Excentricités et Moment de calcul :', 20, y);
             y += 5;
             setStyle('normal');
-            doc.text('Section requise pour équilibrer la compression et le moment majoré.', 25, y);
+            doc.text(`- Excentricité du 1er ordre e0 = M_Ed / N_Ed = ${p.M_Ed} / ${p.N_Ed} = ${res.e_M.toFixed(3)} m`, 25, y);
             y += 5;
-            setStyle('italic');
-            doc.text(`Section d'acier minimale reglementaire (As,min) = ${res.As_min.toFixed(2)} cm2`, 25, y);
+            doc.text(`- Imperfection géométrique ei = max(l0/400, h/30, 0.02) = max(${res.l0.toFixed(2)}/400, ${res.max_dim.toFixed(2)}/30, 0.02) = ${res.e_i.toFixed(3)} m`, 25, y);
             y += 5;
-            doc.text(`Section requise calculee (As,req) = ${res.As_req.toFixed(2)} cm2`, 25, y);
-            y += 12;
+            doc.text(`- Excentricité du 2nd ordre e2 (courbure nominale) = ${res.e_2.toFixed(4)} m`, 25, y);
+            y += 5;
+            doc.text(`- Moment total de calcul M_Ed,tot = N_Ed * (e0+ei+e2) = ${p.N_Ed} * (${res.e_M.toFixed(3)}+${res.e_i.toFixed(3)}+${res.e_2.toFixed(4)}) = ${res.M_Ed_tot.toFixed(2)} kN.m`, 25, y);
+            y += 10;
+
+            setStyle('bold');
+            doc.text('2.4 Dimensionnement du ferraillage :', 20, y);
+            y += 5;
+            setStyle('normal');
+            doc.text(`- Capacité béton seul N_Rd,c = Ac * fcd = ${res.Ac.toFixed(0)} * ${(res.fcd/10).toFixed(4)} = ${res.N_Rd_c.toFixed(1)} kN`, 25, y);
+            y += 5;
+            doc.text(`- Acier requis compression As_N = max(0, (N_Ed-N_Rd,c)/fyd) = max(0, (${p.N_Ed}-${res.N_Rd_c.toFixed(1)})/${res.fyd_cm2.toFixed(3)}) = ${res.As_req_N.toFixed(2)} cm2`, 25, y);
+            y += 5;
+            doc.text(`- Acier requis flexion As_M = M_Ed,tot / (z*fyd) = ${res.M_Ed_tot.toFixed(2)} / (${res.z.toFixed(3)}*${res.fyd_cm2.toFixed(3)}) = ${res.As_req_M.toFixed(2)} cm2`, 25, y);
+            y += 6;
+            doc.text(`- Section minimale réglementaire As,min = ${res.As_min.toFixed(2)} cm²`, 25, y);
+            y += 5;
+            setStyle('bold');
+            doc.text(`- Section totale requise As_req = max(As,min, As_N + As_M) = max(${res.As_min.toFixed(2)}, ${res.As_req_N.toFixed(2)}+${res.As_req_M.toFixed(2)}) = ${res.As_req.toFixed(2)} cm2`, 25, y);
+            y += 15;
+
+            // Vérification de saut de page si nécessaire
+            if (y > 240) { doc.addPage(); y = 20; }
 
             // --- RESULTATS ---
             setStyle('h2');

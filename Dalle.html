@@ -367,7 +367,7 @@ en vérifiant le cisaillement et en optimisant les aciers de répartition.
 
             return {
                 Med, Ved, As_req, As_min, As_prov, As_prov_rep, As_rep_req,
-                V_Rdc, status, s_max_main, s_max_rep, esp_net, d
+                V_Rdc, status, s_max_main, s_max_rep, esp_net, d, p_elu, fctm, fyd
             };
         }
 
@@ -642,34 +642,27 @@ en vérifiant le cisaillement et en optimisant les aciers de répartition.
             doc.text('2.1 Combinaison d\'actions (ELU) :', 20, y);
             y += 5;
             setStyle('normal');
-            doc.text('La charge linéique ultime est calculée pour une bande de 1 mètre de largeur.', 25, y);
+            doc.text(`- Charge p_elu = 1.35*G + 1.5*Q = 1.35*${p.G} + 1.5*${p.Q} = ${res.p_elu.toFixed(2)} kN/ml`, 25, y);
             y += 5;
-            setStyle('italic');
-            doc.text(`p_elu = 1.35 * G (Perm.) + 1.5 * Q (Exploit.) = 1.35 * ${p.G} + 1.5 * ${p.Q} = ${p_elu.toFixed(2)} kN/ml`, 25, y);
-            y += 8;
+            doc.text(`- Moment M_Ed = (p_elu * L2) / 8 = (${res.p_elu.toFixed(2)} * ${p.L}^2) / 8 = ${res.Med.toFixed(2)} kN.m/ml`, 25, y);
+            y += 10;
 
             setStyle('bold');
             doc.text('2.2 Sollicitations maximales :', 20, y);
             y += 5;
             setStyle('normal');
-            doc.text('Calcul du moment fléchissant maximum au centre et de l\'effort tranchant aux appuis.', 25, y);
-            y += 5;
-            setStyle('italic');
-            doc.text(`Moment max (M_Ed) = (p_elu * L^2) / 8 = ${res.Med.toFixed(2)} kN.m/ml`, 25, y);
-            y += 5;
-            doc.text(`Effort tranchant max (V_Ed) = (p_elu * L) / 2 = ${res.Ved.toFixed(1)} kN/ml`, 25, y);
-            y += 8;
+            doc.text(`- Effort tranchant V_Ed = (p_elu * L) / 2 = (${res.p_elu.toFixed(2)} * ${p.L}) / 2 = ${res.Ved.toFixed(1)} kN/ml`, 25, y);
+            y += 10;
 
             setStyle('bold');
             doc.text('2.3 Ferraillage longitudinal (Flexion) :', 20, y);
             y += 5;
             setStyle('normal');
-            doc.text('Détermination de la section d\'acier nécessaire pour reprendre le moment de flexion.', 25, y);
+            doc.text(`- Hauteur utile d = h - c - phi/2 = ${res.d.toFixed(3)} m`, 25, y);
             y += 5;
-            setStyle('italic');
-            doc.text(`Hauteur utile (d) = h (epaisseur) - c (enrobage) - (diam. / 2) = ${res.d.toFixed(3)} m`, 25, y);
+            doc.text(`- Section min As_min = max(0.26*fctm/fyk, 0.0013)*b*d = ${res.As_min.toFixed(2)} cm2/ml`, 25, y);
             y += 5;
-            doc.text(`Section d'acier requise (As,req) = ${res.As_req.toFixed(2)} cm2/ml (prend en compte As,min = ${res.As_min.toFixed(2)} cm2/ml)`, 25, y);
+            doc.text(`- Section requise As_req = M_Ed / (z * fyd) = ${res.As_req.toFixed(2)} cm2/ml`, 25, y);
             y += 8;
 
             setStyle('bold');

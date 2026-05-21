@@ -335,8 +335,8 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
             return {
                 sigma_sol, d_req, d_A, d_B, d_req_A, d_req_B,
                 As_A_req, As_B_req, As_A_min, As_B_min,
-                As_A_prov, As_B_prov, nb_A, nb_B, esp_A, esp_B,
-                status
+                As_A_prov, As_B_prov, nb_A, nb_B, esp_A, esp_B, 
+                status, weight, fyd
             };
         }
 
@@ -638,10 +638,9 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
             doc.text('2.1 Vérification de la portance du sol (ELS) :', 20, y);
             y += 5;
             setStyle('normal');
-            doc.text('La contrainte transmise au sol inclut le poids propre de la fondation.', 25, y);
+            doc.text(`- Poids propre semelle = A*B*h*25 = ${res.weight.toFixed(1)} kN`, 25, y);
             y += 5;
-            setStyle('italic');
-            doc.text(`Contrainte exercee (sigma_sol) = (N_Eq + Poids) / (A * B) = ${res.sigma_sol.toFixed(3)} MPa`, 25, y);
+            doc.text(`- Contrainte sigma_sol = (N_Eq + Poids)/(A*B) = (${p.N_Eq}+${res.weight.toFixed(1)})/(${p.A}*${p.B}) = ${res.sigma_sol.toFixed(3)} MPa`, 25, y);
             y += 5;
             doc.text(`Verification : ${res.sigma_sol <= p.q_adm ? 'Conforme (sigma_sol <= q_adm)' : 'Non conforme (sigma_sol > q_adm)'}`, 25, y);
             y += 8;

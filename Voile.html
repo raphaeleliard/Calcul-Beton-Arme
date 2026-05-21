@@ -309,7 +309,7 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
 
             return {
                 sigma_cp, d, V_Rdc, v_min, As_vmin, As_hmin, As_req, As_prov,
-                status
+                status, k, fcd, Ac
             };
         }
 
@@ -549,14 +549,11 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
             doc.text('2.1 Vérification au cisaillement :', 20, y);
             y += 5;
             setStyle('normal');
-            doc.text('Vérification que le béton non armé transversalement suffit à reprendre l\'effort tranchant.', 25, y);
+            doc.text(`- Contrainte compression sigma_cp = N_Ed / Ac = ${p.N_Ed} / ${(res.Ac*1000).toFixed(0)} = ${res.sigma_cp.toFixed(2)} MPa`, 25, y);
             y += 5;
-            setStyle('italic');
-            doc.text(`Contrainte de compression (sigma_cp) = N_Ed / Ac = ${res.sigma_cp.toFixed(2)} MPa`, 25, y);
+            doc.text(`- Facteur echelle k = 1 + sqrt(200/(d*1000)) = ${res.k.toFixed(3)}`, 25, y);
             y += 5;
-            doc.text(`Hauteur utile hors-plan (d) = h - c - (diam_ts / 2) = ${res.d.toFixed(3)} m`, 25, y);
-            y += 5;
-            doc.text(`Resistance au cisaillement du beton (V_Rdc) = (v_min + k1 * sigma_cp) * b * d = ${res.V_Rdc.toFixed(1)} kN/ml`, 25, y);
+            doc.text(`- Resistance beton V_Rdc = (v_min + 0.15*sigma_cp)*b*d = ${res.V_Rdc.toFixed(1)} kN/ml`, 25, y);
             y += 5;
             doc.text(`Verification : ${p.V_Ed <= res.V_Rdc ? 'Conforme (V_Ed <= V_Rdc)' : 'Non conforme (V_Ed > V_Rdc)'}`, 25, y);
             y += 8;

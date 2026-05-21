@@ -290,6 +290,7 @@ et proposer un arrangement des aciers transversaux (cadres).
             
             const fcd = (alphaCc * fck) / gammaC; 
             const fyd = fyk / gammaS; 
+            const fyd_cm2 = fyd / 10; // kN/cm2
             
             const fctm = 0.30 * Math.pow(fck, 2/3);
             const As_min = Math.max(0.26 * (fctm / fyk) * b * d, 0.0013 * b * d) * 10000; 
@@ -336,13 +337,16 @@ et proposer un arrangement des aciers transversaux (cadres).
                     cotTheta = 1.0; 
                 }
 
-                const Asw_s_calc = (Ved / (z * fyd * cotTheta)) * 10; 
+                const Asw_s_calc = (Ved / (z * fyd_cm2 * cotTheta)); 
                 const rho_w_min = (0.08 * Math.sqrt(fck)) / fyk; 
                 const Asw_s_min = rho_w_min * b * 10000; 
                 Asw_s = Math.max(Asw_s_calc, Asw_s_min);
             }
 
-            return { Med, Ved, mu_cu, alpha, z, As_req, Asw_s, status, d, cotTheta };
+            return { 
+                Med, Ved, mu_cu, alpha, z, As_req, Asw_s, status, d, cotTheta,
+                fcd, fyd, fyd_cm2, fctm, p_elu, Vrd_max_45, As_min
+            };
         }
 
         function calculateRealSteelArrangement(As_req, diameter) {
@@ -671,40 +675,37 @@ et proposer un arrangement des aciers transversaux (cadres).
             setStyle('normal');
             doc.text('Calcul de la charge linéaire ultime et détermination des efforts maximaux.', 25, y);
             y += 5;
-            setStyle('italic');
-            doc.text(`Charge ultime (p_elu) = 1.35 * G (Perm.) + 1.5 * Q (Exploit.) = ${p_elu.toFixed(2)} kN/ml`, 25, y);
+            doc.text(`- Charge ultime p_elu = 1.35*${p.G} + 1.5*${p.Q} = ${res.p_elu.toFixed(2)} kN/ml`, 25, y);
             y += 5;
-            doc.text(`Moment flechissant max (M_Ed) = (p_elu * L^2) / 8 = ${res.Med.toFixed(2)} kN.m`, 25, y);
+            doc.text(`- Moment max M_Ed = (${res.p_elu.toFixed(2)} * ${p.L} * ${p.L}) / 8 = ${res.Med.toFixed(2)} kN.m`, 25, y);
             y += 5;
-            doc.text(`Effort tranchant max (V_Ed) = (p_elu * L) / 2 = ${res.Ved.toFixed(1)} kN`, 25, y);
-            y += 8;
+            doc.text(`- Effort tranchant max V_Ed = (${res.p_elu.toFixed(2)} * ${p.L}) / 2 = ${res.Ved.toFixed(1)} kN`, 25, y);
+            y += 10;
 
             setStyle('bold');
             doc.text('2.2 Ferraillage longitudinal (Flexion) :', 20, y);
             y += 5;
             setStyle('normal');
-            doc.text('Dimensionnement des armatures tendues. La hauteur utile d est calculée avec le diamètre choisi.', 25, y);
+            doc.text(`- Hauteur utile d = ${p.h} - ${(AppState.c_enrobage)} - 0.008 - ${(AppState.selectedDiameter/2000).toFixed(3)} = ${res.d.toFixed(3)} m`, 25, y);
             y += 5;
-            setStyle('italic');
-            doc.text(`Hauteur utile (d) = h (hauteur) - c_nom (enrobage) - diam_cadre - diam_long/2 = ${res.d.toFixed(3)} m`, 25, y);
+            doc.text(`- Moment reduit mu = ${res.Med.toFixed(2)} / (${p.b} * ${res.d.toFixed(3)} * ${res.d.toFixed(3)} * ${(res.fcd*1000).toFixed(0)}) = ${res.mu_cu.toFixed(3)}`, 25, y);
             y += 5;
-            doc.text(`Moment reduit (mu_cu) = M_Ed / (b * d^2 * fcd) = ${res.mu_cu.toFixed(3)}  ${res.mu_cu > 0.371 ? '-> Erreur: section beton insuffisante' : '-> OK'}`, 25, y);
+            doc.text(`- Axe neutre alpha = 1.25 * (1 - sqrt(1 - 2*${res.mu_cu.toFixed(3)})) = ${res.alpha.toFixed(3)}`, 25, y);
             y += 5;
-            doc.text(`Axe neutre (alpha) = 1.25 * (1 - sqrt(1 - 2*mu_cu)) = ${res.alpha.toFixed(3)}  |  Bras de levier (z) = ${res.z.toFixed(3)} m`, 25, y);
+            doc.text(`- Bras de levier z = ${res.d.toFixed(3)} * (1 - 0.4*${res.alpha.toFixed(3)}) = ${res.z.toFixed(3)} m`, 25, y);
             y += 5;
-            doc.text(`Section requise (As,req) = M_Ed / (z * fyd) = ${res.As_req.toFixed(2)} cm2`, 25, y);
-            y += 8;
+            doc.text(`- Section As_req = M_Ed / (z * fyd) = ${res.Med.toFixed(2)} / (${res.z.toFixed(3)} * ${res.fyd_cm2.toFixed(3)}) = ${res.As_req.toFixed(2)} cm2`, 25, y);
+            y += 10;
 
             setStyle('bold');
             doc.text('2.3 Armatures transversales (Effort Tranchant) :', 20, y);
             y += 5;
             setStyle('normal');
-            doc.text('Calcul de la section d\'armatures d\'effort tranchant (cadres) avec optimisation de l\'angle des bielles.', 25, y);
+            doc.text(`- Resistance bielle beton Vrd_max(45) = ${res.Vrd_max_45.toFixed(1)} kN`, 25, y);
             y += 5;
-            setStyle('italic');
-            doc.text(`Inclinaison des bielles (cot theta) = ${res.cotTheta.toFixed(2)}`, 25, y);
+            doc.text(`- Inclinaison bielles cot_theta = ${res.cotTheta.toFixed(2)}`, 25, y);
             y += 5;
-            doc.text(`Ratio d'armatures transversales (Asw/s) = ${res.Asw_s.toFixed(2)} cm2/m`, 25, y);
+            doc.text(`- Section requise Asw_s = ${res.Ved.toFixed(1)} / (${res.z.toFixed(3)} * ${res.fyd_cm2.toFixed(3)} * ${res.cotTheta.toFixed(2)}) = ${res.Asw_s.toFixed(2)} cm2/m`, 25, y);
             y += 12;
 
             // --- RESULTATS ---

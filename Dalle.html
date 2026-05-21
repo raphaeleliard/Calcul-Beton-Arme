@@ -319,6 +319,8 @@ en vérifiant le cisaillement et en optimisant les aciers de répartition.
             
             let As_req = 0;
             let status = 'OK';
+            let alpha = 0;
+            let z = 0;
 
             // Acier minimum réglementaire (EC2 §9.2.1.1 et 9.3.1.1)
             const As_min = Math.max(0.26 * (fctm / fyk) * b * d, 0.0013 * b * d) * 10000; // cm²/ml
@@ -326,8 +328,8 @@ en vérifiant le cisaillement et en optimisant les aciers de répartition.
             if (mu_cu > 0.371) {
                 status = 'ERROR_MUCU'; 
             } else {
-                const alpha = 1.25 * (1 - Math.sqrt(1 - 2 * mu_cu));
-                const z = d * (1 - 0.4 * alpha);
+                alpha = 1.25 * (1 - Math.sqrt(1 - 2 * mu_cu));
+                z = d * (1 - 0.4 * alpha);
                 As_req = (Med_MN / (z * fyd)) * 10000; // cm²/ml
                 As_req = Math.max(As_req, As_min);
             }
@@ -367,7 +369,8 @@ en vérifiant le cisaillement et en optimisant les aciers de répartition.
 
             return {
                 Med, Ved, As_req, As_min, As_prov, As_prov_rep, As_rep_req,
-                V_Rdc, status, s_max_main, s_max_rep, esp_net, d, p_elu, fctm, fyd
+                V_Rdc, status, s_max_main, s_max_rep, esp_net, d, p_elu, fctm, fyd,
+                fcd, mu_cu, alpha, z, fyd_cm2: fyd / 10, k, rho_l
             };
         }
 

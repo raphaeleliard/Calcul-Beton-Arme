@@ -410,6 +410,8 @@ function buildPage2(moduleType, moduleTitle, state) {
     let calculationCards = '';
     
     if (moduleType === 'poutre') {
+        calculationCards += '<div class="pdf-grid-2">';
+        
         calculationCards += renderFormulaCard(
             "1. Charge linéaire ultime (ELU)",
             "EC2 §5.1 / Combinaisons",
@@ -472,6 +474,8 @@ function buildPage2(moduleType, moduleTitle, state) {
              <li><strong>cot&theta;</strong> : inclinaison des bielles comprimées (fixée réglementairement à ${res.cotTheta.toFixed(2)})</li>
              <li><strong>A<sub>sw</sub>/s</strong> : section de cadres d'acier transversaux requis par mètre linéaire</li>`
         );
+        
+        calculationCards += '</div>';
     } else if (moduleType === 'dalle') {
         calculationCards += renderFormulaCard(
             "1. Moments fléchissants et effort tranchant ultime",

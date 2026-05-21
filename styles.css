@@ -446,6 +446,15 @@ footer { text-align: center; padding: 1rem; color: var(--text-muted); font-size:
     margin-bottom: 12px;
 }
 
+.pdf-grid-2 .pdf-formula-card {
+    margin-bottom: 0;
+}
+
+.pdf-variables-list:last-child {
+    margin-bottom: 0;
+}
+
+
 .pdf-compliance-box {
     border: 1px solid #d5dbdb;
     border-radius: 6px;

@@ -298,7 +298,11 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
             const v_min = 0.035 * Math.pow(k, 1.5) * Math.sqrt(fck); // MPa
 
             const k1 = 0.15; // Recommandation Annexe Nationale française
-            const V_Rdc = (v_min + k1 * sigma_cp) * b * d * 1000; // kN/ml
+            const rho_l = Math.min(As_prov / (b * d * 10000), 0.02);
+            const C_Rdc = 0.18 / 1.5;
+            const V_Rdc_calc = (C_Rdc * k * Math.pow(100 * rho_l * fck, 1/3) + k1 * sigma_cp) * b * d * 1000;
+            const V_Rdc_min = (v_min + k1 * sigma_cp) * b * d * 1000;
+            const V_Rdc = Math.max(V_Rdc_calc, V_Rdc_min); // kN/ml
 
             let status = 'OK';
             if (V_Ed > V_Rdc) {
@@ -308,7 +312,7 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
             }
 
             return {
-                sigma_cp, d, V_Rdc, v_min, As_vmin, As_hmin, As_req, As_prov,
+                sigma_cp, d, V_Rdc, V_Rdc_calc, V_Rdc_min, v_min, As_vmin, As_hmin, As_req, As_prov, rho_l,
                 status, k, fcd, Ac
             };
         }
@@ -493,126 +497,7 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
         }
 
         async function exportAsPDF() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-
-            const p = AppState.inputs;
-            const res = AppState.results;
-            const tsData = TS_SPECS[AppState.selectedTS];
-
-            const setStyle = (style) => {
-                switch(style) {
-                    case 'h1': doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(52, 152, 219); break;
-                    case 'h2': doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(44, 62, 80); break;
-                    case 'normal': doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(44, 62, 80); break;
-                    case 'italic': doc.setFont('helvetica', 'italic'); doc.setFontSize(10); doc.setTextColor(44, 62, 80); break;
-                    case 'bold': doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(44, 62, 80); break;
-                    case 'muted': doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(127, 140, 141); break;
-                }
-            };
-
-            let y = 20;
-
-            // --- HEADER ---
-            setStyle('h1');
-            doc.text('Note de Calcul - Voile en Béton Armé', 15, y);
-            y += 6;
-            setStyle('muted');
-            doc.text(`Généré par EC2 Assistant (Outil Pédagogique par Raphaël ELIARD) - Date: ${new Date().toLocaleDateString()}`, 15, y);
-            y += 4;
-            doc.setLineWidth(0.5);
-            doc.setDrawColor(224, 224, 224);
-            doc.line(15, y, 195, y);
-            y += 10;
-
-            // --- HYPOTHESES ---
-            setStyle('h2');
-            doc.text('1. Hypothèses et Données', 15, y);
-            y += 8;
-            setStyle('normal');
-            doc.text(`- Épaisseur du voile (h) : ${p.h.toFixed(2)} m`, 20, y);
-            doc.text(`- Largeur de bande (b) : 1.00 m`, 105, y);
-            y += 6;
-            doc.text(`- Classe du béton : C${p.fck}/${p.fck+5} (fck = ${p.fck} MPa)`, 20, y);
-            doc.text(`- Enrobage nominal (c) : ${p.enrobage.toFixed(1)} cm`, 105, y);
-            y += 6;
-            doc.text(`- Effort normal ELU (N_Ed) : ${p.N_Ed.toFixed(2)} kN/ml`, 20, y);
-            doc.text(`- Effort tranchant ELU (V_Ed) : ${p.V_Ed.toFixed(2)} kN/ml`, 105, y);
-            y += 12;
-
-            // --- CALCULS ---
-            setStyle('h2');
-            doc.text('2. Détail des calculs (Eurocode 2)', 15, y);
-            y += 8;
-            
-            setStyle('bold');
-            doc.text('2.1 Vérification au cisaillement :', 20, y);
-            y += 5;
-            setStyle('normal');
-            doc.text(`- Contrainte compression sigma_cp = N_Ed / Ac = ${p.N_Ed} / ${(res.Ac*1000).toFixed(0)} = ${res.sigma_cp.toFixed(2)} MPa`, 25, y);
-            y += 5;
-            doc.text(`- Facteur echelle k = 1 + sqrt(200/(d*1000)) = ${res.k.toFixed(3)}`, 25, y);
-            y += 5;
-            doc.text(`- Resistance beton V_Rdc = (v_min + 0.15*sigma_cp)*b*d = ${res.V_Rdc.toFixed(1)} kN/ml`, 25, y);
-            y += 5;
-            doc.text(`Verification : ${p.V_Ed <= res.V_Rdc ? 'Conforme (V_Ed <= V_Rdc)' : 'Non conforme (V_Ed > V_Rdc)'}`, 25, y);
-            y += 8;
-
-            setStyle('bold');
-            doc.text('2.2 Sections d\'armatures minimales :', 20, y);
-            y += 5;
-            setStyle('normal');
-            doc.text('Détermination des sections réglementaires pour éviter la fragilité du voile.', 25, y);
-            y += 5;
-            setStyle('italic');
-            doc.text(`Acier vertical min. (As,v,min) = 0.002 * Ac (section beton) = ${res.As_vmin.toFixed(2)} cm2/ml`, 25, y);
-            y += 5;
-            doc.text(`Acier horizontal min. (As,h,min) = max(0.25 * As,v,min, 0.001 * Ac) = ${res.As_hmin.toFixed(2)} cm2/ml`, 25, y);
-            y += 5;
-            doc.text(`Section globale requise pour le TS (As,req) = ${res.As_req.toFixed(2)} cm2/ml`, 25, y);
-            y += 12;
-
-            // --- RESULTATS ---
-            setStyle('h2');
-            doc.text('3. Ferraillage choisi (Treillis Soudé)', 15, y);
-            y += 8;
-            setStyle('normal');
-            doc.text('Choix du treillis et disposition :', 20, y);
-            y += 5;
-            setStyle('italic');
-            doc.text(`Type de treillis : ${AppState.selectedTS} (Section unitaire: ${tsData.section.toFixed(2)} cm2/ml)`, 25, y);
-            y += 5;
-            doc.text(`Disposition : ${p.nappesCount} nappe(s)`, 25, y);
-            y += 5;
-            doc.text(`Section totale fournie = ${res.As_prov.toFixed(2)} cm2/ml (Requise: ${res.As_req.toFixed(2)})`, 25, y);
-            y += 12;
-
-            // --- SVG CAPTURE ---
-            setStyle('h2');
-            doc.text('4. Plan de Ferraillage (Coupe)', 15, y);
-            y += 5;
-            const svgContainer = document.getElementById('svgContainer');
-            const previousView = AppState.currentView;
-            setView('coupe');
-
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            document.documentElement.setAttribute('data-theme', 'light');
-            renderUI();
-
-            const canvas = await html2canvas(svgContainer, { backgroundColor: '#ffffff', scale: 3 });
-            const imgData = canvas.toDataURL('image/png');
-            
-            document.documentElement.setAttribute('data-theme', currentTheme);
-            setView(previousView);
-
-            const imgProps = doc.getImageProperties(imgData);
-            const pdfWidth = 180;
-            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-            if (y + pdfHeight > 280) { doc.addPage(); y = 20; }
-            doc.addImage(imgData, 'PNG', 15, y, pdfWidth, pdfHeight);
-
-            // --- SAVE ---
-            doc.save(`note_calcul_voile_${new Date().toISOString().slice(0,10)}.pdf`);
+            await generatePDFReport('voile', 'Voile en Béton Armé', AppState, 'svgContainer', renderUI, setView, 'coupe', 'note_calcul_voile.pdf');
         }
     </script>
     <script src="script.js"></script>

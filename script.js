@@ -219,3 +219,703 @@ function drawDimensionLine(x1, y1, x2, y2, value, unit = "cm", offset = 30, text
         <text x="${midX}" y="${midY}" text-anchor="middle" font-size="14" fill="${textColor}" transform="rotate(${textAngle} ${midX} ${midY}) translate(0, ${textShift})">${value} ${unit}</text>
     `;
 }
+
+// ==========================================
+// RAPPORTS PDF DYNAMIQUES A4 (HTML-to-Canvas)
+// ==========================================
+
+function getPDFHeader(moduleTitle, pageNum) {
+    return `
+        <div class="pdf-header">
+            <div class="pdf-header-top">
+                <div class="pdf-header-title">${moduleTitle}</div>
+                <div class="pdf-header-badge">EUROCODE 2</div>
+            </div>
+            <div class="pdf-header-subtitle">Note de calcul réglementaire complète • EC2 Assistant</div>
+        </div>
+    `;
+}
+
+function getPDFFooter(pageNum) {
+    return `
+        <div class="pdf-footer">
+            <span>EC2 Assistant - Outil Pédagogique par Raphaël ELIARD</span>
+            <span>Date: ${new Date().toLocaleDateString('fr-FR')}</span>
+            <span>Page ${pageNum} sur 3</span>
+        </div>
+    `;
+}
+
+function renderFormulaCard(title, ec2Ref, literal, values, result, explanationHTML) {
+    return `
+        <div class="pdf-formula-card">
+            <div class="pdf-formula-title">
+                <span>${title}</span>
+                <span class="pdf-formula-ref">${ec2Ref}</span>
+            </div>
+            <div class="pdf-formula-math">${literal}</div>
+            <div class="pdf-formula-values">${values}</div>
+            <div class="pdf-formula-result">${result}</div>
+            ${explanationHTML ? `<ul class="pdf-variables-list">${explanationHTML}</ul>` : ''}
+        </div>
+    `;
+}
+
+function buildPage1(moduleType, moduleTitle, state) {
+    const p = state.inputs;
+    const res = state.results;
+    let geomRows = '';
+    let loadRows = '';
+    
+    if (moduleType === 'poutre') {
+        geomRows = `
+            <tr><td>Portée de calcul (L)</td><td>L</td><td>${p.L.toFixed(2)} m</td><td>Longueur libre entre appuis</td></tr>
+            <tr><td>Largeur de la section (b)</td><td>b</td><td>${p.b.toFixed(2)} m</td><td>Dimension transversale de la poutre</td></tr>
+            <tr><td>Hauteur totale (h)</td><td>h</td><td>${p.h.toFixed(2)} m</td><td>Hauteur de la section droite</td></tr>
+            <tr><td>Enrobage nominal (c<sub>nom</sub>)</td><td>c<sub>nom</sub></td><td>${(state.c_enrobage * 100).toFixed(1)} cm</td><td>Distance entre armature et parement (EC2 §4.4.1)</td></tr>
+        `;
+        loadRows = `
+            <tr><td>Charge permanente (G)</td><td>G</td><td>${p.G.toFixed(2)} kN/ml</td><td>Poids propre et charges fixes de structure</td></tr>
+            <tr><td>Charge d'exploitation (Q)</td><td>Q</td><td>${p.Q.toFixed(2)} kN/ml</td><td>Charges variables d'usage</td></tr>
+            <tr><td>Charge ultime ELU (p<sub>Ed</sub>)</td><td>p<sub>Ed</sub></td><td>${res.p_elu.toFixed(2)} kN/ml</td><td>Combinaison ultime : 1.35 &times; G + 1.5 &times; Q (EC2 §5.1)</td></tr>
+            <tr><td>Moment fléchissant ultime (M<sub>Ed</sub>)</td><td>M<sub>Ed</sub></td><td>${res.Med.toFixed(2)} kN.m</td><td>Sollicitation maximale en flexion simple à mi-portée</td></tr>
+            <tr><td>Effort tranchant ultime (V<sub>Ed</sub>)</td><td>V<sub>Ed</sub></td><td>${res.Ved.toFixed(2)} kN</td><td>Sollicitation maximale en cisaillement aux appuis</td></tr>
+        `;
+    } else if (moduleType === 'dalle') {
+        geomRows = `
+            <tr><td>Portée de la dalle (L)</td><td>L</td><td>${p.L.toFixed(2)} m</td><td>Portée libre de calcul</td></tr>
+            <tr><td>Épaisseur de la dalle (h)</td><td>h</td><td>${p.h.toFixed(2)} m</td><td>Hauteur totale de la section courante</td></tr>
+            <tr><td>Largeur d'étude (b)</td><td>b</td><td>1.00 m</td><td>Bande unitaire d'analyse transversale</td></tr>
+            <tr><td>Enrobage nominal (c)</td><td>c</td><td>${p.enrobage.toFixed(1)} cm</td><td>Enrobage des aciers de flexion (EC2 §4.4.1)</td></tr>
+        `;
+        loadRows = `
+            <tr><td>Charge permanente (G)</td><td>G</td><td>${p.G.toFixed(2)} kN/m²</td><td>Charges fixes (dalle, finitions, cloisons)</td></tr>
+            <tr><td>Charge d'exploitation (Q)</td><td>Q</td><td>${p.Q.toFixed(2)} kN/m²</td><td>Charges de service</td></tr>
+            <tr><td>Charge ultime ELU (p<sub>Ed</sub>)</td><td>p<sub>Ed</sub></td><td>${res.p_elu.toFixed(2)} kN/ml</td><td>Combinaison ultime : 1.35 &times; G + 1.5 &times; Q (pour b = 1m)</td></tr>
+            <tr><td>Moment fléchissant ultime (M<sub>Ed</sub>)</td><td>M<sub>Ed</sub></td><td>${res.Med.toFixed(2)} kN.m/ml</td><td>Moment de flexion maximum à l'ELU</td></tr>
+            <tr><td>Effort tranchant ultime (V<sub>Ed</sub>)</td><td>V<sub>Ed</sub></td><td>${res.Ved.toFixed(2)} kN/ml</td><td>Effort tranchant maximum à l'ELU aux appuis</td></tr>
+        `;
+    } else if (moduleType === 'poteau') {
+        geomRows = `
+            <tr><td>Hauteur libre (L)</td><td>L</td><td>${p.L.toFixed(2)} m</td><td>Hauteur physique du poteau entre noeuds</td></tr>
+            <tr><td>Largeur de section (a)</td><td>a</td><td>${p.a.toFixed(2)} m</td><td>Dimension transversale principale du poteau</td></tr>
+            <tr><td>Épaisseur de section (b)</td><td>b</td><td>${p.b.toFixed(2)} m</td><td>Dimension transversale secondaire du poteau</td></tr>
+            <tr><td>Coeff. de flambement (&beta;)</td><td>&beta;</td><td>${p.beta}</td><td>Dépend des conditions de liaisons aux extrémités</td></tr>
+            <tr><td>Enrobage nominal (c)</td><td>c</td><td>${p.enrobage.toFixed(1)} cm</td><td>Enrobage des aciers longitudinaux (EC2 §4.4.1)</td></tr>
+        `;
+        loadRows = `
+            <tr><td>Effort Normal ultime (N<sub>Ed</sub>)</td><td>N<sub>Ed</sub></td><td>${p.N_Ed.toFixed(2)} kN</td><td>Charge axiale de compression ultime (ELU)</td></tr>
+            <tr><td>Moment fléchissant ultime (M<sub>Ed</sub>)</td><td>M<sub>Ed</sub></td><td>${p.M_Ed.toFixed(2)} kN.m</td><td>Moment appliqué en tête/base du poteau</td></tr>
+        `;
+    } else if (moduleType === 'voile') {
+        geomRows = `
+            <tr><td>Épaisseur du voile (h)</td><td>h</td><td>${p.h.toFixed(2)} m</td><td>Épaisseur brute du béton</td></tr>
+            <tr><td>Largeur d'étude (b)</td><td>b</td><td>1.00 m</td><td>Bande unitaire verticale d'analyse</td></tr>
+            <tr><td>Enrobage nominal (c)</td><td>c</td><td>${p.enrobage.toFixed(1)} cm</td><td>Enrobage réglementaire (EC2 §4.4.1)</td></tr>
+        `;
+        loadRows = `
+            <tr><td>Effort Normal ultime (N<sub>Ed</sub>)</td><td>N<sub>Ed</sub></td><td>${p.N_Ed.toFixed(2)} kN/ml</td><td>Effort normal vertical de compression ultime</td></tr>
+            <tr><td>Effort Tranchant ultime (V<sub>Ed</sub>)</td><td>V<sub>Ed</sub></td><td>${p.V_Ed.toFixed(2)} kN/ml</td><td>Effort tranchant horizontal ultime hors-plan</td></tr>
+        `;
+    } else if (moduleType === 'semelle_filante') {
+        geomRows = `
+            <tr><td>Épaisseur du voile (a)</td><td>a</td><td>${p.a.toFixed(2)} m</td><td>Largeur du mur/voile s'appuyant sur la semelle</td></tr>
+            <tr><td>Largeur de la semelle (B)</td><td>B</td><td>${p.B.toFixed(2)} m</td><td>Largeur totale de la base de la fondation</td></tr>
+            <tr><td>Hauteur de la semelle (h)</td><td>h</td><td>${p.h.toFixed(2)} m</td><td>Hauteur totale de la fondation filante</td></tr>
+            <tr><td>Enrobage nominal (c)</td><td>c</td><td>${p.enrobage.toFixed(1)} cm</td><td>Enrobage des aciers de semelle (EC2 §4.4.1)</td></tr>
+        `;
+        loadRows = `
+            <tr><td>Charge de service ELS (N<sub>Eq</sub>)</td><td>N<sub>Eq</sub></td><td>${p.N_Eq.toFixed(2)} kN/ml</td><td>Charge axiale verticale de service (ELS)</td></tr>
+            <tr><td>Charge ultime ELU (N<sub>Ed</sub>)</td><td>N<sub>Ed</sub></td><td>${p.N_Ed.toFixed(2)} kN/ml</td><td>Charge axiale verticale ultime (ELU)</td></tr>
+            <tr><td>Contrainte sol adm. (q<sub>adm</sub>)</td><td>q<sub>adm</sub></td><td>${p.q_adm.toFixed(3)} MPa</td><td>Capacité portante admissible du sol (pression brute)</td></tr>
+        `;
+    } else if (moduleType === 'semelle_isolee') {
+        geomRows = `
+            <tr><td>Dimensions du poteau (a &times; b)</td><td>a &times; b</td><td>${p.a.toFixed(2)} &times; ${p.b.toFixed(2)} m</td><td>Section transversale du poteau s'appuyant sur la semelle</td></tr>
+            <tr><td>Dimensions semelle (A &times; B)</td><td>A &times; B</td><td>${p.A.toFixed(2)} &times; ${p.B.toFixed(2)} m</td><td>Dimensions de la semelle en plan</td></tr>
+            <tr><td>Hauteur de la semelle (h)</td><td>h</td><td>${p.h.toFixed(2)} m</td><td>Hauteur totale de la fondation isolée</td></tr>
+            <tr><td>Enrobage nominal (c)</td><td>c</td><td>${p.enrobage.toFixed(1)} cm</td><td>Enrobage minimal réglementaire (EC2 §4.4.1)</td></tr>
+        `;
+        loadRows = `
+            <tr><td>Charge de service ELS (N<sub>Eq</sub>)</td><td>N<sub>Eq</sub></td><td>${p.N_Eq.toFixed(2)} kN</td><td>Charge verticale de service (ELS)</td></tr>
+            <tr><td>Charge ultime ELU (N<sub>Ed</sub>)</td><td>N<sub>Ed</sub></td><td>${p.N_Ed.toFixed(2)} kN</td><td>Charge verticale ultime (ELU)</td></tr>
+            <tr><td>Contrainte sol adm. (q<sub>adm</sub>)</td><td>q<sub>adm</sub></td><td>${p.q_adm.toFixed(3)} MPa</td><td>Capacité portante admissible du sol (pression brute)</td></tr>
+        `;
+    }
+    
+    const fck = parseFloat(p.fck);
+    const fyk = parseFloat(p.fyk || 500);
+    const fcd = res.fcd ? parseFloat(res.fcd) : (1.0 * fck / 1.5);
+    const fyd = (fyk / 1.15);
+    
+    return `
+        <div class="pdf-page" id="pdf-page-1">
+            <div class="pdf-content">
+                ${getPDFHeader(moduleTitle, 1)}
+                
+                <div class="pdf-section-title">1. Informations Générales</div>
+                <table class="pdf-table">
+                    <tr><th>Paramètre</th><th>Valeur</th><th>Description / Contexte</th></tr>
+                    <tr><td>Logiciel d'analyse</td><td>EC2 Assistant v1.0</td><td>Outil de conception et d'apprentissage du Béton Armé</td></tr>
+                    <tr><td>Auteur de l'étude</td><td>Raphaël ELIARD</td><td>Concepteur & Auteur pédagogique</td></tr>
+                    <tr><td>Règlement de calcul</td><td>NF EN 1992-1-1 / NA</td><td>Eurocode 2 : Calcul des structures en béton</td></tr>
+                    <tr><td>Date du rapport</td><td>${new Date().toLocaleDateString('fr-FR')}</td><td>Date de génération de la présente note de calcul</td></tr>
+                </table>
+                
+                <div class="pdf-section-title">2. Hypothèses Géométriques</div>
+                <table class="pdf-table">
+                    <thead>
+                        <tr><th>Désignation</th><th>Symbole</th><th>Valeur</th><th>Description réglementaire</th></tr>
+                    </thead>
+                    <tbody>
+                        ${geomRows}
+                    </tbody>
+                </table>
+                
+                <div class="pdf-section-title">3. Propriétés des Matériaux</div>
+                <table class="pdf-table">
+                    <thead>
+                        <tr><th>Matériau</th><th>Caractéristique</th><th>Symbole</th><th>Valeur</th><th>Formule / Clause EC2</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td rowspan="4" style="vertical-align:middle; font-weight:bold;">BÉTON</td><td>Résistance à la compression</td><td>f<sub>ck</sub></td><td>${fck.toFixed(0)} MPa</td><td>Classe béton C${fck}/${fck+5} (EC2 Table 3.1)</td></tr>
+                        <tr><td>Résistance de calcul</td><td>f<sub>cd</sub></td><td>${fcd.toFixed(2)} MPa</td><td>f<sub>cd</sub> = &alpha;<sub>cc</sub> &times; f<sub>ck</sub> / &gamma;<sub>c</sub> (EC2 §3.1.6)</td></tr>
+                        <tr><td>Coeff. partiel béton</td><td>&gamma;<sub>c</sub></td><td>1.50</td><td>Situation durable et transitoire (EC2 Table 2.1N)</td></tr>
+                        <tr><td>Facteur d'échelle temporel</td><td>&alpha;<sub>cc</sub></td><td>1.00</td><td>Prise en compte des effets à long terme (EC2 §3.1.6)</td></tr>
+                        
+                        <tr><td rowspan="3" style="vertical-align:middle; font-weight:bold;">ACIER</td><td>Limite élastique nominale</td><td>f<sub>yk</sub></td><td>${fyk.toFixed(0)} MPa</td><td>Classe d'acier S${fyk} (EC2 §3.2)</td></tr>
+                        <tr><td>Limite élastique de calcul</td><td>f<sub>yd</sub></td><td>${fyd.toFixed(2)} MPa</td><td>f<sub>yd</sub> = f<sub>yk</sub> / &gamma;<sub>s</sub> (EC2 §3.2.7)</td></tr>
+                        <tr><td>Coeff. partiel acier</td><td>&gamma;<sub>s</sub></td><td>1.15</td><td>Situation durable et transitoire (EC2 Table 2.1N)</td></tr>
+                    </tbody>
+                </table>
+                
+                <div class="pdf-section-title">4. Actions & Sollicitations de Calcul</div>
+                <table class="pdf-table">
+                    <thead>
+                        <tr><th>Actions / Effort</th><th>Symbole</th><th>Valeur de calcul</th><th>Description physique / Règlement</th></tr>
+                    </thead>
+                    <tbody>
+                        ${loadRows}
+                    </tbody>
+                </table>
+            </div>
+            ${getPDFFooter(1)}
+        </div>
+    `;
+}
+
+function buildPage2(moduleType, moduleTitle, state) {
+    const p = state.inputs;
+    const res = state.results;
+    let calculationCards = '';
+    
+    if (moduleType === 'poutre') {
+        calculationCards += renderFormulaCard(
+            "1. Charge linéaire ultime (ELU)",
+            "EC2 §5.1 / Combinaisons",
+            `p<sub>Ed</sub> = 1.35 &times; G + 1.5 &times; Q`,
+            `p<sub>Ed</sub> = 1.35 &times; ${p.G.toFixed(2)} + 1.5 &times; ${p.Q.toFixed(2)}`,
+            `p<sub>Ed</sub> = ${res.p_elu.toFixed(2)} kN/ml`,
+            `<li><strong>G</strong> : charge permanente linéarisée (${p.G.toFixed(2)} kN/ml)</li>
+             <li><strong>Q</strong> : charge d'exploitation linéarisée (${p.Q.toFixed(2)} kN/ml)</li>`
+        );
+        
+        calculationCards += renderFormulaCard(
+            "2. Sollicitations de calcul (Flexion & Cisaillement)",
+            "Mécanique des Structures / RDM",
+            `M<sub>Ed</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">p<sub>Ed</sub> &times; L<sup>2</sup></span><span class="pdf-math-den">8</span></span> &nbsp;,&nbsp; V<sub>Ed</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">p<sub>Ed</sub> &times; L</span><span class="pdf-math-den">2</span></span>`,
+            `M<sub>Ed</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${res.p_elu.toFixed(2)} &times; ${p.L.toFixed(2)}<sup>2</sup></span><span class="pdf-math-den">8</span></span> = ${res.Med.toFixed(2)} kN.m &nbsp;,&nbsp; V<sub>Ed</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${res.p_elu.toFixed(2)} &times; ${p.L.toFixed(2)}</span><span class="pdf-math-den">2</span></span> = ${res.Ved.toFixed(2)} kN`,
+            `M<sub>Ed</sub> = ${res.Med.toFixed(2)} kN.m &nbsp;|&nbsp; V<sub>Ed</sub> = ${res.Ved.toFixed(2)} kN`,
+            `<li><strong>L</strong> : portée libre de la poutre (${p.L.toFixed(2)} m)</li>`
+        );
+
+        calculationCards += renderFormulaCard(
+            "3. Hauteur utile de la section",
+            "EC2 §5.1",
+            `d = h - c<sub>nom</sub> - &phi;<sub>t</sub> - <span class="pdf-math-frac"><span class="pdf-math-num">&phi;<sub>l</sub></span><span class="pdf-math-den">2</span></span>`,
+            `d = ${p.h.toFixed(2)} - ${(state.c_enrobage).toFixed(3)} - 0.008 - <span class="pdf-math-frac"><span class="pdf-math-num">${(state.selectedDiameter/1000).toFixed(3)}</span><span class="pdf-math-den">2</span></span>`,
+            `d = ${res.d.toFixed(3)} m`,
+            `<li><strong>h</strong> : hauteur de la poutre (${p.h.toFixed(2)} m)</li>
+             <li><strong>c<sub>nom</sub></strong> : enrobage nominal (${(state.c_enrobage * 100).toFixed(1)} cm)</li>
+             <li><strong>&phi;<sub>t</sub></strong> : diamètre du cadre transversal (8 mm par défaut)</li>
+             <li><strong>&phi;<sub>l</sub></strong> : diamètre des barres longitudinales choisies (${state.selectedDiameter} mm)</li>`
+        );
+
+        calculationCards += renderFormulaCard(
+            "4. Moment fléchissant réduit & Position axe neutre",
+            "EC2 §6.1 / §3.1.6",
+            `&mu;<sub>cu</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">M<sub>Ed</sub></span><span class="pdf-math-den">b &times; d<sup>2</sup> &times; f<sub>cd</sub></span></span> &nbsp;,&nbsp; &alpha; = 1.25 &times; (1 - &radic;<span style="border-top:1px solid #2c3e50; padding-top:1px;">1 - 2&mu;<sub>cu</sub></span>)`,
+            `&mu;<sub>cu</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${res.Med.toFixed(2)} &times; 10<sup>-3</sup></span><span class="pdf-math-den">${p.b.toFixed(2)} &times; ${res.d.toFixed(3)}<sup>2</sup> &times; ${res.fcd.toFixed(2)}</span></span> = ${res.mu_cu.toFixed(3)} &nbsp;,&nbsp; &alpha; = 1.25 &times; (1 - &radic;<span style="border-top:1px solid #2c3e50; padding-top:1px;">1 - 2 &times; ${res.mu_cu.toFixed(3)}</span>) = ${res.alpha.toFixed(3)}`,
+            `&mu;<sub>cu</sub> = ${res.mu_cu.toFixed(3)} &nbsp;|&nbsp; &alpha; = ${res.alpha.toFixed(3)}`,
+            `<li><strong>&mu;<sub>cu</sub></strong> : moment réduit de flexion (limité à &mu;<sub>lim</sub> = 0.372 pour éviter les aciers comprimés)</li>
+             <li><strong>&alpha;</strong> : position relative de l'axe neutre (distance y = &alpha; &times; d)</li>`
+        );
+
+        calculationCards += renderFormulaCard(
+            "5. Bras de levier & Section longitudinale requise",
+            "EC2 §6.1",
+            `z = d &times; (1 - 0.4 &times; &alpha;) &nbsp;,&nbsp; A<sub>s,req</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">M<sub>Ed</sub></span><span class="pdf-math-den">z &times; f<sub>yd</sub></span></span>`,
+            `z = ${res.d.toFixed(3)} &times; (1 - 0.4 &times; ${res.alpha.toFixed(3)}) = ${res.z.toFixed(3)} m &nbsp;,&nbsp; A<sub>s,req</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${res.Med.toFixed(2)} &times; 10</span><span class="pdf-math-den">${res.z.toFixed(3)} &times; ${res.fyd_cm2.toFixed(3)}</span></span>`,
+            `z = ${res.z.toFixed(3)} m &nbsp;|&nbsp; A<sub>s,req</sub> = ${res.As_req.toFixed(2)} cm²`,
+            `<li><strong>z</strong> : bras de levier des forces internes de flexion</li>
+             <li><strong>f<sub>yd</sub></strong> : limite élastique de calcul des aciers (${res.fyd_cm2.toFixed(3)} kN/cm²)</li>`
+        );
+
+        calculationCards += renderFormulaCard(
+            "6. Effort tranchant ultime & Armatures transversales",
+            "EC2 §6.2.3",
+            `V<sub>Rd,max</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">b<sub>w</sub> &times; z &times; &nu;<sub>1</sub> &times; f<sub>cd</sub></span><span class="pdf-math-den">cot&theta; + tan&theta;</span></span> &nbsp;,&nbsp; <span class="pdf-math-frac"><span class="pdf-math-num">A<sub>sw</sub></span><span class="pdf-math-den">s</span></span> = <span class="pdf-math-frac"><span class="pdf-math-num">V<sub>Ed</sub></span><span class="pdf-math-den">z &times; f<sub>yd</sub> &times; cot&theta;</span></span>`,
+            `V<sub>Rd,max</sub> = ${res.Vrd_max_45.toFixed(1)} kN &nbsp;,&nbsp; <span class="pdf-math-frac"><span class="pdf-math-num">A<sub>sw</sub></span><span class="pdf-math-den">s</span></span> = <span class="pdf-math-frac"><span class="pdf-math-num">${res.Ved.toFixed(2)}</span><span class="pdf-math-den">${res.z.toFixed(3)} &times; ${res.fyd_cm2.toFixed(3)} &times; ${res.cotTheta.toFixed(2)}</span></span>`,
+            `V<sub>Rd,max</sub> = ${res.Vrd_max_45.toFixed(1)} kN &nbsp;|&nbsp; A<sub>sw</sub>/s = ${res.Asw_s.toFixed(2)} cm²/m`,
+            `<li><strong>V<sub>Rd,max</sub></strong> : résistance maximale de la bielle de béton comprimée (&theta; = 45&deg;)</li>
+             <li><strong>&nu;<sub>1</sub></strong> : coefficient d'efficacité du béton fissuré (&nu;<sub>1</sub> = 0.6 &times; [1 - f<sub>ck</sub>/250])</li>
+             <li><strong>cot&theta;</strong> : inclinaison des bielles comprimées (fixée réglementairement à ${res.cotTheta.toFixed(2)})</li>
+             <li><strong>A<sub>sw</sub>/s</strong> : section de cadres d'acier transversaux requis par mètre linéaire</li>`
+        );
+    } else if (moduleType === 'dalle') {
+        calculationCards += renderFormulaCard(
+            "1. Moments fléchissants et effort tranchant ultime",
+            "EC2 §5.1 / Combinaisons",
+            `M<sub>Ed</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">p<sub>Ed</sub> &times; L<sup>2</sup></span><span class="pdf-math-den">8</span></span> &nbsp;,&nbsp; V<sub>Ed</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">p<sub>Ed</sub> &times; L</span><span class="pdf-math-den">2</span></span>`,
+            `M<sub>Ed</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${res.p_elu.toFixed(2)} &times; ${p.L.toFixed(2)}<sup>2</sup></span><span class="pdf-math-den">8</span></span> = ${res.Med.toFixed(2)} kN.m/ml &nbsp;,&nbsp; V<sub>Ed</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${res.p_elu.toFixed(2)} &times; ${p.L.toFixed(2)}</span><span class="pdf-math-den">2</span></span> = ${res.Ved.toFixed(2)} kN/ml`,
+            `M<sub>Ed</sub> = ${res.Med.toFixed(2)} kN.m/ml &nbsp;|&nbsp; V<sub>Ed</sub> = ${res.Ved.toFixed(2)} kN/ml`,
+            `<li><strong>p<sub>Ed</sub></strong> : charge ultime linéaire par mètre de bande (${res.p_elu.toFixed(2)} kN/ml)</li>`
+        );
+
+        calculationCards += renderFormulaCard(
+            "2. Hauteur utile & Armatures minimales de flexion",
+            "EC2 §5.1 / §9.2.1.1",
+            `d = h - c - <span class="pdf-math-frac"><span class="pdf-math-num">&phi;<sub>l</sub></span><span class="pdf-math-den">2</span></span> &nbsp;,&nbsp; A<sub>s,min</sub> = max(0.26 &times; <span class="pdf-math-frac"><span class="pdf-math-num">f<sub>ctm</sub></span><span class="pdf-math-den">f<sub>yk</sub></span></span> &times; b &times; d &nbsp;;&nbsp; 0.0013 &times; b &times; d)`,
+            `d = ${p.h.toFixed(2)} - ${(p.enrobage/100).toFixed(3)} - 0.005 = ${res.d.toFixed(3)} m &nbsp;,&nbsp; A<sub>s,min</sub> = max(0.26 &times; <span class="pdf-math-frac"><span class="pdf-math-num">2.56</span><span class="pdf-math-den">500</span></span> &times; 100 &times; ${res.d.toFixed(3)} &times; 100 &nbsp;;&nbsp; 0.0013 &times; 100 &times; ${res.d.toFixed(3)} &times; 100)`,
+            `d = ${res.d.toFixed(3)} m &nbsp;|&nbsp; A<sub>s,min</sub> = ${res.As_min.toFixed(2)} cm²/ml`,
+            `<li><strong>f<sub>ctm</sub></strong> : résistance moyenne en traction du béton (C25/30 = 2.56 MPa)</li>
+             <li><strong>A<sub>s,min</sub></strong> : section minimale pour éviter la rupture fragile de la dalle</li>`
+        );
+
+        calculationCards += renderFormulaCard(
+            "3. Moment réduit & Section d'aciers principaux requis",
+            "EC2 §6.1",
+            `&mu;<sub>cu</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">M<sub>Ed</sub></span><span class="pdf-math-den">b &times; d<sup>2</sup> &times; f<sub>cd</sub></span></span> &nbsp;,&nbsp; A<sub>s,req</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">M<sub>Ed</sub></span><span class="pdf-math-den">z &times; f<sub>yd</sub></span></span>`,
+            `&mu;<sub>cu</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${res.Med.toFixed(2)} &times; 10<sup>-3</sup></span><span class="pdf-math-den">1.00 &times; ${res.d.toFixed(3)}<sup>2</sup> &times; ${res.fcd.toFixed(2)}</span></span> = ${res.mu_cu.toFixed(3)} &nbsp;,&nbsp; A<sub>s,req</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${res.Med.toFixed(2)} &times; 10</span><span class="pdf-math-den">${res.z.toFixed(3)} &times; ${res.fyd_cm2.toFixed(3)}</span></span>`,
+            `A<sub>s,req</sub> = ${res.As_req.toFixed(2)} cm²/ml`,
+            `<li><strong>z</strong> : bras de levier de la section béton (${res.z.toFixed(3)} m)</li>`
+        );
+
+        calculationCards += renderFormulaCard(
+            "4. Résistance au cisaillement du béton sans armatures",
+            "EC2 §6.2.2",
+            `V<sub>Rd,c</sub> = [C<sub>Rd,c</sub> &times; k &times; (100 &times; &rho;<sub>l</sub> &times; f<sub>ck</sub>)<sup>1/3</sup>] &times; b &times; d &nbsp;&ge; &nu;<sub>min</sub> &times; b &times; d`,
+            `V<sub>Rd,c</sub> = [0.12 &times; ${res.k.toFixed(3)} &times; (100 &times; ${(res.rho_l*100).toFixed(4)}% &times; ${p.fck})<sup>1/3</sup>] &times; 1000 &times; ${res.d.toFixed(3)}`,
+            `V<sub>Rd,c</sub> = ${res.V_Rdc.toFixed(1)} kN/ml &nbsp;(Effort tranchant limite admissible par le béton seul)`,
+            `<li><strong>k</strong> : facteur d'échelle hauteur 1 + &radic;<span style="border-top:1px solid #2c3e50; padding-top:1px;">200/(d&times;1000)</span> = ${res.k.toFixed(3)}</li>
+             <li><strong>&rho;<sub>l</sub></strong> : ratio longitudinal d'armatures tendues (${(res.rho_l*100).toFixed(3)}%)</li>`
+        );
+
+        calculationCards += renderFormulaCard(
+            "5. Armatures transversales de répartition",
+            "EC2 §9.3.1.1",
+            `A<sub>s,rep,req</sub> = max( 0.2 &times; A<sub>s,long,req</sub> &nbsp;;&nbsp; A<sub>s,min</sub> )`,
+            `A<sub>s,rep,req</sub> = max( 0.2 &times; ${res.As_req.toFixed(2)} &nbsp;;&nbsp; ${res.As_min.toFixed(2)} )`,
+            `A<sub>s,rep,req</sub> = ${res.As_rep_req.toFixed(2)} cm²/ml`,
+            `<li><strong>A<sub>s,rep,req</sub></strong> : armature de répartition perpendiculaire</li>`
+        );
+    } else if (moduleType === 'poteau') {
+        calculationCards += renderFormulaCard(
+            "1. Analyse de la stabilité (Élancement)",
+            "EC2 §5.8.3.2",
+            `l<sub>0</sub> = &beta; &times; L &nbsp;,&nbsp; i = <span class="pdf-math-frac"><span class="pdf-math-num">min(a, b)</span><span class="pdf-math-den">&radic;12</span></span> &nbsp;,&nbsp; &lambda; = <span class="pdf-math-frac"><span class="pdf-math-num">l<sub>0</sub></span><span class="pdf-math-den">i</span></span>`,
+            `l<sub>0</sub> = ${p.beta} &times; ${p.L.toFixed(2)} = ${res.l0.toFixed(2)} m &nbsp;,&nbsp; i = <span class="pdf-math-frac"><span class="pdf-math-num">${Math.min(p.a, p.b).toFixed(2)}</span><span class="pdf-math-den">3.464</span></span> = ${res.i_gyr.toFixed(4)} m &nbsp;,&nbsp; &lambda; = <span class="pdf-math-frac"><span class="pdf-math-num">${res.l0.toFixed(2)}</span><span class="pdf-math-den">${res.i_gyr.toFixed(4)}</span></span>`,
+            `l<sub>0</sub> = ${res.l0.toFixed(2)} m &nbsp;|&nbsp; &lambda; = ${res.lambda.toFixed(1)}`,
+            `<li><strong>l<sub>0</sub></strong> : longueur efficace de flambement</li>
+             <li><strong>&lambda;</strong> : élancement (si &lambda; > 31, effets de second ordre obligatoires)</li>`
+        );
+
+        calculationCards += renderFormulaCard(
+            "2. Excentricité géométrique et effets du 2nd ordre",
+            "EC2 §5.2 / §5.8.8.2",
+            `e<sub>i</sub> = max(<span class="pdf-math-frac"><span class="pdf-math-num">l<sub>0</sub></span><span class="pdf-math-den">400</span></span>; <span class="pdf-math-frac"><span class="pdf-math-num">h<sub>max</sub></span><span class="pdf-math-den">30</span></span>; 0.02) &nbsp;,&nbsp; e<sub>2</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">1</span><span class="pdf-math-den">r</span></span> &times; <span class="pdf-math-frac"><span class="pdf-math-num">l<sub>0</sub><sup>2</sup></span><span class="pdf-math-den">10</span></span>`,
+            `e<sub>i</sub> = max(${res.l0.toFixed(2)}/400; ${res.max_dim.toFixed(2)}/30; 0.02) = ${res.e_i.toFixed(3)} m &nbsp;,&nbsp; e<sub>2</sub> = ${res.e_2.toFixed(4)} m`,
+            `e<sub>i</sub> = ${res.e_i.toFixed(3)} m &nbsp;|&nbsp; e<sub>2</sub> = ${res.e_2.toFixed(4)} m`,
+            `<li><strong>e<sub>i</sub></strong> : excentricité due aux imperfections géométriques initiales</li>
+             <li><strong>e<sub>2</sub></strong> : excentricité de second ordre (déformation sous charge)</li>`
+        );
+
+        calculationCards += renderFormulaCard(
+            "3. Moment total de calcul & Aciers théoriques requis",
+            "EC2 §5.8.8.2 / §6.1",
+            `M<sub>Ed,tot</sub> = N<sub>Ed</sub> &times; (e<sub>0</sub> + e<sub>i</sub> + e<sub>2</sub>) &nbsp;,&nbsp; A<sub>s,req,M</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">M<sub>Ed,tot</sub></span><span class="pdf-math-den">z &times; f<sub>yd</sub></span></span> &nbsp;,&nbsp; A<sub>s,req,N</sub> = max(0, <span class="pdf-math-frac"><span class="pdf-math-num">N<sub>Ed</sub> - A<sub>c</sub> &times; f<sub>cd</sub></span><span class="pdf-math-den">f<sub>yd</sub></span></span>)`,
+            `M<sub>Ed,tot</sub> = ${p.N_Ed.toFixed(2)} &times; (${res.e_M.toFixed(3)} + ${res.e_i.toFixed(3)} + ${res.e_2.toFixed(4)}) = ${res.M_Ed_tot.toFixed(2)} kN.m`,
+            `M<sub>Ed,tot</sub> = ${res.M_Ed_tot.toFixed(2)} kN.m &nbsp;|&nbsp; As<sub>req,flexion</sub> = ${res.As_req_M.toFixed(2)} cm² &nbsp;|&nbsp; As<sub>req,comp</sub> = ${res.As_req_N.toFixed(2)} cm²`,
+            `<li><strong>e<sub>0</sub></strong> : excentricité de premier ordre (${res.e_M.toFixed(3)} m)</li>
+             <li><strong>A<sub>c</sub></strong> : section de béton du poteau (${res.Ac.toFixed(0)} cm²)</li>`
+        );
+
+        calculationCards += renderFormulaCard(
+            "4. Armatures minimales réglementaires",
+            "EC2 §9.5.2",
+            `A<sub>s,min</sub> = max( <span class="pdf-math-frac"><span class="pdf-math-num">0.10 &times; N<sub>Ed</sub></span><span class="pdf-math-den">f<sub>yd</sub></span></span> &nbsp;;&nbsp; 0.002 &times; A<sub>c</sub> )`,
+            `A<sub>s,min</sub> = max( <span class="pdf-math-frac"><span class="pdf-math-num">0.10 &times; ${p.N_Ed.toFixed(2)}</span><span class="pdf-math-den">${res.fyd_cm2.toFixed(3)}</span></span> &nbsp;;&nbsp; 0.002 &times; ${res.Ac.toFixed(0)} )`,
+            `A<sub>s,min</sub> = ${res.As_min.toFixed(2)} cm²`,
+            `<li><strong>A<sub>s,min</sub></strong> : section minimale réglementaire pour garantir la stabilité ductile</li>`
+        );
+    } else if (moduleType === 'voile') {
+        calculationCards += renderFormulaCard(
+            "1. Contrainte de compression moyenne sous effort axial",
+            "EC2 §9.6.2",
+            `&sigma;<sub>cp</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">N<sub>Ed</sub></span><span class="pdf-math-den">A<sub>c</sub></span></span> &nbsp;&le; 0.20 &times; f<sub>cd</sub>`,
+            `&sigma;<sub>cp</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${p.N_Ed.toFixed(2)}</span><span class="pdf-math-den">${res.Ac.toFixed(0)}</span></span> = ${res.sigma_cp.toFixed(2)} MPa &nbsp;,&nbsp; Limite = 0.20 &times; ${res.fcd.toFixed(2)} = ${(0.20*res.fcd).toFixed(2)} MPa`,
+            `&sigma;<sub>cp</sub> = ${res.sigma_cp.toFixed(2)} MPa &nbsp;(Condition de non-écrasement respectée)`,
+            `<li><strong>A<sub>c</sub></strong> : section brute de béton du voile (${res.Ac.toFixed(0)} cm²/ml)</li>`
+        );
+
+        calculationCards += renderFormulaCard(
+            "2. Résistance au cisaillement béton (effort tranchant)",
+            "EC2 §6.2.2",
+            `V<sub>Rd,c</sub> = max( V<sub>Rd,c,calc</sub> , V<sub>Rd,c,min</sub> ) &nbsp;où&nbsp; V<sub>Rd,c,calc</sub> = [ C<sub>Rd,c</sub> &times; k &times; (100 &times; &rho;<sub>l</sub> &times; f<sub>ck</sub>)<sup>1/3</sup> + 0.15 &times; &sigma;<sub>cp</sub> ] &times; b &times; d`,
+            `V<sub>Rd,c,calc</sub> = [ 0.12 &times; ${res.k.toFixed(3)} &times; (100 &times; ${(res.rho_l*100).toFixed(4)}% &times; ${p.fck})<sup>1/3</sup> + 0.15 &times; ${res.sigma_cp.toFixed(2)} ] &times; 1000 &times; ${res.d.toFixed(3)} = ${res.V_Rdc_calc.toFixed(1)} kN/ml<br>V<sub>Rd,c,min</sub> = ( ${res.v_min.toFixed(3)} + 0.15 &times; ${res.sigma_cp.toFixed(2)} ) &times; 1000 &times; ${res.d.toFixed(3)} = ${res.V_Rdc_min.toFixed(1)} kN/ml`,
+            `V<sub>Rd,c</sub> = ${res.V_Rdc.toFixed(1)} kN/ml &nbsp;(Effort tranchant limite admissible par le béton seul)`,
+            `<li><strong>k</strong> : facteur d'échelle hauteur 1 + &radic;<span style="border-top:1px solid #2c3e50; padding-top:1px;">200/(d&times;1000)</span> = ${res.k.toFixed(3)}</li>
+             <li><strong>&rho;<sub>l</sub></strong> : ratio longitudinal d'armatures tendues (${(res.rho_l*100).toFixed(3)}%)</li>`
+        );
+
+        calculationCards += renderFormulaCard(
+            "3. Armatures verticales et horizontales minimales",
+            "EC2 §9.6.2 & §9.6.3",
+            `A<sub>s,v,min</sub> = 0.002 &times; A<sub>c</sub> &nbsp;,&nbsp; A<sub>s,h,min</sub> = max( 0.25 &times; A<sub>s,v,min</sub> &nbsp;;&nbsp; 0.001 &times; A<sub>c</sub> )`,
+            `A<sub>s,v,min</sub> = 0.002 &times; ${res.Ac.toFixed(0)} = ${res.As_vmin.toFixed(2)} cm²/ml &nbsp;,&nbsp; A<sub>s,h,min</sub> = max(0.25 &times; ${res.As_vmin.toFixed(2)}; 0.001 &times; ${res.Ac.toFixed(0)}) = ${res.As_hmin.toFixed(2)} cm²/ml`,
+            `A<sub>s,v,min</sub> = ${res.As_vmin.toFixed(2)} cm²/ml &nbsp;|&nbsp; A<sub>s,h,min</sub> = ${res.As_hmin.toFixed(2)} cm²/ml`,
+            `<li><strong>A<sub>s,v,min</sub></strong> : section minimale d'armatures verticales</li>
+             <li><strong>A<sub>s,h,min</sub></strong> : section minimale d'armatures horizontales</li>`
+        );
+    } else if (moduleType === 'semelle_filante') {
+        calculationCards += renderFormulaCard(
+            "1. Contrainte de pression exercée sur le sol (ELS)",
+            "Vérification de la portance (ELS)",
+            `P<sub>poids</sub> = B &times; h &times; &gamma;<sub>béton</sub> &nbsp;,&nbsp; &sigma;<sub>sol</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">N<sub>Eq</sub> + P<sub>poids</sub></span><span class="pdf-math-den">B</span></span> &nbsp;&le; q<sub>adm</sub>`,
+            `P<sub>poids</sub> = ${p.B.toFixed(2)} &times; ${p.h.toFixed(2)} &times; 25 = ${(p.B * p.h * 25).toFixed(1)} kN/ml &nbsp;,&nbsp; &sigma;<sub>sol</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${p.N_Eq.toFixed(2)} + ${(p.B * p.h * 25).toFixed(1)}</span><span class="pdf-math-den">${p.B.toFixed(2)} &times; 10<sup>3</sup></span></span>`,
+            `&sigma;<sub>sol</sub> = ${res.sigma_sol.toFixed(3)} MPa &nbsp;(Capacité portante admissible q<sub>adm</sub> = ${p.q_adm.toFixed(3)} MPa)`,
+            `<li><strong>&gamma;<sub>béton</sub></strong> : masse volumique du béton armé (25 kN/m³)</li>
+             <li><strong>N<sub>Eq</sub></strong> : effort normal de service (ELS) transmis par le voile (${p.N_Eq.toFixed(2)} kN/ml)</li>`
+        );
+
+        calculationCards += renderFormulaCard(
+            "2. Condition de rigidité (Diffusion des contraintes)",
+            "Méthode des Bielles (Rapports géométriques)",
+            `d<sub>req</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">B - a</span><span class="pdf-math-den">4</span></span> &nbsp;,&nbsp; d = h - c - <span class="pdf-math-frac"><span class="pdf-math-num">&phi;<sub>long</sub></span><span class="pdf-math-den">2</span></span>`,
+            `d<sub>req</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${p.B.toFixed(2)} - ${p.a.toFixed(2)}</span><span class="pdf-math-den">4</span></span> = ${res.d_req.toFixed(3)} m &nbsp;,&nbsp; d = ${p.h.toFixed(2)} - ${(p.enrobage/100).toFixed(3)} - 0.006 = ${res.d.toFixed(3)} m`,
+            `d<sub>req</sub> = ${res.d_req.toFixed(3)} m &nbsp;|&nbsp; d<sub>réel</sub> = ${res.d.toFixed(3)} m &nbsp;(Footing Rigide : OK)`,
+            `<li><strong>d<sub>req</sub></strong> : hauteur utile minimale requise</li>
+             <li><strong>a</strong> : épaisseur du voile s'appuyant sur la fondation (${p.a.toFixed(2)} m)</li>`
+        );
+
+        calculationCards += renderFormulaCard(
+            "3. Calcul du ferraillage transversal principal",
+            "Méthode des Bielles (ELU)",
+            `A<sub>s,req</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">N<sub>Ed</sub> &times; (B - a)</span><span class="pdf-math-den">8 &times; d &times; f<sub>yd</sub></span></span>`,
+            `A<sub>s,req</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${p.N_Ed.toFixed(2)} &times; (${p.B.toFixed(2)} - ${p.a.toFixed(2)}) &times; 10</span><span class="pdf-math-den">8 &times; ${res.d.toFixed(3)} &times; ${res.fyd_cm2.toFixed(3)}</span></span>`,
+            `A<sub>s,req</sub> = ${res.As_req.toFixed(2)} cm²/ml &nbsp;(Aciers inférieurs transversaux reprenant la traction)`,
+            `<li><strong>N<sub>Ed</sub></strong> : effort normal ultime à l'ELU (${p.N_Ed.toFixed(2)} kN/ml)</li>
+             <li><strong>f<sub>yd</sub></strong> : limite élastique de calcul de l'acier (${res.fyd_cm2.toFixed(3)} kN/cm²)</li>`
+        );
+    } else if (moduleType === 'semelle_isolee') {
+        calculationCards += renderFormulaCard(
+            "1. Contrainte de pression exercée sur le sol (ELS)",
+            "Vérification de la portance (ELS)",
+            `P<sub>poids</sub> = A &times; B &times; h &times; &gamma;<sub>béton</sub> &nbsp;,&nbsp; &sigma;<sub>sol</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">N<sub>Eq</sub> + P<sub>poids</sub></span><span class="pdf-math-den">A &times; B</span></span>`,
+            `P<sub>poids</sub> = ${res.weight.toFixed(1)} kN &nbsp;,&nbsp; &sigma;<sub>sol</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${p.N_Eq.toFixed(2)} + ${res.weight.toFixed(1)}</span><span class="pdf-math-den">${p.A.toFixed(2)} &times; ${p.B.toFixed(2)} &times; 10<sup>3</sup></span></span>`,
+            `&sigma;<sub>sol</sub> = ${res.sigma_sol.toFixed(3)} MPa &nbsp;(Contrainte limite admissible q<sub>adm</sub> = ${p.q_adm.toFixed(3)} MPa)`,
+            `<li><strong>A &times; B</strong> : dimensions en plan de la semelle rectangulaire (${p.A.toFixed(2)} &times; ${p.B.toFixed(2)} m²)</li>`
+        );
+
+        calculationCards += renderFormulaCard(
+            "2. Condition de rigidité bidirectionnelle",
+            "Méthode des Bielles (Rapports géométriques)",
+            `d<sub>req,A</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">A - a</span><span class="pdf-math-den">4</span></span> &nbsp;,&nbsp; d<sub>req,B</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">B - b</span><span class="pdf-math-den">4</span></span>`,
+            `d<sub>req,A</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${p.A.toFixed(2)} - ${p.a.toFixed(2)}</span><span class="pdf-math-den">4</span></span> = ${res.d_req_A.toFixed(3)} m &nbsp;,&nbsp; d<sub>req,B</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${p.B.toFixed(2)} - ${p.b.toFixed(2)}</span><span class="pdf-math-den">4</span></span> = ${res.d_req_B.toFixed(3)} m`,
+            `d<sub>A,réelle</sub> = ${res.d_A.toFixed(3)} m &nbsp;|&nbsp; d<sub>B,réelle</sub> = ${res.d_B.toFixed(3)} m`,
+            `<li><strong>a &times; b</strong> : dimensions transversales de la colonne de béton</li>`
+        );
+
+        calculationCards += renderFormulaCard(
+            "3. Calcul du ferraillage bidirectionnel (ELU)",
+            "Méthode des Bielles",
+            `A<sub>s,A,req</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">N<sub>Ed</sub> &times; (A - a)</span><span class="pdf-math-den">8 &times; d<sub>A</sub> &times; f<sub>yd</sub></span></span> &nbsp;,&nbsp; A<sub>s,B,req</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">N<sub>Ed</sub> &times; (B - b)</span><span class="pdf-math-den">8 &times; d<sub>B</sub> &times; f<sub>yd</sub></span></span>`,
+            `A<sub>s,A,req</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${p.N_Ed.toFixed(2)} &times; (${p.A.toFixed(2)} - ${p.a.toFixed(2)}) &times; 10</span><span class="pdf-math-den">8 &times; ${res.d_A.toFixed(3)} &times; ${res.fyd_cm2.toFixed(3)}</span></span> = ${res.As_A_req.toFixed(2)} cm²<br>A<sub>s,B,req</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${p.N_Ed.toFixed(2)} &times; (${p.B.toFixed(2)} - ${p.b.toFixed(2)}) &times; 10</span><span class="pdf-math-den">8 &times; ${res.d_B.toFixed(3)} &times; ${res.fyd_cm2.toFixed(3)}</span></span> = ${res.As_B_req.toFixed(2)} cm²`,
+            `A<sub>s,A,req</sub> = ${res.As_A_req.toFixed(2)} cm² (parallèle à A) &nbsp;|&nbsp; A<sub>s,B,req</sub> = ${res.As_B_req.toFixed(2)} cm² (parallèle à B)`,
+            `<li><strong>d<sub>A</sub> , d<sub>B</sub></strong> : hauteurs utiles réelles des nappes de ferraillage</li>`
+        );
+    }
+    
+    return `
+        <div class="pdf-page" id="pdf-page-2">
+            <div class="pdf-content">
+                ${getPDFHeader(moduleTitle, 2)}
+                <div class="pdf-section-title">5. Détail des calculs réglementaires</div>
+                <div style="flex: 1;">
+                    ${calculationCards}
+                </div>
+            </div>
+            ${getPDFFooter(2)}
+        </div>
+    `;
+}
+
+function buildPage3(moduleType, moduleTitle, state, clonedSvg) {
+    const p = state.inputs;
+    const res = state.results;
+    let providedTableRows = '';
+    let complianceStatusHTML = '';
+    let descriptionText = '';
+    
+    if (moduleType === 'poutre') {
+        const spec = STEEL_SPECS[state.selectedDiameter];
+        const chosenSection = state.nbBarres * spec.section;
+        const isConform = chosenSection >= res.As_req;
+        
+        providedTableRows = `
+            <tr><td>Armatures longitudinales inférieures (Flexion)</td><td>${res.As_req.toFixed(2)} cm²</td><td>${state.nbBarres} HA${state.selectedDiameter}</td><td>${chosenSection.toFixed(2)} cm²</td><td style="color:${isConform ? '#27ae60':'#c0392b'}; font-weight:bold;">${isConform ? 'CONFORME':'NON CONFORME'}</td></tr>
+            <tr><td>Armatures transversales d'effort tranchant</td><td>${res.Asw_s.toFixed(2)} cm²/m</td><td>HA8 (cadres)</td><td>-</td><td>CONFORME</td></tr>
+        `;
+        
+        complianceStatusHTML = `
+            <div class="pdf-compliance-box ${isConform ? 'success' : 'danger'}">
+                <div class="pdf-compliance-title">STATUT GENERAL DE CONFORMITÉ</div>
+                <div class="pdf-compliance-status ${isConform ? '' : 'danger'}">
+                    ${isConform ? '✓ SECTION CONFORME AUX CRITÈRES EC2' : '✗ ACIER LONGITUDINAL INSUFFISANT (EC2 §6.1)'}
+                </div>
+            </div>
+        `;
+        
+        descriptionText = `
+            Le schéma ci-dessous représente la section transversale en coupe droite de la poutre en béton armé. 
+            Les armatures longitudinales tendues sont concentrées en partie inférieure pour reprendre le moment de traction positive (flexion simple). 
+            Les cadres d'effort tranchant entourent les barres longitudinales pour s'opposer au glissement sous effort tranchant.
+        `;
+    } else if (moduleType === 'dalle') {
+        const isConformMain = res.As_prov >= res.As_req;
+        const isConformRep = res.As_prov_rep >= res.As_rep_req;
+        const isConform = isConformMain && isConformRep;
+        
+        providedTableRows = `
+            <tr><td>Armatures principales (Sens de la portée L)</td><td>${res.As_req.toFixed(2)} cm²/ml</td><td>HA${state.diamMain} esp. ${p.espacementInput} cm</td><td>${res.As_prov.toFixed(2)} cm²/ml</td><td style="color:${isConformMain ? '#27ae60':'#c0392b'}; font-weight:bold;">${isConformMain ? 'CONFORME':'NON CONFORME'}</td></tr>
+            <tr><td>Armatures de répartition (Perpendiculaires)</td><td>${res.As_rep_req.toFixed(2)} cm²/ml</td><td>HA${state.diamRep} esp. ${p.espRepInput} cm</td><td>${res.As_prov_rep.toFixed(2)} cm²/ml</td><td style="color:${isConformRep ? '#27ae60':'#c0392b'}; font-weight:bold;">${isConformRep ? 'CONFORME':'NON CONFORME'}</td></tr>
+        `;
+        
+        complianceStatusHTML = `
+            <div class="pdf-compliance-box ${isConform ? 'success' : 'danger'}">
+                <div class="pdf-compliance-title">STATUT GENERAL DE CONFORMITÉ</div>
+                <div class="pdf-compliance-status ${isConform ? '' : 'danger'}">
+                    ${isConform ? '✓ SECTION CONFORME AUX CRITÈRES EC2' : '✗ SECTION D\'ACIER INSTALLEE INSUFFISANTE'}
+                </div>
+            </div>
+        `;
+        
+        descriptionText = `
+            Le schéma ci-dessous représente la coupe verticale de la dalle pleine sur une largeur de bande unitaire de 1.00 mètre. 
+            La nappe inférieure d'aciers principaux HA${state.diamMain} assure la reprise des moments de flexion tendus horizontaux. 
+            Les aciers transversaux perpendiculaires HA${state.diamRep} assurent la répartition transversale des sollicitations ponctuelles.
+        `;
+    } else if (moduleType === 'poteau') {
+        const spec = STEEL_SPECS[state.selectedDiameter];
+        const totalBars = p.nb_a * 2 + Math.max(0, p.nb_b - 2) * 2;
+        const chosenSection = totalBars * spec.section;
+        const isConform = chosenSection >= res.As_req;
+        
+        providedTableRows = `
+            <tr><td>Armatures longitudinales de compression</td><td>${res.As_req.toFixed(2)} cm²</td><td>${totalBars} HA${state.selectedDiameter}</td><td>${chosenSection.toFixed(2)} cm²</td><td style="color:${isConform ? '#27ae60':'#c0392b'}; font-weight:bold;">${isConform ? 'CONFORME':'NON CONFORME'}</td></tr>
+        `;
+        
+        complianceStatusHTML = `
+            <div class="pdf-compliance-box ${isConform ? 'success' : 'danger'}">
+                <div class="pdf-compliance-title">STATUT GENERAL DE CONFORMITÉ</div>
+                <div class="pdf-compliance-status ${isConform ? '' : 'danger'}">
+                    ${isConform ? '✓ SECTION CONFORME AUX CRITÈRES EC2' : '✗ QUANTITÉ D\'ACIER CHOISIE INSUFFISANTE'}
+                </div>
+            </div>
+        `;
+        
+        descriptionText = `
+            Le schéma ci-dessous représente la section transversale carrée ou rectangulaire (a &times; b) du poteau comprimé. 
+            Les armatures longitudinales réparties sur les parois s'opposent au flambement du poteau et reprennent le surplus d'effort normal ainsi que le moment total du second ordre.
+        `;
+    } else if (moduleType === 'voile') {
+        const isConform = res.As_prov >= res.As_req;
+        
+        providedTableRows = `
+            <tr><td>Armatures de treillis soudé (par face)</td><td>${res.As_req.toFixed(2)} cm²/ml</td><td>${state.selectedTS} en ${p.nappesCount} nappe(s)</td><td>${res.As_prov.toFixed(2)} cm²/ml</td><td style="color:${isConform ? '#27ae60':'#c0392b'}; font-weight:bold;">${isConform ? 'CONFORME':'NON CONFORME'}</td></tr>
+        `;
+        
+        complianceStatusHTML = `
+            <div class="pdf-compliance-box ${isConform ? 'success' : 'danger'}">
+                <div class="pdf-compliance-title">STATUT GENERAL DE CONFORMITÉ</div>
+                <div class="pdf-compliance-status ${isConform ? '' : 'danger'}">
+                    ${isConform ? '✓ VOILE CONFORME (EFFORT TRANCHANT & DUCTILITÉ)' : '✗ SECTION DE TREILLIS SOUDÉ SÉLECTIONNÉE INSUFFISANTE'}
+                </div>
+            </div>
+        `;
+        
+        descriptionText = `
+            Le schéma représente la section transversale droite (hors-plan) du voile en béton armé. 
+            La disposition d'une ou deux nappes de treillis soudé assure la reprise des efforts de traction induits par le retrait thermique initial et les poussées latérales.
+        `;
+    } else if (moduleType === 'semelle_filante') {
+        const isConformMain = res.As_prov_main >= res.As_req;
+        const isConformRep = res.As_prov_rep >= res.As_rep_req;
+        const isConform = isConformMain && isConformRep;
+        
+        providedTableRows = `
+            <tr><td>Armatures principales transversales (Traction)</td><td>${res.As_req.toFixed(2)} cm²/ml</td><td>HA${p.diamMain} esp. ${p.espMain} cm</td><td>${res.As_prov_main.toFixed(2)} cm²/ml</td><td style="color:${isConformMain ? '#27ae60':'#c0392b'}; font-weight:bold;">${isConformMain ? 'CONFORME':'NON CONFORME'}</td></tr>
+            <tr><td>Armatures longitudinales de répartition</td><td>${res.As_rep_req.toFixed(2)} cm²/ml</td><td>HA${p.diamRep} esp. ${p.espRep} cm</td><td>${res.As_prov_rep.toFixed(2)} cm²/ml</td><td style="color:${isConformRep ? '#27ae60':'#c0392b'}; font-weight:bold;">${isConformRep ? 'CONFORME':'NON CONFORME'}</td></tr>
+        `;
+        
+        complianceStatusHTML = `
+            <div class="pdf-compliance-box ${isConform ? 'success' : 'danger'}">
+                <div class="pdf-compliance-title">STATUT GENERAL DE CONFORMITÉ</div>
+                <div class="pdf-compliance-status ${isConform ? '' : 'danger'}">
+                    ${isConform ? '✓ FONDATION CONFORME AUX CRITÈRES RÉGLEMENTAIRES' : '✗ ACIERS DE LA FONDATION FILANTE INSUFFISANTS'}
+                </div>
+            </div>
+        `;
+        
+        descriptionText = `
+            Le schéma ci-dessous représente la coupe transversale de la semelle filante sous voile. 
+            Les armatures principales transversales (nappe inférieure) équilibrent l'effort d'écartement induit par la diffusion des contraintes (Méthode des bielles).
+        `;
+    } else if (moduleType === 'semelle_isolee') {
+        const isConformMain = res.As_A_prov >= res.As_A_req;
+        const isConformRep = res.As_B_prov >= res.As_B_req;
+        const isConform = isConformMain && isConformRep;
+        
+        providedTableRows = `
+            <tr><td>Nappe inférieure (Parallèle au côté A)</td><td>${res.As_A_req.toFixed(2)} cm²</td><td>${p.nb_A} HA${p.diamA}</td><td>${res.As_A_prov.toFixed(2)} cm²</td><td style="color:${isConformMain ? '#27ae60':'#c0392b'}; font-weight:bold;">${isConformMain ? 'CONFORME':'NON CONFORME'}</td></tr>
+            <tr><td>Nappe supérieure (Parallèle au côté B)</td><td>${res.As_B_req.toFixed(2)} cm²</td><td>${p.nb_B} HA${p.diamB}</td><td>${res.As_B_prov.toFixed(2)} cm²</td><td style="color:${isConformRep ? '#27ae60':'#c0392b'}; font-weight:bold;">${isConformRep ? 'CONFORME':'NON CONFORME'}</td></tr>
+        `;
+        
+        complianceStatusHTML = `
+            <div class="pdf-compliance-box ${isConform ? 'success' : 'danger'}">
+                <div class="pdf-compliance-title">STATUT GENERAL DE CONFORMITÉ</div>
+                <div class="pdf-compliance-status ${isConform ? '' : 'danger'}">
+                    ${isConform ? '✓ FONDATION CONFORME AUX CRITÈRES RÉGLEMENTAIRES' : '✗ ACIERS DE LA FONDATION ISOLÉE INSUFFISANTS'}
+                </div>
+            </div>
+        `;
+        
+        descriptionText = `
+            Le schéma ci-dessous représente la vue en plan du ferraillage bidirectionnel de la semelle isolée sous poteau. 
+            La combinaison des deux nappes d'aciers HA croisés à la base reprend la double traction induite par la diffusion pyramidale des efforts dans la fondation.
+        `;
+    }
+    
+    return `
+        <div class="pdf-page" id="pdf-page-3">
+            <div class="pdf-content">
+                ${getPDFHeader(moduleTitle, 3)}
+                
+                <div class="pdf-section-title">6. Sections d'armatures choisies & Conformité</div>
+                <table class="pdf-table">
+                    <thead>
+                        <tr><th>Nappe / Rôle</th><th>Section Req.</th><th>Barres sélectionnées</th><th>Section Fournie</th><th>Statut</th></tr>
+                    </thead>
+                    <tbody>
+                        ${providedTableRows}
+                    </tbody>
+                </table>
+                
+                ${complianceStatusHTML}
+                
+                <div class="pdf-section-title">7. Plan de Ferraillage et Dispositions Constructives</div>
+                <p class="pdf-description">${descriptionText}</p>
+                
+                <div class="pdf-diagram-container" id="pdf-diagram-slot">
+                    <!-- Cloned SVG goes here -->
+                </div>
+            </div>
+            ${getPDFFooter(3)}
+        </div>
+    `;
+}
+
+async function generatePDFReport(moduleType, moduleTitle, state, svgContainerId, renderUIFn, setViewFn, defaultView, saveName) {
+    const originalView = state.currentView;
+    const originalTheme = document.documentElement.getAttribute('data-theme');
+    
+    // Configurer l'UI en mode clair et vue par défaut
+    document.documentElement.setAttribute('data-theme', 'light');
+    if (setViewFn && defaultView) {
+        setViewFn(defaultView);
+    }
+    if (renderUIFn) {
+        renderUIFn();
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    const originalSvg = document.getElementById(svgContainerId);
+    let clonedSvg = null;
+    if (originalSvg) {
+        clonedSvg = originalSvg.cloneNode(true);
+        clonedSvg.style.width = '100%';
+        clonedSvg.style.height = 'auto';
+        clonedSvg.style.maxHeight = '115mm';
+    }
+
+    const templateContainer = document.createElement('div');
+    templateContainer.id = 'pdf-report-template';
+    document.body.appendChild(templateContainer);
+    
+    const page1HTML = buildPage1(moduleType, moduleTitle, state);
+    const page2HTML = buildPage2(moduleType, moduleTitle, state);
+    const page3HTML = buildPage3(moduleType, moduleTitle, state, clonedSvg);
+    
+    templateContainer.innerHTML = page1HTML + page2HTML + page3HTML;
+    
+    if (clonedSvg) {
+        const slot = document.getElementById('pdf-diagram-slot');
+        if (slot) {
+            slot.appendChild(clonedSvg);
+        }
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4'
+    });
+    
+    try {
+        for (let i = 1; i <= 3; i++) {
+            const pageEl = document.getElementById(`pdf-page-${i}`);
+            if (!pageEl) continue;
+            
+            const canvas = await html2canvas(pageEl, {
+                scale: 2.2,
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                logging: false
+            });
+            
+            const imgData = canvas.toDataURL('image/jpeg', 0.95);
+            if (i > 1) {
+                doc.addPage();
+            }
+            doc.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+        }
+        
+        doc.save(saveName);
+    } catch (err) {
+        console.error("Erreur lors de la génération du PDF:", err);
+        alert("Une erreur est survenue lors de la génération de la note de calcul PDF.");
+    } finally {
+        templateContainer.remove();
+        document.documentElement.setAttribute('data-theme', originalTheme);
+        if (setViewFn && originalView) {
+            setViewFn(originalView);
+        }
+        if (renderUIFn) {
+            renderUIFn();
+        }
+    }
+}

@@ -305,16 +305,16 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
 
             // Ferraillage : Méthode des bielles (traction à la base de la bielle de compression)
             const fyd = 500 / 1.15;
-            let As_A_req = (N_Ed * (A - a)) / (8 * d_A * fyd) * 10; // cm²
-            let As_B_req = (N_Ed * (B - b)) / (8 * d_B * fyd) * 10; // cm²
+            let As_A_req_calc = (N_Ed * (A - a)) / (8 * d_A * fyd) * 10; // cm²
+            let As_B_req_calc = (N_Ed * (B - b)) / (8 * d_B * fyd) * 10; // cm²
 
             // Section minimum pour prévenir la fragilité (EC2 §9.2.1.1)
             const fctm = 0.30 * Math.pow(fck, 2/3);
             const As_A_min = Math.max(0.26 * (fctm/500) * B * d_A, 0.0013 * B * d_A) * 10000;
             const As_B_min = Math.max(0.26 * (fctm/500) * A * d_B, 0.0013 * A * d_B) * 10000;
             
-            As_A_req = Math.max(As_A_req, As_A_min);
-            As_B_req = Math.max(As_B_req, As_B_min);
+            let As_A_req = Math.max(As_A_req_calc, As_A_min);
+            let As_B_req = Math.max(As_B_req_calc, As_B_min);
 
             // Armatures réelles fournies (calcul de l'espacement et du nb de barres)
             const secA = STEEL_SPECS[diamA].section;
@@ -334,7 +334,7 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
 
             return {
                 sigma_sol, d_req, d_A, d_B, d_req_A, d_req_B,
-                As_A_req, As_B_req, As_A_min, As_B_min,
+                As_A_req_calc, As_B_req_calc, As_A_req, As_B_req, As_A_min, As_B_min,
                 As_A_prov, As_B_prov, nb_A, nb_B, esp_A, esp_B, 
                 status, weight, fyd
             };
@@ -580,140 +580,7 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
         }
 
         async function exportAsPDF() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-
-            const p = AppState.inputs;
-            const res = AppState.results;
-
-            const setStyle = (style) => {
-                switch(style) {
-                    case 'h1': doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(52, 152, 219); break;
-                    case 'h2': doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(44, 62, 80); break;
-                    case 'normal': doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(44, 62, 80); break;
-                    case 'italic': doc.setFont('helvetica', 'italic'); doc.setFontSize(10); doc.setTextColor(44, 62, 80); break;
-                    case 'bold': doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(44, 62, 80); break;
-                    case 'muted': doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(127, 140, 141); break;
-                }
-            };
-
-            let y = 20;
-
-            // --- HEADER ---
-            setStyle('h1');
-            doc.text('Note de Calcul - Semelle Isolée', 15, y);
-            y += 6;
-            setStyle('muted');
-            doc.text(`Généré par EC2 Assistant (Outil Pédagogique par Raphaël ELIARD) - Date: ${new Date().toLocaleDateString()}`, 15, y);
-            y += 4;
-            doc.setLineWidth(0.5);
-            doc.setDrawColor(224, 224, 224);
-            doc.line(15, y, 195, y);
-            y += 10;
-
-            // --- HYPOTHESES ---
-            setStyle('h2');
-            doc.text('1. Hypothèses et Données', 15, y);
-            y += 8;
-            setStyle('normal');
-            doc.text(`- Dimensions du poteau (a * b) : ${p.a.toFixed(2)} * ${p.b.toFixed(2)} m`, 20, y);
-            doc.text(`- Dimensions de la semelle (A * B) : ${p.A.toFixed(2)} * ${p.B.toFixed(2)} m`, 105, y);
-            y += 6;
-            doc.text(`- Hauteur de la semelle (h) : ${p.h.toFixed(2)} m`, 20, y);
-            doc.text(`- Classe du béton : C${p.fck}/${p.fck+5}`, 105, y);
-            y += 6;
-            doc.text(`- Contrainte sol adm. (q_adm) : ${p.q_adm.toFixed(3)} MPa`, 20, y);
-            doc.text(`- Enrobage (c) : ${p.enrobage.toFixed(1)} cm`, 105, y);
-            y += 6;
-            doc.text(`- Charge ELS (N_Eq) : ${p.N_Eq.toFixed(2)} kN`, 20, y);
-            doc.text(`- Charge ELU (N_Ed) : ${p.N_Ed.toFixed(2)} kN`, 105, y);
-            y += 12;
-
-            // --- CALCULS ---
-            setStyle('h2');
-            doc.text('2. Détail des calculs (Eurocode 2)', 15, y);
-            y += 8;
-            
-            setStyle('bold');
-            doc.text('2.1 Vérification de la portance du sol (ELS) :', 20, y);
-            y += 5;
-            setStyle('normal');
-            doc.text(`- Poids propre semelle = A*B*h*25 = ${res.weight.toFixed(1)} kN`, 25, y);
-            y += 5;
-            doc.text(`- Contrainte sigma_sol = (N_Eq + Poids)/(A*B) = (${p.N_Eq}+${res.weight.toFixed(1)})/(${p.A}*${p.B}) = ${res.sigma_sol.toFixed(3)} MPa`, 25, y);
-            y += 5;
-            doc.text(`Verification : ${res.sigma_sol <= p.q_adm ? 'Conforme (sigma_sol <= q_adm)' : 'Non conforme (sigma_sol > q_adm)'}`, 25, y);
-            y += 8;
-
-            setStyle('bold');
-            doc.text('2.2 Condition de rigidité (Méthode des bielles) :', 20, y);
-            y += 5;
-            setStyle('normal');
-            doc.text('Vérification que la géométrie est suffisamment rigide dans les deux directions.', 25, y);
-            y += 5;
-            setStyle('italic');
-            doc.text(`Hauteur utile requise direction A (d_req_A) = (A - a) / 4 = ${res.d_req_A.toFixed(3)} m`, 25, y);
-            y += 5;
-            doc.text(`Hauteur utile requise direction B (d_req_B) = (B - b) / 4 = ${res.d_req_B.toFixed(3)} m`, 25, y);
-            y += 5;
-            doc.text(`Hauteurs utiles reelles : d_A = ${res.d_A.toFixed(3)} m  |  d_B = ${res.d_B.toFixed(3)} m  ->  ${res.d_A >= res.d_req_A && res.d_B >= res.d_req_B ? 'Semelle rigide (OK)' : 'Semelle flexible'}`, 25, y);
-            y += 8;
-
-            setStyle('bold');
-            doc.text('2.3 Calcul du ferraillage bidirectionnel :', 20, y);
-            y += 5;
-            setStyle('normal');
-            doc.text('Détermination des sections d\'armatures nécessaires pour les deux nappes.', 25, y);
-            y += 5;
-            setStyle('italic');
-            doc.text(`Nappe inferieure (// a A) : As,A,req = N_Ed * (A - a) / (8 * d_A * fyd) = ${res.As_A_req.toFixed(2)} cm2`, 25, y);
-            y += 5;
-            doc.text(`Nappe superieure (// a B) : As,B,req = N_Ed * (B - b) / (8 * d_B * fyd) = ${res.As_B_req.toFixed(2)} cm2`, 25, y);
-            y += 12;
-
-            // --- RESULTATS ---
-            setStyle('h2');
-            doc.text('3. Sections d\'armatures choisies', 15, y);
-            y += 8;
-            setStyle('normal');
-            doc.text('Nappe inferieure (Parallele au cote A) :', 20, y);
-            y += 5;
-            setStyle('italic');
-            doc.text(`${res.nb_A} HA${AppState.diamA}  ->  Section fournie = ${res.As_A_prov.toFixed(2)} cm2 (Req: ${res.As_A_req.toFixed(2)})`, 25, y);
-            y += 7;
-            setStyle('normal');
-            doc.text('Nappe superieure (Parallele au cote B) :', 20, y);
-            y += 5;
-            setStyle('italic');
-            doc.text(`${res.nb_B} HA${AppState.diamB}  ->  Section fournie = ${res.As_B_prov.toFixed(2)} cm2 (Req: ${res.As_B_req.toFixed(2)})`, 25, y);
-            y += 12;
-
-            // --- SVG CAPTURE ---
-            setStyle('h2');
-            doc.text('4. Plan de Ferraillage (Vue en plan)', 15, y);
-            y += 5;
-            const svgContainer = document.getElementById('svgContainer');
-            const previousView = AppState.currentView;
-            setView('plan');
-
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            document.documentElement.setAttribute('data-theme', 'light');
-            renderUI();
-
-            const canvas = await html2canvas(svgContainer, { backgroundColor: '#ffffff', scale: 3 });
-            const imgData = canvas.toDataURL('image/png');
-            
-            document.documentElement.setAttribute('data-theme', currentTheme);
-            setView(previousView);
-
-            const imgProps = doc.getImageProperties(imgData);
-            const pdfWidth = 180;
-            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-            if (y + pdfHeight > 280) { doc.addPage(); y = 20; }
-            doc.addImage(imgData, 'PNG', 15, y, pdfWidth, pdfHeight);
-
-            // --- SAVE ---
-            doc.save(`note_calcul_semelle_isolee_${new Date().toISOString().slice(0,10)}.pdf`);
+            await generatePDFReport('semelle_isolee', 'Semelle Isolée en Béton Armé', AppState, 'svgContainer', renderUI, setView, 'plan', 'note_calcul_semelle_isolee.pdf');
         }
     </script>
     <script src="script.js"></script>

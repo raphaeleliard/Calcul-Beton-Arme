@@ -237,3 +237,263 @@ footer { text-align: center; padding: 1rem; color: var(--text-muted); font-size:
     border-radius: 6px; cursor: pointer; font-weight: bold; float: right; transition: var(--transition);
 }
 .modal-close:hover { background: var(--primary-hover); }
+
+/* ==========================================
+   10. SYSTEME DE RENDU PDF HIGH-FIDELITY (A4)
+   ========================================== */
+#pdf-report-template {
+    position: fixed;
+    left: -9999px;
+    top: 0;
+    width: 210mm;
+    z-index: -9999;
+}
+
+.pdf-page {
+    width: 210mm;
+    height: 297mm;
+    padding: 18mm 15mm;
+    background: #ffffff;
+    color: #2c3e50;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 9.5pt;
+    line-height: 1.45;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.pdf-header {
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 6px;
+    margin-bottom: 12px;
+}
+
+.pdf-header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.pdf-header-title {
+    font-size: 15pt;
+    font-weight: bold;
+    color: #2980b9;
+}
+
+.pdf-header-subtitle {
+    font-size: 8.5pt;
+    color: #7f8c8d;
+    margin-top: 3px;
+}
+
+.pdf-header-badge {
+    background: #eaf2f8;
+    color: #2980b9;
+    border: 1px solid #a9cce3;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 8pt;
+    font-weight: bold;
+}
+
+.pdf-footer {
+    border-top: 1px solid #e0e0e0;
+    padding-top: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 8pt;
+    color: #95a5a6;
+}
+
+.pdf-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.pdf-section-title {
+    font-size: 11.5pt;
+    font-weight: bold;
+    color: #2c3e50;
+    margin: 12px 0 6px 0;
+    border-bottom: 1px dashed #bdc3c7;
+    padding-bottom: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.pdf-description {
+    font-size: 8.5pt;
+    color: #555555;
+    margin-bottom: 8px;
+    line-height: 1.4;
+    text-align: justify;
+}
+
+.pdf-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 12px;
+}
+
+.pdf-table th, .pdf-table td {
+    border: 1px solid #bdc3c7;
+    padding: 5px 7px;
+    font-size: 8.5pt;
+    text-align: left;
+}
+
+.pdf-table th {
+    background-color: #f2f4f4;
+    color: #34495e;
+    font-weight: bold;
+}
+
+.pdf-table tr:nth-child(even) td {
+    background-color: #fafbfc;
+}
+
+.pdf-formula-card {
+    background: #f8f9f9;
+    border-left: 4px solid #3498db;
+    border-radius: 0 6px 6px 0;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.pdf-formula-title {
+    font-weight: bold;
+    font-size: 9pt;
+    color: #2c3e50;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.pdf-formula-ref {
+    font-size: 8pt;
+    color: #7f8c8d;
+    font-style: italic;
+}
+
+.pdf-formula-math {
+    font-family: 'Georgia', serif;
+    font-size: 10.5pt;
+    color: #1a252f;
+    margin: 3px 0;
+    display: block;
+    letter-spacing: 0.2px;
+}
+
+.pdf-formula-values {
+    font-family: 'Georgia', serif;
+    font-size: 9.5pt;
+    color: #5d6d7e;
+    margin-bottom: 3px;
+    display: block;
+    letter-spacing: 0.2px;
+}
+
+.pdf-formula-result {
+    font-weight: bold;
+    font-size: 10pt;
+    color: #27ae60;
+}
+
+.pdf-math-frac {
+    display: inline-flex;
+    flex-direction: column;
+    vertical-align: middle;
+    text-align: center;
+    padding: 0 4px;
+}
+
+.pdf-math-num {
+    border-bottom: 1px solid #2c3e50;
+    padding-bottom: 1px;
+}
+
+.pdf-math-den {
+    padding-top: 1px;
+}
+
+.pdf-variables-list {
+    margin-bottom: 8px;
+    font-size: 8pt;
+    color: #566573;
+    padding-left: 15px;
+    line-height: 1.35;
+}
+
+.pdf-variables-list li {
+    margin-bottom: 2px;
+}
+
+.pdf-variables-list strong {
+    color: #2c3e50;
+}
+
+.pdf-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.pdf-compliance-box {
+    border: 1px solid #d5dbdb;
+    border-radius: 6px;
+    padding: 8px 12px;
+    background: #fafbfc;
+}
+
+.pdf-compliance-box.success {
+    border-color: #2ecc71;
+    background: #f4fbf7;
+}
+
+.pdf-compliance-box.danger {
+    border-color: #e74c3c;
+    background: #fdf5f5;
+}
+
+.pdf-compliance-title {
+    font-weight: bold;
+    font-size: 9pt;
+    color: #2c3e50;
+    margin-bottom: 3px;
+}
+
+.pdf-compliance-status {
+    font-size: 10.5pt;
+    font-weight: bold;
+    color: #27ae60;
+}
+
+.pdf-compliance-status.danger {
+    color: #c0392b;
+}
+
+.pdf-diagram-container {
+    border: 1px dashed #bdc3c7;
+    border-radius: 6px;
+    background: #fbfcfc;
+    padding: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 8px;
+    flex: 1;
+    max-height: 120mm;
+}
+
+.pdf-diagram-container svg {
+    max-width: 100%;
+    max-height: 100%;
+}

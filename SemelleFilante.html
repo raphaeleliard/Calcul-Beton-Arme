@@ -296,18 +296,18 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
             if (d < d_req && status === 'OK') status = 'WARNING_FLEXIBLE';
 
             // Ferraillage principal (Transversal) via la méthode des bielles
-            let As_req = 0;
+            let As_req_calc = 0;
             if (B > a) {
                 // EC2 Méthode simplifiée des fondations rigides
-                As_req = (N_Ed * (B - a)) / (8 * d * fyd) * 10; // cm²/ml
+                As_req_calc = (N_Ed * (B - a)) / (8 * d * fyd) * 10; // cm²/ml
             }
             
             // Non-fragilité (EC2 §9.2.1.1)
             const As_min = Math.max(0.26 * (fctm/500) * 1.0 * d, 0.0013 * 1.0 * d) * 10000;
-            As_req = Math.max(As_req, As_min);
+            const As_req = Math.max(As_req_calc, As_min);
 
             // Acier de répartition (Longitudinal)
-            const As_rep_req = Math.max(0.20 * As_req, As_min);
+            const As_rep_req = 0.20 * As_req;
 
             // Aciers fournis
             const secMain = STEEL_SPECS[diamMain].section;
@@ -322,7 +322,7 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
 
             return {
                 sigma_sol, d_req, d,
-                As_req, As_rep_req, As_min,
+                As_req_calc, As_req, As_rep_req, As_min,
                 As_prov_main, As_prov_rep,
                 status
             };
@@ -529,139 +529,7 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
         }
 
         async function exportAsPDF() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-
-            const p = AppState.inputs;
-            const res = AppState.results;
-
-            const setStyle = (style) => {
-                switch(style) {
-                    case 'h1': doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.setTextColor(52, 152, 219); break;
-                    case 'h2': doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(44, 62, 80); break;
-                    case 'normal': doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(44, 62, 80); break;
-                    case 'italic': doc.setFont('helvetica', 'italic'); doc.setFontSize(10); doc.setTextColor(44, 62, 80); break;
-                    case 'bold': doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(44, 62, 80); break;
-                    case 'muted': doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(127, 140, 141); break;
-                }
-            };
-
-            let y = 20;
-
-            // --- HEADER ---
-            setStyle('h1');
-            doc.text('Note de Calcul - Semelle Filante', 15, y);
-            y += 6;
-            setStyle('muted');
-            doc.text(`Généré par EC2 Assistant (Outil Pédagogique par Raphaël ELIARD) - Date: ${new Date().toLocaleDateString()}`, 15, y);
-            y += 4;
-            doc.setLineWidth(0.5);
-            doc.setDrawColor(224, 224, 224);
-            doc.line(15, y, 195, y);
-            y += 10;
-
-            // --- HYPOTHESES ---
-            setStyle('h2');
-            doc.text('1. Hypothèses et Données', 15, y);
-            y += 8;
-            setStyle('normal');
-            doc.text(`- Épaisseur du voile (a) : ${p.a.toFixed(2)} m`, 20, y);
-            doc.text(`- Largeur de la semelle (B) : ${p.B.toFixed(2)} m`, 105, y);
-            y += 6;
-            doc.text(`- Hauteur de la semelle (h) : ${p.h.toFixed(2)} m`, 20, y);
-            doc.text(`- Classe du béton : C${p.fck}/${p.fck+5}`, 105, y);
-            y += 6;
-            doc.text(`- Contrainte sol adm. (q_adm) : ${p.q_adm.toFixed(3)} MPa`, 20, y);
-            doc.text(`- Enrobage (c) : ${p.enrobage.toFixed(1)} cm`, 105, y);
-            y += 6;
-            doc.text(`- Charge ELS (N_Eq) : ${p.N_Eq.toFixed(2)} kN/ml`, 20, y);
-            doc.text(`- Charge ELU (N_Ed) : ${p.N_Ed.toFixed(2)} kN/ml`, 105, y);
-            y += 12;
-
-            // --- CALCULS ---
-            setStyle('h2');
-            doc.text('2. Détail des calculs (Eurocode 2)', 15, y);
-            y += 8;
-            
-            setStyle('bold');
-            doc.text('2.1 Vérification de la portance du sol (ELS) :', 20, y);
-            y += 5;
-            setStyle('normal');
-            doc.text('La contrainte transmise au sol inclut le poids propre de la fondation.', 25, y);
-            y += 5;
-            setStyle('italic');
-            doc.text(`Contrainte exercee (sigma_sol) = (N_Eq + Poids) / B = ${res.sigma_sol.toFixed(3)} MPa`, 25, y);
-            y += 5;
-            doc.text(`Verification : ${res.sigma_sol <= p.q_adm ? 'Conforme (sigma_sol <= q_adm)' : 'Non conforme (sigma_sol > q_adm)'}`, 25, y);
-            y += 8;
-
-            setStyle('bold');
-            doc.text('2.2 Condition de rigidité (Méthode des bielles) :', 20, y);
-            y += 5;
-            setStyle('normal');
-            doc.text('Vérification que la géométrie permet la diffusion des efforts par bielles comprimées.', 25, y);
-            y += 5;
-            setStyle('italic');
-            doc.text(`Hauteur utile requise (d_req) = (B - a) / 4 = ${res.d_req.toFixed(3)} m`, 25, y);
-            y += 5;
-            doc.text(`Hauteur utile reelle (d) = ${res.d.toFixed(3)} m  ->  ${res.d >= res.d_req ? 'Semelle rigide (OK)' : 'Semelle flexible (Attention)'}`, 25, y);
-            y += 8;
-
-            setStyle('bold');
-            doc.text('2.3 Calcul du ferraillage (Méthode des bielles) :', 20, y);
-            y += 5;
-            setStyle('normal');
-            doc.text('Détermination des armatures de traction à la base.', 25, y);
-            y += 5;
-            setStyle('italic');
-            doc.text(`Aciers transversaux (As,req) = N_Ed * (B - a) / (8 * d * fyd) = ${res.As_req.toFixed(2)} cm2/ml`, 25, y);
-            y += 5;
-            doc.text(`Aciers longit. (As,rep) = max(20% As,req, As,min) = ${res.As_rep_req.toFixed(2)} cm2/ml`, 25, y);
-            y += 12;
-
-            // --- RESULTATS ---
-            setStyle('h2');
-            doc.text('3. Sections d\'armatures choisies', 15, y);
-            y += 8;
-            setStyle('normal');
-            doc.text('Armatures principales (Transversales) :', 20, y);
-            y += 5;
-            setStyle('italic');
-            doc.text(`HA${AppState.diamMain} espacement ${p.espMain} cm  ->  Section fournie = ${res.As_prov_main.toFixed(2)} cm2/ml (Req: ${res.As_req.toFixed(2)})`, 25, y);
-            y += 7;
-            setStyle('normal');
-            doc.text('Armatures de repartition (Longitudinales) :', 20, y);
-            y += 5;
-            setStyle('italic');
-            doc.text(`HA${AppState.diamRep} espacement ${p.espRep} cm  ->  Section fournie = ${res.As_prov_rep.toFixed(2)} cm2/ml (Req: ${res.As_rep_req.toFixed(2)})`, 25, y);
-            y += 12;
-
-            // --- SVG CAPTURE ---
-            setStyle('h2');
-            doc.text('4. Plan de Ferraillage (Coupe)', 15, y);
-            y += 5;
-            const svgContainer = document.getElementById('svgContainer');
-            const previousView = AppState.currentView;
-            setView('coupe');
-
-            const currentTheme = document.documentElement.getAttribute('data-theme');
-            document.documentElement.setAttribute('data-theme', 'light');
-            renderUI();
-
-            const canvas = await html2canvas(svgContainer, { backgroundColor: '#ffffff', scale: 3 });
-            const imgData = canvas.toDataURL('image/png');
-            
-            document.documentElement.setAttribute('data-theme', currentTheme);
-            setView(previousView);
-
-            const imgProps = doc.getImageProperties(imgData);
-            const pdfWidth = 180;
-            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-            if (y + pdfHeight > 280) { doc.addPage(); y = 20; }
-            doc.addImage(imgData, 'PNG', 15, y, pdfWidth, pdfHeight);
-
-            // --- SAVE ---
-            doc.save(`note_calcul_semelle_filante_${new Date().toISOString().slice(0,10)}.pdf`);
+            await generatePDFReport('semelle_filante', 'Semelle Filante en Béton Armé', AppState, 'svgContainer', renderUI, setView, 'coupe', 'note_calcul_semelle_filante.pdf');
         }
     </script>
     <script src="script.js"></script>

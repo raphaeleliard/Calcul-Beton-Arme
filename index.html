@@ -26,7 +26,13 @@ orienter facilement l'utilisateur vers les différents modules de dimensionnemen
 
     <header>
         <div class="logo">
-            <span>🏗️</span> EC2 Assistant
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
+                <path d="M3 21 h18" />
+                <path d="M5 21 v-14 l7 -4 l7 4 v14" />
+                <path d="M9 21 v-5 h6 v5" />
+                <path d="M12 7 v4" />
+                <path d="M10 9 h4" />
+            </svg> EC2 Assistant
         </div>
         <button class="theme-toggle" id="themeToggle">🌓 Mode</button>
     </header>
@@ -40,7 +46,15 @@ orienter facilement l'utilisateur vers les différents modules de dimensionnemen
         <div class="modules-grid">
             <!-- Poutres -->
             <a href="Poutre.html" class="module-card">
-                <div class="module-icon">📏</div>
+                <div class="module-icon">
+                    <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="10" width="20" height="6" rx="1" />
+                        <path d="M5 16 l-2 4 h4 z" fill="currentColor" />
+                        <path d="M19 16 l-2 4 h4 z" fill="currentColor" />
+                        <path d="M12 3 v5" stroke="var(--primary)" stroke-width="2" />
+                        <path d="M9 5 l3 3 l3 -3" stroke="var(--primary)" stroke-width="2" />
+                    </svg>
+                </div>
                 <div class="module-title">Poutres</div>
                 <div class="module-desc">Module de calcul pour les poutres en béton armé, flexion simple, effort tranchant et plans de ferraillage semi-automatique avec recommandations et interactif.</div>
                 <div class="module-status status-dev">Version 1.20</div>
@@ -48,7 +62,15 @@ orienter facilement l'utilisateur vers les différents modules de dimensionnemen
 
             <!-- Poteaux -->
             <a href="Poteau.html" class="module-card">
-                <div class="module-icon">🏛️</div>
+                <div class="module-icon">
+                    <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="5" width="6" height="14" rx="1" />
+                        <path d="M4 19 h16" stroke-width="2" />
+                        <path d="M6 19 l-2 3 M12 19 l-2 3 M18 19 l-2 3" />
+                        <path d="M12 1 v4" stroke="var(--primary)" stroke-width="2" />
+                        <path d="M9 3 l3 2 l3 -2" stroke="var(--primary)" stroke-width="2" />
+                    </svg>
+                </div>
                 <div class="module-title">Poteaux</div>
                 <div class="module-desc">Module de calcul pour les poteaux en béton armé, compression centrée, flambement, et génération de plans de ferraillage semi-automatique avec recommandations et interactif.</div>
                 <div class="module-status status-dev">Version 1.20</div>
@@ -56,7 +78,13 @@ orienter facilement l'utilisateur vers les différents modules de dimensionnemen
 
             <!-- Voiles -->
             <a href="Voile.html" class="module-card">
-                <div class="module-icon">🧱</div>
+                <div class="module-icon">
+                    <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="4" y="4" width="16" height="16" rx="1" />
+                        <path d="M8 4 v16 M12 4 v16 M16 4 v16" stroke="var(--primary)" stroke-width="1.5" opacity="0.6" />
+                        <path d="M4 9.33 h16 M4 14.66 h16" stroke="var(--primary)" stroke-width="1.5" opacity="0.6" />
+                    </svg>
+                </div>
                 <div class="module-title">Voiles</div>
                 <div class="module-desc">Module de calcul pour les voiles en béton armé (Bande de 1m). Vérification du cisaillement et ferraillage minimal par treillis soudés.</div>
                 <div class="module-status status-dev">Version 1.20</div>
@@ -64,7 +92,15 @@ orienter facilement l'utilisateur vers les différents modules de dimensionnemen
 
             <!-- Dalles -->
             <a href="Dalle.html" class="module-card">
-                <div class="module-icon">🔲</div>
+                <div class="module-icon">
+                    <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="12" width="20" height="4" rx="0.5" />
+                        <path d="M5 5 v5 M5 8 l-1 -1 M5 8 l1 -1" stroke="var(--primary)" stroke-width="1.5" />
+                        <path d="M12 5 v5 M12 8 l-1 -1 M12 8 l1 -1" stroke="var(--primary)" stroke-width="1.5" />
+                        <path d="M19 5 v5 M19 8 l-1 -1 M19 8 l1 -1" stroke="var(--primary)" stroke-width="1.5" />
+                        <path d="M4 5 h16" stroke="var(--primary)" stroke-width="1.5" />
+                    </svg>
+                </div>
                 <div class="module-title">Dalles</div>
                 <div class="module-desc">Dalles pleines, flexion sur bande de 1m, vérification du cisaillement et aciers de répartition.</div>
                 <div class="module-status status-dev">Version 1.20</div>
@@ -72,7 +108,15 @@ orienter facilement l'utilisateur vers les différents modules de dimensionnemen
 
             <!-- Semelles Filantes -->
             <a href="SemelleFilante.html" class="module-card">
-                <div class="module-icon">🛤️</div>
+                <div class="module-icon">
+                    <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 15 h18 v4 h-18 z" />
+                        <path d="M10 15 v-8 h4 v8" />
+                        <path d="M10 11 l-6 4" stroke="var(--primary)" stroke-dasharray="2 2" />
+                        <path d="M14 11 l6 4" stroke="var(--primary)" stroke-dasharray="2 2" />
+                        <line x1="5" y1="17" x2="19" y2="17" stroke="currentColor" />
+                    </svg>
+                </div>
                 <div class="module-title">Semelles Filantes</div>
                 <div class="module-desc">Calcul de fondations superficielles sous voiles (bande de 1m). Méthode des bielles, vérification contrainte du sol et aciers de répartition.</div>
                 <div class="module-status status-dev">Version 1.20</div>
@@ -80,7 +124,16 @@ orienter facilement l'utilisateur vers les différents modules de dimensionnemen
 
             <!-- Semelles Isolées -->
             <a href="SemelleIsolee.html" class="module-card">
-                <div class="module-icon">🧊</div>
+                <div class="module-icon">
+                    <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 13 l7 -3.5 l-7 -3.5 l-7 3.5 z" stroke="currentColor" />
+                        <path d="M5 9.5 v4 l7 3.5 l7 -3.5 v-4" stroke="currentColor" />
+                        <path d="M12 13 v4" stroke="currentColor" />
+                        <path d="M12 7.5 l2.5 -1.25 l-2.5 -1.25 l-2.5 1.25 z" fill="var(--primary)" stroke="var(--primary)" />
+                        <path d="M9.5 6.25 v-4 l2.5 1.25 v4" stroke="var(--primary)" />
+                        <path d="M14.5 6.25 v-4 l-2.5 1.25 v4" stroke="var(--primary)" />
+                    </svg>
+                </div>
                 <div class="module-title">Semelles Isolées</div>
                 <div class="module-desc">Calcul de fondations superficielles sous poteaux. Méthode des bielles, vérification contrainte du sol et plans de ferraillage (coupe/plan).</div>
                 <div class="module-status status-dev">Version 1.20</div>

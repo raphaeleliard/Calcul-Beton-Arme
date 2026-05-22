@@ -1,0 +1,283 @@
+<!--
+=========================================================
+Projet : Outil Pédagogique Eurocode 2 (Calcul Béton Armé)
+Auteur : Raphaël ELIARD
+Date de dernière mise à jour : 22-05-2026
+Description : Page d'erreur 404 personnalisée et harmonisée
+              avec le design global et le thème du projet.
+=========================================================
+-->
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Page non trouvée | EC2 Assistant</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏗️</text></svg>">
+    <link rel="stylesheet" href="styles.css">
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
+    </script>
+    <!-- Umami Analytics -->
+    <script defer src="https://cloud.umami.is/script.js" data-website-id="7435bf73-8c46-4cca-8513-4f48bb2aad68"></script>
+    <style>
+        /* Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-up {
+            animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            opacity: 0;
+        }
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
+        .delay-300 { animation-delay: 300ms; }
+        .delay-400 { animation-delay: 400ms; }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) translateX(0); }
+            33% { transform: translateY(-20px) translateX(15px); }
+            66% { transform: translateY(15px) translateX(-20px); }
+        }
+        .animate-float-1 { animation: float 18s ease-in-out infinite; }
+        .animate-float-2 { animation: float 22s ease-in-out infinite reverse; }
+
+        @keyframes pulseGlow {
+            0%, 100% { opacity: 0.15; transform: scale(1); }
+            50% { opacity: 0.3; transform: scale(1.05); }
+        }
+        .animate-pulse-glow {
+            animation: pulseGlow 4s ease-in-out infinite;
+        }
+
+        /* Ambient Lights */
+        .ambient-glows {
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .glow-1 {
+            position: absolute;
+            top: -10%;
+            left: -10%;
+            width: 50%;
+            height: 50%;
+            border-radius: 50%;
+            background: rgba(52, 152, 219, 0.2);
+            filter: blur(100px);
+        }
+        .glow-2 {
+            position: absolute;
+            bottom: -10%;
+            right: -10%;
+            width: 50%;
+            height: 50%;
+            border-radius: 50%;
+            background: rgba(46, 204, 113, 0.15);
+            filter: blur(100px);
+        }
+
+        /* Main structure */
+        .container-404 {
+            position: relative;
+            z-index: 10;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .panel-404 {
+            width: 100%;
+            text-align: center;
+            padding: 3rem 2rem;
+        }
+
+        /* Giant 404 Code */
+        .error-code-container {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+        .error-code-glow {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, var(--primary), var(--success));
+            border-radius: 50%;
+            filter: blur(40px);
+        }
+        .error-code {
+            position: relative;
+            font-size: clamp(80px, 15vw, 150px);
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: -0.05em;
+            margin: 0;
+            background: linear-gradient(135deg, var(--text-main) 30%, var(--text-muted));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            user-select: none;
+        }
+
+        .error-title {
+            font-size: clamp(1.5rem, 4vw, 2.2rem);
+            margin-bottom: 1rem;
+            color: var(--text-main);
+            border: none;
+            padding-bottom: 0;
+        }
+
+        .error-desc {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            max-width: 550px;
+            margin: 0 auto 2.5rem auto;
+            line-height: 1.6;
+        }
+
+        /* Actions buttons */
+        .actions-flex {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 3rem;
+        }
+        .btn-404 {
+            display: inline-block;
+            padding: 0.8rem 2rem;
+            border-radius: 50px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: var(--transition);
+            cursor: pointer;
+        }
+        .btn-404-primary {
+            background-color: var(--primary);
+            color: white;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+        }
+        .btn-404-primary:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+        }
+        .btn-404-secondary {
+            background-color: var(--inner-bg);
+            color: var(--text-main);
+            border: 2px solid var(--border-color);
+        }
+        .btn-404-secondary:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        /* Quick Links */
+        .quick-links-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+        .quick-links-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 0.75rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .quick-link-card {
+            background: var(--inner-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.75rem;
+            border-radius: 8px;
+            text-decoration: none;
+            color: var(--text-main);
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .quick-link-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+            background: var(--surface-color);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <a href="index.html" class="back-link">← Retour Accueil</a>
+        <div><strong>Erreur de structure</strong></div>
+        <button class="theme-toggle" id="themeToggle">🌓 Mode</button>
+    </header>
+
+    <div class="ambient-glows">
+        <div class="glow-1 animate-float-1"></div>
+        <div class="glow-2 animate-float-2"></div>
+    </div>
+
+    <main class="container-404">
+        <div class="panel panel-404 animate-fade-in-up">
+            
+            <!-- Code d'erreur géant -->
+            <div class="error-code-container animate-fade-in-up delay-100">
+                <div class="error-code-glow animate-pulse-glow"></div>
+                <h1 class="error-code">404</h1>
+            </div>
+
+            <!-- Titre & Description -->
+            <h2 class="error-title animate-fade-in-up delay-200">
+                Oups ! La page que vous recherchez est hors gabarit.
+            </h2>
+            <p class="error-desc animate-fade-in-up delay-200">
+                La structure reste stable, mais cette section est introuvable ou a été déplacée. Pas d'inquiétude, reprenez vos calculs ou votre navigation à l'aide des options ci-dessous.
+            </p>
+
+            <!-- Actions principales -->
+            <div class="actions-flex animate-fade-in-up delay-300">
+                <a href="index.html" class="btn-404 btn-404-primary">Retour à l'accueil</a>
+                <a href="Contact.html" class="btn-404 btn-404-secondary">Signaler un problème</a>
+            </div>
+
+            <!-- Accès rapide aux modules -->
+            <div class="animate-fade-in-up delay-400">
+                <h3 class="quick-links-title">Accès rapide aux modules de calcul</h3>
+                <div class="quick-links-grid">
+                    <a href="Poutre.html" class="quick-link-card"><span>🏗️</span> Poutres</a>
+                    <a href="Poteau.html" class="quick-link-card"><span>🏢</span> Poteaux</a>
+                    <a href="Voile.html" class="quick-link-card"><span>🧱</span> Voiles</a>
+                    <a href="Dalle.html" class="quick-link-card"><span>🕳️</span> Dalles</a>
+                    <a href="SemelleFilante.html" class="quick-link-card"><span>👣</span> S. Filantes</a>
+                    <a href="SemelleIsolee.html" class="quick-link-card"><span>🟥</span> S. Isolées</a>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <footer>
+        <p>© 2026 ELIARD Raphaël - Outil Pédagogique Eurocode 2</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

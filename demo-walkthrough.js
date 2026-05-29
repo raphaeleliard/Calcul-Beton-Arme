@@ -502,30 +502,120 @@ function positionCard(targetEl) {
         return;
     }
     
+    const cardW = 450;
+    card.style.width = `${cardW}px`;
+    
     if (!targetEl) {
         card.style.top = '50%';
         card.style.left = '50%';
         card.style.transform = 'translate(-50%, -50%)';
-        card.style.width = '450px';
         return;
     }
     
     const rect = targetEl.getBoundingClientRect();
-    const cardW = 450;
     const cardH = card.offsetHeight || 220;
     const margin = 20;
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
     
-    if (rect.top + rect.height / 2 < window.innerHeight / 2) {
-        card.style.top = `${rect.bottom + margin}px`;
-    } else {
-        card.style.top = `${rect.top - cardH - margin}px`;
+    // Déterminer les différents candidats de positionnement pour la carte
+    const placements = [
+        {
+            name: 'right',
+            left: rect.right + margin,
+            top: rect.top + (rect.height - cardH) / 2
+        },
+        {
+            name: 'left',
+            left: rect.left - cardW - margin,
+            top: rect.top + (rect.height - cardH) / 2
+        },
+        {
+            name: 'bottom',
+            left: rect.left + (rect.width - cardW) / 2,
+            top: rect.bottom + margin
+        },
+        {
+            name: 'top',
+            left: rect.left + (rect.width - cardW) / 2,
+            top: rect.top - cardH - margin
+        },
+        {
+            name: 'overlay-bottom-right',
+            left: viewportW - cardW - margin,
+            top: viewportH - cardH - margin
+        },
+        {
+            name: 'overlay-bottom-left',
+            left: margin,
+            top: viewportH - cardH - margin
+        },
+        {
+            name: 'overlay-top-right',
+            left: viewportW - cardW - margin,
+            top: margin + 70 // en dessous du header
+        }
+    ];
+    
+    let bestPlacement = null;
+    let minPenalty = Infinity;
+    
+    for (const p of placements) {
+        // Clamp strict dans le viewport avec marges
+        let clampedLeft = Math.max(margin, Math.min(viewportW - cardW - margin, p.left));
+        // Eviter le header en haut (margin + 60px)
+        let clampedTop = Math.max(margin + 60, Math.min(viewportH - cardH - margin, p.top));
+        
+        let penalty = 0;
+        
+        // 1. Pénalité pour le décalage imposé par le clamping
+        const shiftX = Math.abs(clampedLeft - p.left);
+        const shiftY = Math.abs(clampedTop - p.top);
+        penalty += (shiftX + shiftY) * 2.0;
+        
+        // 2. Pénalité pour l'intersection avec l'élément cible
+        const cardRect = {
+            left: clampedLeft,
+            right: clampedLeft + cardW,
+            top: clampedTop,
+            bottom: clampedTop + cardH
+        };
+        
+        const overlapX = Math.max(0, Math.min(cardRect.right, rect.right) - Math.max(cardRect.left, rect.left));
+        const overlapY = Math.max(0, Math.min(cardRect.bottom, rect.bottom) - Math.max(cardRect.top, rect.top));
+        const overlapArea = overlapX * overlapY;
+        
+        if (overlapArea > 0) {
+            const targetArea = rect.width * rect.height;
+            // Si la cible est immense (ex: modules-grid, panel principal), l'overlap est inévitable et toléré
+            if (targetArea > (viewportW * viewportH) * 0.4) {
+                penalty += overlapArea * 0.05;
+            } else {
+                // Pour un petit élément, recouvrir la cible est très pénalisé
+                penalty += overlapArea * 15.0;
+            }
+        }
+        
+        // Préférence naturelle pour les placements non-overlay si la cible est petite
+        if (p.name.startsWith('overlay') && rect.width * rect.height < (viewportW * viewportH) * 0.4) {
+            penalty += 8000;
+        }
+        
+        // Petite faveur pour le placement à droite ou à gauche pour les colonnes latérales
+        if ((p.name === 'right' || p.name === 'left') && rect.height > 300) {
+            penalty -= 100;
+        }
+        
+        if (penalty < minPenalty) {
+            minPenalty = penalty;
+            bestPlacement = { left: clampedLeft, top: clampedTop };
+        }
     }
     
-    let leftPos = rect.left + (rect.width - cardW) / 2;
-    leftPos = Math.max(margin, Math.min(window.innerWidth - cardW - margin, leftPos));
-    
-    card.style.left = `${leftPos}px`;
-    card.style.width = `${cardW}px`;
+    if (bestPlacement) {
+        card.style.left = `${bestPlacement.left}px`;
+        card.style.top = `${bestPlacement.top}px`;
+    }
 }
 
 function demarrerTimerEtape() {

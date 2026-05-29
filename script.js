@@ -356,7 +356,7 @@ function buildPage1(moduleType, moduleTitle, state) {
                 <div class="pdf-section-title">1. Informations Générales</div>
                 <table class="pdf-table">
                     <tr><th>Paramètre</th><th>Valeur</th><th>Description / Contexte</th></tr>
-                    <tr><td>Logiciel d'analyse</td><td>EC2 Assistant v1.0</td><td>Outil de conception et d'apprentissage du Béton Armé</td></tr>
+                    <tr><td>Logiciel d'analyse</td><td>EC2 Assistant v2.0</td><td>Outil de conception et d'apprentissage du Béton Armé</td></tr>
                     <tr><td>Auteur de l'étude</td><td>Raphaël ELIARD</td><td>Concepteur & Auteur pédagogique</td></tr>
                     <tr><td>Règlement de calcul</td><td>NF EN 1992-1-1 / NA</td><td>Eurocode 2 : Calcul des structures en béton</td></tr>
                     <tr><td>Date du rapport</td><td>${new Date().toLocaleDateString('fr-FR')}</td><td>Date de génération de la présente note de calcul</td></tr>
@@ -922,4 +922,4 @@ async function generatePDFReport(moduleType, moduleTitle, state, svgContainerId,
             renderUIFn();
         }
     }
-}
+}

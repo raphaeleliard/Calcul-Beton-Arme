@@ -505,4 +505,198 @@ footer { text-align: center; padding: 1rem; color: var(--text-muted); font-size:
 .pdf-diagram-container svg {
     max-width: 100%;
     max-height: 100%;
-}
+}
+
+/* ==========================================
+   11. STYLE DE LA VISITE GUIDÉE (MODE DÉMO)
+   ========================================== */
+.demo-toggle {
+    background: none;
+    border: 2px solid var(--warning);
+    border-radius: 20px;
+    padding: 5px 15px;
+    cursor: pointer;
+    color: var(--warning);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: var(--transition);
+}
+.demo-toggle:hover {
+    background: var(--warning);
+    color: white;
+    box-shadow: 0 0 10px rgba(243, 156, 18, 0.4);
+    transform: translateY(-1px);
+}
+
+#demo-spotlight-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 999;
+    pointer-events: none;
+    transition: clip-path 0.4s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s ease;
+    opacity: 1;
+}
+
+#demo-spotlight-highlight {
+    position: fixed;
+    border-radius: 8px;
+    border: 2px solid var(--warning);
+    box-shadow: 0 0 15px var(--warning);
+    z-index: 998;
+    pointer-events: none;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#demo-click-blocker {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: transparent;
+    z-index: 1000;
+    pointer-events: auto;
+}
+
+#demo-walkthrough-card {
+    position: fixed;
+    z-index: 1001;
+    width: 92vw;
+    max-width: 450px;
+    background: var(--surface-color);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.25rem;
+    box-shadow: var(--shadow);
+    transition: opacity 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Animations et utilitaires */
+.demo-hidden {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+}
+
+#demo-step-title {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: var(--primary);
+    margin-bottom: 0.5rem;
+}
+
+#demo-step-desc {
+    font-size: 0.9rem;
+    color: var(--text-main);
+    margin-bottom: 1rem;
+    line-height: 1.45;
+}
+
+#demo-progress-bar-container {
+    width: 100%;
+    height: 4px;
+    background: var(--border-color);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+#demo-progress-bar {
+    height: 100%;
+    background: var(--warning);
+    width: 0%;
+    transition: width 0.1s linear;
+}
+
+.demo-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+#demo-dots {
+    display: flex;
+    gap: 6px;
+}
+
+.demo-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    opacity: 0.4;
+    transition: var(--transition);
+    cursor: pointer;
+}
+
+.demo-dot.active {
+    background: var(--primary);
+    opacity: 1;
+    transform: scale(1.2);
+}
+
+.demo-buttons {
+    display: flex;
+    gap: 6px;
+}
+
+.demo-btn {
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.demo-btn-prev {
+    background: var(--inner-bg);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+}
+.demo-btn-prev:hover {
+    border-color: var(--primary);
+}
+
+.demo-btn-play {
+    background: var(--warning);
+    color: white;
+    min-width: 70px;
+}
+.demo-btn-play:hover {
+    background: #e67e22;
+}
+
+.demo-btn-next {
+    background: var(--primary);
+    color: white;
+}
+.demo-btn-next:hover {
+    background: var(--primary-hover);
+}
+
+.demo-close-x {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.25rem;
+    cursor: pointer;
+    line-height: 1;
+}
+.demo-close-x:hover {
+    color: var(--danger);
+}
+

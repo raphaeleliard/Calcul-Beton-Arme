@@ -2,9 +2,7 @@
 =========================================================
 Projet : Outil Pédagogique Eurocode 2 (Calcul Béton Armé)
 Auteur : Raphaël ELIARD
-Description : Script central. J'y ai regroupé la bibliothèque de 
-matériaux (aciers), la gestion globale du mode visuel (clair/sombre) 
-ainsi que les utilitaires d'export graphique et d'interface.
+Description : Bibliothèque de matériaux (aciers), gestion globale du thème, utilitaires d'export graphique et génération de notes de calcul PDF.
 =========================================================
 */
 // ==========================================
@@ -30,8 +28,7 @@ const TS_SPECS = {
 };
 
 // ==========================================
-// GESTION GLOBALE DU THÈME (Clair / Sombre)
-// Persistance du thème vis-à-vis des préférences système ou des choix manuels.
+// GESTION DU THÈME VISUEL (Clair / Sombre)
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -67,8 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================
-// UTILITAIRES D'EXPORT (PNG / SVG)
-// Fonctions pour convertir et télécharger dynamiquement les rendus DOM SVG vers des fichiers locaux exploitables.
+// EXPORT DES RENDUS EN PNG
 // ==========================================
 function exportPlanAsPNG(svgContainerId, filename, drawCallback) {
     const container = document.getElementById(svgContainerId);
@@ -101,8 +97,7 @@ function exportPlanAsPNG(svgContainerId, filename, drawCallback) {
 }
 
 // ==========================================
-// UTILITAIRES SVG (Couleurs)
-// Gestion des palettes d'interface du canvas selon le mode sombre/clair courant.
+// COULEURS DU CANEVAS SVG
 // ==========================================
 function getThemeColors() {
     const theme = document.documentElement.getAttribute('data-theme');
@@ -115,8 +110,7 @@ function getThemeColors() {
 }
 
 // ==========================================
-// GESTION GLOBALE DES MODALES (POP-UPS)
-// Composant réutilisable pour afficher des notes pédagogiques sans quitter le contexte de la page.
+// FENÊTRES MODALES
 // ==========================================
 function showModal(title, content) {
     let overlay = document.getElementById('globalModalOverlay');
@@ -143,10 +137,9 @@ function closeModal() {
 // ==========================================
 
 /**
- * Parse une chaîne pseudo-LaTeX en HTML propre pour injection DOM (garanti sans casse).
- * Utile pour afficher les formules dans l'UI avant capture html2canvas.
- * @param {string} eq La chaîne brute (ex: "M_{Ed} \le V_{Rd,c} * \lambda")
- * @returns {string} HTML formaté
+ * Formate les équations de type pseudo-LaTeX en HTML lisible pour l'interface utilisateur.
+ * @param {string} eq L'équation brute (ex: "M_{Ed} \le V_{Rd,c} * \lambda")
+ * @returns {string} HTML formaté (indices, exposants, symboles mathématiques)
  */
 function formatEquation(eq) {
     if (!eq) return '';
@@ -175,12 +168,12 @@ function formatEquation(eq) {
 }
 
 // ==========================================
-// UTILITAIRES DE RENDU : SVG & DESSIN
+// COTATIONS SVG
 // ==========================================
 
 /**
- * Génère une ligne de cote (dimension) SVG optimisée.
- * Calcule automatiquement les normales pour décaler la ligne et pivoter le texte sans superposition.
+ * Trace une ligne de cote (dimension) SVG.
+ * Calcule les décalages de ligne et les rotations de texte pour assurer la lisibilité.
  */
 function drawDimensionLine(x1, y1, x2, y2, value, unit = "cm", offset = 30, textColor = "#000", strokeColor = "#7f8c8d") {
     // Vecteur directeur
@@ -221,7 +214,7 @@ function drawDimensionLine(x1, y1, x2, y2, value, unit = "cm", offset = 30, text
 }
 
 // ==========================================
-// RAPPORTS PDF DYNAMIQUES A4 (HTML-to-Canvas)
+// GÉNÉRATION DE RAPPORTS PDF (FORMAT A4)
 // ==========================================
 
 function getPDFHeader(moduleTitle, pageNum) {

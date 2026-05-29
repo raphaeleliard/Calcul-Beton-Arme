@@ -2,9 +2,8 @@
 =========================================================
 Projet : Outil Pédagogique Eurocode 2 (Calcul Béton Armé)
 Auteur : Raphaël ELIARD
-Description : Fichier de styles global. Utilisation de variables 
-(custom properties) pour gérer facilement le thème 
-clair/sombre et concevoir une interface propre et responsive.
+Description : Feuille de styles globale (variables de thèmes, 
+              composants graphiques, cotations et mise en page PDF).
 =========================================================
 */
 /* ==========================================

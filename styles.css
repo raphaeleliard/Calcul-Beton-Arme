@@ -66,6 +66,7 @@ header {
     align-items: center;
     border-bottom: 1px solid var(--border-color);
     box-shadow: var(--shadow);
+    transition: var(--transition);
 }
 
 .logo { font-size: 1.5rem; font-weight: bold; color: var(--primary); display: flex; align-items: center; gap: 10px; }
@@ -96,6 +97,7 @@ header {
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
     box-shadow: var(--shadow); border: 1px solid var(--border-color);
+    transition: var(--transition);
 }
 .panel-contact { padding: 2.5rem; }
 
@@ -136,6 +138,7 @@ label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.3r
 input, select {
     width: 100%; padding: 0.5rem; border: 1px solid var(--border-color);
     border-radius: 6px; background: var(--inner-bg); color: var(--text-main);
+    transition: var(--transition);
 }
 
 /* ==========================================

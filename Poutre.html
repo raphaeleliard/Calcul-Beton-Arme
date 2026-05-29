@@ -194,10 +194,6 @@ et proposer un arrangement des aciers transversaux (cadres).
 
         // Initialisation de l'application
         window.addEventListener('DOMContentLoaded', () => {
-            // Appliquer le thème depuis le localStorage
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            document.documentElement.setAttribute('data-theme', savedTheme);
-
             // Restauration de l'état depuis le stockage local
             inputs.forEach(id => {
                 const savedVal = localStorage.getItem(`poutre_${id}`);

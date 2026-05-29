@@ -192,11 +192,7 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
 
         const voileInputs = Object.keys(AppState.inputs);
 
-        // Initialisation de l'application
         window.addEventListener('DOMContentLoaded', () => {
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            document.documentElement.setAttribute('data-theme', savedTheme);
-
             // Restauration de l'état
             voileInputs.forEach(id => {
                 const savedVal = localStorage.getItem(`voile_${id}`);

@@ -198,9 +198,6 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
 
         // Initialisation de l'application
         window.addEventListener('DOMContentLoaded', () => {
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            document.documentElement.setAttribute('data-theme', savedTheme);
-
             semelleInputs.forEach(id => {
                 const savedVal = localStorage.getItem(`semelle_${id}`);
                 if (savedVal !== null) {

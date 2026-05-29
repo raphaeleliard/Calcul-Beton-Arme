@@ -223,9 +223,6 @@ effets du second ordre via la méthode de la courbure nominale.
 
         // Initialisation de l'application
         window.addEventListener('DOMContentLoaded', () => {
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            document.documentElement.setAttribute('data-theme', savedTheme);
-
             // Restauration de l'état
             poteauInputs.forEach(id => {
                 const savedVal = localStorage.getItem(`poteau_${id}`);

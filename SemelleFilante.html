@@ -197,9 +197,6 @@ Il vérifie la portance et dimensionne les semelles filantes par la méthode des
         const semelleInputs = Object.keys(AppState.inputs);
 
         window.addEventListener('DOMContentLoaded', () => {
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            document.documentElement.setAttribute('data-theme', savedTheme);
-
             semelleInputs.forEach(id => {
                 const savedVal = localStorage.getItem(`sfilante_${id}`);
                 if (savedVal !== null) {

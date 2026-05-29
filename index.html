@@ -37,7 +37,7 @@ orienter facilement l'utilisateur vers les différents modules de dimensionnemen
             </svg> EC2 Assistant
         </div>
         <div style="display: flex; gap: 10px; align-items: center;">
-            <button class="demo-toggle" id="demoToggle" onclick="window.location.href='Poutre.html?runDemo=true'">✨ Visite Guidée</button>
+            <button class="demo-toggle" id="demoToggle" onclick="lancerDemoWalkthrough()">✨ Visite Guidée</button>
             <button class="theme-toggle" id="themeToggle">🌓 Mode</button>
         </div>
     </header>
@@ -154,5 +154,34 @@ orienter facilement l'utilisateur vers les différents modules de dimensionnemen
     </footer>
 
     <script src="script.js"></script>
+    
+    <!-- CONTENEURS DE LA VISITE GUIDÉE -->
+    <div id="demo-spotlight-backdrop" class="demo-hidden"></div>
+    <div id="demo-spotlight-highlight" class="demo-hidden"></div>
+    <div id="demo-click-blocker" class="demo-hidden"></div>
+    <div id="demo-walkthrough-card" class="demo-hidden">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+            <h3 id="demo-step-title"></h3>
+            <button class="demo-close-x" onclick="quitterDemo()">&times;</button>
+        </div>
+        <p id="demo-step-desc"></p>
+        
+        <!-- Barre de progression -->
+        <div id="demo-progress-bar-container">
+            <div id="demo-progress-bar"></div>
+        </div>
+
+        <div class="demo-controls">
+            <!-- Points indicateurs (Slides Indicator) -->
+            <div id="demo-dots"></div>
+
+            <div class="demo-buttons">
+                <button id="demo-btn-prev" class="demo-btn demo-btn-prev" onclick="prevDemoStep()">⬅️ Précédent</button>
+                <button id="demo-btn-play" class="demo-btn demo-btn-play" onclick="togglePlayPause()">⏸️ Pause</button>
+                <button id="demo-btn-next" class="demo-btn demo-btn-next" onclick="nextDemoStep()">Suivant ➡️</button>
+            </div>
+        </div>
+    </div>
+    <script src="demo-walkthrough.js" defer></script>
 </body>
 </html>

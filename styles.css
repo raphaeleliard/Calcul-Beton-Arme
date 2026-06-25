@@ -244,8 +244,8 @@ footer { text-align: center; padding: 1rem; color: var(--text-muted); font-size:
    10. SYSTEME DE RENDU PDF HIGH-FIDELITY (A4)
    ========================================== */
 #pdf-report-template {
-    position: fixed;
-    left: -9999px;
+    position: absolute;
+    left: 0;
     top: 0;
     width: 210mm;
     z-index: -9999;
@@ -700,5 +700,30 @@ footer { text-align: center; padding: 1rem; color: var(--text-muted); font-size:
 }
 .demo-close-x:hover {
     color: var(--danger);
+}
+
+/* ==========================================
+   10. DESIGN SPELLS & WOW EFFECTS
+   ========================================== */
+@keyframes blueprint-draw {
+    from { stroke-dashoffset: 1500; }
+    to { stroke-dashoffset: 0; }
+}
+
+.svg-animate path, .svg-animate rect, .svg-animate circle, .svg-animate line {
+    stroke-dasharray: 1500;
+    stroke-dashoffset: 1500;
+    animation: blueprint-draw 1.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.tilt-card {
+    transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
+    transform-style: preserve-3d;
+    will-change: transform;
+}
+
+.number-animate {
+    display: inline-block;
+    transition: color 0.3s;
 }
 

@@ -208,7 +208,7 @@ function drawDimensionLine(x1, y1, x2, y2, value, unit = "cm", offset = 30, text
         <line x1="${ox1}" y1="${oy1}" x2="${ox2}" y2="${oy2}" stroke="${strokeColor}" stroke-width="1.5"/>
         <line x1="${ox1-px*4-nx*4}" y1="${oy1-py*4-ny*4}" x2="${ox1+px*4+nx*4}" y2="${oy1+py*4+ny*4}" stroke="${strokeColor}" stroke-width="2"/>
         <line x1="${ox2-px*4-nx*4}" y1="${oy2-py*4-ny*4}" x2="${ox2+px*4+nx*4}" y2="${oy2+py*4+ny*4}" stroke="${strokeColor}" stroke-width="2"/>
-        <rect x="${midX-20}" y="${midY+textShift-10}" width="40" height="14" fill="var(--surface-color)" opacity="0.8" rx="2"/>
+        <rect x="${midX-20}" y="${midY+textShift-10}" width="40" height="14" fill="${textColor === '#000000' || textColor === '#000' ? '#ffffff' : '#1e1e1e'}" opacity="0.8" rx="2"/>
         <text x="${midX}" y="${midY}" text-anchor="middle" font-size="14" fill="${textColor}" transform="rotate(${textAngle} ${midX} ${midY}) translate(0, ${textShift})">${value} ${unit}</text>
     `;
 }
@@ -891,7 +891,12 @@ async function generatePDFReport(moduleType, moduleTitle, state, svgContainerId,
                 scale: 2.2,
                 useCORS: true,
                 backgroundColor: '#ffffff',
-                logging: false
+                logging: false,
+                scrollX: 0,
+                scrollY: 0,
+                x: 0,
+                y: 0,
+                windowWidth: 794
             });
             
             const imgData = canvas.toDataURL('image/jpeg', 0.95);
@@ -916,3 +921,72 @@ async function generatePDFReport(moduleType, moduleTitle, state, svgContainerId,
         }
     }
 }
+
+// ==========================================
+// DESIGN SPELLS & EFFET WOW
+// ==========================================
+
+/**
+ * Anime un compteur numérique de la valeur précédente à la nouvelle.
+ * @param {string} id ID de l'élément DOM
+ * @param {number} start Valeur de départ
+ * @param {number} end Valeur finale
+ * @param {number} duration Durée en ms
+ * @param {number} decimals Nombre de décimales
+ */
+function animateValue(id, start, end, duration = 800, decimals = 2) {
+    const obj = document.getElementById(id);
+    if (!obj) return;
+    
+    // Si la différence est trop faible, on ne fait pas d'animation
+    if (Math.abs(start - end) < 0.001) {
+        obj.textContent = end.toFixed(decimals);
+        return;
+    }
+    
+    let startTimestamp = null;
+    const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        // Easing easeOutQuart
+        const easeProgress = 1 - Math.pow(1 - progress, 4);
+        const current = start + easeProgress * (end - start);
+        obj.textContent = current.toFixed(decimals);
+        if (progress < 1) {
+            window.requestAnimationFrame(step);
+        } else {
+            obj.textContent = end.toFixed(decimals);
+        }
+    };
+    window.requestAnimationFrame(step);
+}
+
+/**
+ * Applique un effet de "Tilt 3D" (inclinaison magnétique) sur les éléments.
+ */
+function init3DTilt() {
+    const cards = document.querySelectorAll('.panel, .module-card, .result-card');
+    cards.forEach(card => {
+        card.classList.add('tilt-card');
+        card.addEventListener('mousemove', (e) => {
+            const rect = card.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            // Calcul de l'inclinaison max 5 degrés
+            const tiltX = ((y - centerY) / centerY) * -5;
+            const tiltY = ((x - centerX) / centerX) * 5;
+            card.style.transform = `perspective(1000px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) scale3d(1.02, 1.02, 1.02)`;
+        });
+        card.addEventListener('mouseleave', () => {
+            card.style.transform = `perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)`;
+        });
+    });
+}
+
+// Initialiser le tilt au chargement
+document.addEventListener('DOMContentLoaded', () => {
+    // Petit délai pour laisser le temps au DOM de se construire
+    setTimeout(init3DTilt, 500);
+});

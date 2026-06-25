@@ -101,9 +101,10 @@ function calculateEurocode2(params) {
     // Coefficients de sécurité réglementaires
     const gammaC = 1.5; 
     const gammaS = 1.15; 
+    const alpha_cc = 1.0; // EC2 : Prise en compte des effets à long terme sur la résistance
     
     const Ac = a * b * 10000; // Section droite de béton (cm²)
-    const fcd = fck / gammaC; // Résistance de calcul du béton (MPa)
+    const fcd = alpha_cc * fck / gammaC; // Résistance de calcul du béton (MPa)
     const fyd = fyk / gammaS; // Résistance de calcul de l'acier (MPa)
     const fyd_cm2 = fyd / 10; // Résistance en kN/cm²
 
@@ -128,7 +129,8 @@ function calculateEurocode2(params) {
     const d = max_dim - c_nom - phi_t - (phi_l / 2); // m
 
     // Imperfection géométrique initiale (EC2 §5.2)
-    const e_i = Math.max(l0 / 400, max_dim / 30, 0.02); // Excentricité minimale
+    // L'EC2 recommande e_i = l0 / 400. La valeur min de 20mm est conservée par sécurité pratique.
+    const e_i = Math.max(l0 / 400, 0.02); // Excentricité due aux défauts d'aplomb (m)
     const e_M = M_Ed > 0 ? (M_Ed / N_Ed) : 0; // Excentricité du premier ordre
     
     // Calcul des effets du second ordre (méthode de la courbure nominale, EC2 §5.8.8)
@@ -143,12 +145,14 @@ function calculateEurocode2(params) {
     const M_Ed_tot = N_Ed * e_tot; // Moment fléchissant total incluant second ordre (kN.m)
     
     // Estimation simplifiée de la section requise (flexion composée simplifiée)
+    // Note pédagogique : Cette méthode utilise un bras de levier constant 'z' pour reprendre le moment,
+    // ce qui est une approche prudente et simplifiée. Une méthode par diagramme d'interaction serait plus exacte.
     const N_Rd_c = Ac * (fcd / 10); // Résistance plastique du béton seul (kN)
     
     let As_req = 0;
     const As_req_N = Math.max(0, (N_Ed - N_Rd_c) / fyd_cm2);
     
-    const z = d - (c_nom + phi_t + phi_l/2); // Bras de levier
+    const z = d - (c_nom + phi_t + phi_l/2); // Bras de levier entre lits d'armatures
     let As_req_M = 0;
     if (M_Ed_tot > 0 && z > 0.001) {
          As_req_M = M_Ed_tot / (z * fyd_cm2); 
@@ -169,7 +173,15 @@ function calculateEurocode2(params) {
 // =========================================================
 
 function runController() {
+    // Sanitize inputs pour éviter les erreurs mathématiques
     const p = AppState.inputs;
+    p.L = Math.max(0.1, p.L);
+    p.a = Math.max(0.1, p.a);
+    p.b = Math.max(0.1, p.b);
+    p.beta = Math.max(0.5, p.beta);
+    p.fck = Math.max(12, p.fck);
+    p.enrobage = Math.max(1.0, p.enrobage);
+
     const calcParams = {
         ...p,
         diameter: AppState.selectedDiameter
@@ -192,16 +204,16 @@ function renderUI() {
     // Résistance de calcul N_Rd avec les aciers réels
     const N_Rd = res.N_Rd_c + (As_chosen * res.fyd_cm2); // kN
     
-    // Rendu des résultats
-    document.getElementById('res-N_Rd').textContent = N_Rd.toFixed(0);
-    document.getElementById('res-l0').textContent = res.l0.toFixed(2);
-    document.getElementById('res-N_cr').textContent = res.N_cr.toFixed(0);
-    document.getElementById('res-lambda').textContent = res.lambda.toFixed(1);
-    document.getElementById('res-As_min').textContent = res.As_min.toFixed(2);
-    document.getElementById('res-As_calc').textContent = res.As_req.toFixed(2);
+    // Rendu des résultats animés (Effet Wow)
+    animateValue('res-N_Rd', parseFloat(document.getElementById('res-N_Rd').textContent) || 0, N_Rd, 800, 0);
+    animateValue('res-l0', parseFloat(document.getElementById('res-l0').textContent) || 0, res.l0, 800, 2);
+    animateValue('res-N_cr', parseFloat(document.getElementById('res-N_cr').textContent) || 0, res.N_cr, 800, 0);
+    animateValue('res-lambda', parseFloat(document.getElementById('res-lambda').textContent) || 0, res.lambda, 800, 1);
+    animateValue('res-As_min', parseFloat(document.getElementById('res-As_min').textContent) || 0, res.As_min, 800, 2);
+    animateValue('res-As_calc', parseFloat(document.getElementById('res-As_calc').textContent) || 0, res.As_req, 800, 2);
 
-    document.getElementById('steelReq').textContent = res.As_req.toFixed(2);
-    document.getElementById('steelChosen').textContent = As_chosen.toFixed(2);
+    animateValue('steelReq', parseFloat(document.getElementById('steelReq').textContent) || 0, res.As_req, 800, 2);
+    animateValue('steelChosen', parseFloat(document.getElementById('steelChosen').textContent) || 0, As_chosen, 800, 2);
     document.getElementById('nbBarres').textContent = total_bars;
     document.getElementById('diamShow').textContent = AppState.selectedDiameter;
 
@@ -266,6 +278,7 @@ function renderUI() {
 function generateColumnSVG(a, b, nb_a, nb_b, diameter, enrobage, As_chosen) {
     const svgContainer = document.getElementById('svgContainer');
     const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
+    const theme = document.documentElement.getAttribute('data-theme');
 
     const svgSize = 800;
     const margin = 140;
@@ -280,7 +293,13 @@ function generateColumnSVG(a, b, nb_a, nb_b, diameter, enrobage, As_chosen) {
     const c_px = (enrobage / 100) * scale;
     const radius_bar = Math.max((diameter / 1000) * scale / 2, 6);
 
-    let svgContent = `<svg viewBox="0 0 ${svgSize} ${svgSize}" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">`;
+    let svgContent = `<svg viewBox="0 0 ${svgSize} ${svgSize}" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;" class="svg-animate">
+    <defs>
+        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="${theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}" stroke-width="1"/>
+        </pattern>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#grid)" />`;
 
     if (AppState.currentView === 'coupe') {
         // Section transversale du béton

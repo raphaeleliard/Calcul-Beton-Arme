@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Suite de Tests - EC2 Assistant</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .test-container { max-width: 900px; margin: 2rem auto; padding: 2rem; background: var(--surface-color); border-radius: 12px; box-shadow: var(--shadow); border: 1px solid var(--border-color); }
+        .test-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 2px solid var(--border-color); padding-bottom: 1rem; }
+        .test-suite { margin-bottom: 2rem; }
+        .test-case { padding: 10px; margin: 5px 0; border-radius: 6px; font-family: monospace; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); background: var(--inner-bg); }
+        .pass { border-left: 5px solid var(--success); }
+        .fail { border-left: 5px solid var(--danger); background: rgba(231, 76, 60, 0.1); }
+        .test-badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; }
+        .badge-pass { background: rgba(46, 204, 113, 0.2); color: var(--success); }
+        .badge-fail { background: rgba(231, 76, 60, 0.2); color: var(--danger); }
+        .summary { font-size: 1.2rem; font-weight: bold; padding: 1rem; border-radius: 8px; text-align: center; margin-bottom: 1rem; }
+        .summary.success { background: rgba(46, 204, 113, 0.2); color: var(--success); }
+        .summary.error { background: rgba(231, 76, 60, 0.2); color: var(--danger); }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">🏗️ EC2 Assistant - Tests</div>
+        <a href="index.html" class="back-link">⬅ Retour à l'accueil</a>
+    </header>
+    <main class="test-container">
+        <div class="test-header">
+            <h2>🧪 Harnais de Tests Mathématiques (TDD)</h2>
+            <div id="test-summary" class="summary">Exécution des tests en cours...</div>
+        </div>
+        
+        <div id="test-results"></div>
+    </main>
+
+    <!-- Fichiers du projet nécessaires aux tests -->
+    <script>
+        // Mocking the DOM elements required by poteau.js for initialization to prevent errors
+        document.addEventListener('DOMContentLoaded', () => {
+            const keys = ['L', 'a', 'b', 'beta', 'fck', 'fyk', 'N_Ed', 'M_Ed', 'enrobage', 'nb_a', 'nb_b'];
+            keys.forEach(k => {
+                const el = document.createElement('input');
+                el.id = k;
+                el.type = 'hidden';
+                document.body.appendChild(el);
+            });
+            const d1 = document.createElement('div'); d1.id = 'res-N_Rd'; document.body.appendChild(d1);
+            const d2 = document.createElement('div'); d2.id = 'res-l0'; document.body.appendChild(d2);
+            const d3 = document.createElement('div'); d3.id = 'res-N_cr'; document.body.appendChild(d3);
+            const d4 = document.createElement('div'); d4.id = 'res-lambda'; document.body.appendChild(d4);
+            const d5 = document.createElement('div'); d5.id = 'res-As_min'; document.body.appendChild(d5);
+            const d6 = document.createElement('div'); d6.id = 'res-As_calc'; document.body.appendChild(d6);
+            const d7 = document.createElement('div'); d7.id = 'steelReq'; document.body.appendChild(d7);
+            const d8 = document.createElement('div'); d8.id = 'steelChosen'; document.body.appendChild(d8);
+            const d9 = document.createElement('div'); d9.id = 'nbBarres'; document.body.appendChild(d9);
+            const d10 = document.createElement('div'); d10.id = 'diamShow'; document.body.appendChild(d10);
+            const d11 = document.createElement('div'); d11.id = 'recommendation'; document.body.appendChild(d11);
+            const d12 = document.createElement('div'); d12.id = 'spacing'; document.body.appendChild(d12);
+            const d13 = document.createElement('div'); d13.id = 'coverageShow'; document.body.appendChild(d13);
+            const d14 = document.createElement('div'); d14.id = 'statusBadge'; document.body.appendChild(d14);
+            const d15 = document.createElement('div'); d15.id = 'svgContainer'; document.body.appendChild(d15);
+        });
+    </script>
+    <script src="script.js"></script>
+    <script src="poteau.js"></script>
+    <script src="tests_poteau.js" defer></script>
+</body>
+</html>

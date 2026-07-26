@@ -19,12 +19,18 @@ const STEEL_SPECS = {
     32: { diametre: 32, section: 8.042 }
 };
 
+// Treillis soudés standard (panneaux ADETS).
+//   section   : section des fils PORTEURS (sens longitudinal), en cm²/ml
+//   section_t : section des fils de RÉPARTITION (sens transversal), en cm²/ml
+// Les deux sens ne sont pas identiques sur les panneaux ST25C à ST65C : le
+// distinguer est indispensable pour vérifier séparément les armatures
+// verticales (EC2 §9.6.2) et horizontales (EC2 §9.6.3) d'un voile.
 const TS_SPECS = {
-    'ST15C': { section: 1.42, diam: 5.2, esp: 150 },
-    'ST25C': { section: 2.57, diam: 7.0, esp: 150 },
-    'ST35C': { section: 3.85, diam: 7.0, esp: 100 },
-    'ST50C': { section: 5.03, diam: 8.0, esp: 100 },
-    'ST65C': { section: 6.36, diam: 9.0, esp: 100 }
+    'ST15C': { section: 1.42, section_t: 1.42, diam: 5.2, esp: 150 },
+    'ST25C': { section: 2.57, section_t: 1.28, diam: 7.0, esp: 150 },
+    'ST35C': { section: 3.85, section_t: 1.28, diam: 7.0, esp: 100 },
+    'ST50C': { section: 5.03, section_t: 2.57, diam: 8.0, esp: 100 },
+    'ST65C': { section: 6.36, section_t: 2.57, diam: 9.0, esp: 100 }
 };
 
 // ==========================================
@@ -107,6 +113,37 @@ function getThemeColors() {
         concreteStroke: theme === 'dark' ? '#636e72' : '#7f8c8d',
         legendBg: theme === 'dark' ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)'
     };
+}
+
+// ==========================================
+// DIAGNOSTICS RÉGLEMENTAIRES
+// ==========================================
+
+/**
+ * Affiche la liste des vérifications Eurocode 2 non satisfaites ou informatives.
+ * @param {string} containerId Identifiant du conteneur d'affichage
+ * @param {Array<{level:string, text:string}>} warnings Diagnostics renvoyés par ec2-core.js
+ */
+function renderWarnings(containerId, warnings) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (!warnings || warnings.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    const ordre = { error: 0, warn: 1, info: 2 };
+    const icones = { error: '⛔', warn: '⚠️', info: 'ℹ️' };
+    const tries = warnings.slice().sort((a, b) => (ordre[a.level] ?? 3) - (ordre[b.level] ?? 3));
+
+    container.innerHTML = tries.map(warning => {
+        const niveau = ordre[warning.level] !== undefined ? warning.level : 'info';
+        return `<div class="ec2-warning ec2-warning-${niveau}">
+                    <span class="ec2-warning-icon">${icones[niveau]}</span>
+                    <span>${warning.text}</span>
+                </div>`;
+    }).join('');
 }
 
 // ==========================================
@@ -254,6 +291,19 @@ function renderFormulaCard(title, ec2Ref, literal, values, result, explanationHT
     `;
 }
 
+/**
+ * Désignation normalisée d'une classe de béton (EC2 Tableau 3.1).
+ * f_ck,cube n'est pas égal à f_ck + 5 au-delà de C25/30 : la correspondance
+ * doit être lue dans le tableau, pas calculée.
+ */
+function getClasseBeton(fck) {
+    const CLASSES = {
+        12: 'C12/15', 16: 'C16/20', 20: 'C20/25', 25: 'C25/30', 30: 'C30/37',
+        35: 'C35/45', 40: 'C40/50', 45: 'C45/55', 50: 'C50/60'
+    };
+    return CLASSES[Math.round(fck)] || `f_ck = ${fck} MPa`;
+}
+
 function buildPage1(moduleType, moduleTitle, state) {
     const p = state.inputs;
     const res = state.results;
@@ -340,7 +390,8 @@ function buildPage1(moduleType, moduleTitle, state) {
     const fyk = parseFloat(p.fyk || 500);
     const fcd = res.fcd ? parseFloat(res.fcd) : (1.0 * fck / 1.5);
     const fyd = (fyk / 1.15);
-    
+    const classeBeton = getClasseBeton(fck);
+
     return `
         <div class="pdf-page" id="pdf-page-1">
             <div class="pdf-content">
@@ -371,7 +422,7 @@ function buildPage1(moduleType, moduleTitle, state) {
                         <tr><th>Matériau</th><th>Caractéristique</th><th>Symbole</th><th>Valeur</th><th>Formule / Clause EC2</th></tr>
                     </thead>
                     <tbody>
-                        <tr><td rowspan="4" style="vertical-align:middle; font-weight:bold;">BÉTON</td><td>Résistance à la compression</td><td>f<sub>ck</sub></td><td>${fck.toFixed(0)} MPa</td><td>Classe béton C${fck}/${fck+5} (EC2 Table 3.1)</td></tr>
+                        <tr><td rowspan="4" style="vertical-align:middle; font-weight:bold;">BÉTON</td><td>Résistance à la compression</td><td>f<sub>ck</sub></td><td>${fck.toFixed(0)} MPa</td><td>Classe béton ${classeBeton} (EC2 Table 3.1)</td></tr>
                         <tr><td>Résistance de calcul</td><td>f<sub>cd</sub></td><td>${fcd.toFixed(2)} MPa</td><td>f<sub>cd</sub> = &alpha;<sub>cc</sub> &times; f<sub>ck</sub> / &gamma;<sub>c</sub> (EC2 §3.1.6)</td></tr>
                         <tr><td>Coeff. partiel béton</td><td>&gamma;<sub>c</sub></td><td>1.50</td><td>Situation durable et transitoire (EC2 Table 2.1N)</td></tr>
                         <tr><td>Facteur d'échelle temporel</td><td>&alpha;<sub>cc</sub></td><td>1.00</td><td>Prise en compte des effets à long terme (EC2 §3.1.6)</td></tr>
@@ -511,8 +562,8 @@ function buildPage2(moduleType, moduleTitle, state) {
         calculationCards += renderFormulaCard(
             "5. Armatures transversales de répartition",
             "EC2 §9.3.1.1",
-            `A<sub>s,rep,req</sub> = max( 0.2 &times; A<sub>s,long,req</sub> &nbsp;;&nbsp; A<sub>s,min</sub> )`,
-            `A<sub>s,rep,req</sub> = max( 0.2 &times; ${res.As_req.toFixed(2)} &nbsp;;&nbsp; ${res.As_min.toFixed(2)} )`,
+            `A<sub>s,rep,req</sub> = 0.20 &times; A<sub>s,principal,fourni</sub>`,
+            `A<sub>s,rep,req</sub> = 0.20 &times; ${res.As_prov.toFixed(2)}`,
             `A<sub>s,rep,req</sub> = ${res.As_rep_req.toFixed(2)} cm²/ml`,
             `<li><strong>A<sub>s,rep,req</sub></strong> : armature de répartition perpendiculaire</li>`
         );
@@ -530,8 +581,8 @@ function buildPage2(moduleType, moduleTitle, state) {
         calculationCards += renderFormulaCard(
             "2. Excentricité géométrique et effets du 2nd ordre",
             "EC2 §5.2 / §5.8.8.2",
-            `e<sub>i</sub> = max(<span class="pdf-math-frac"><span class="pdf-math-num">l<sub>0</sub></span><span class="pdf-math-den">400</span></span>; <span class="pdf-math-frac"><span class="pdf-math-num">h<sub>max</sub></span><span class="pdf-math-den">30</span></span>; 0.02) &nbsp;,&nbsp; e<sub>2</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">1</span><span class="pdf-math-den">r</span></span> &times; <span class="pdf-math-frac"><span class="pdf-math-num">l<sub>0</sub><sup>2</sup></span><span class="pdf-math-den">10</span></span>`,
-            `e<sub>i</sub> = max(${res.l0.toFixed(2)}/400; ${res.max_dim.toFixed(2)}/30; 0.02) = ${res.e_i.toFixed(3)} m &nbsp;,&nbsp; e<sub>2</sub> = ${res.e_2.toFixed(4)} m`,
+            `e<sub>i</sub> = max( &theta;<sub>i</sub> &times; <span class="pdf-math-frac"><span class="pdf-math-num">l<sub>0</sub></span><span class="pdf-math-den">2</span></span> ; <span class="pdf-math-frac"><span class="pdf-math-num">h</span><span class="pdf-math-den">30</span></span> ; 0.02 ) &nbsp;,&nbsp; e<sub>2</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">1</span><span class="pdf-math-den">r</span></span> &times; <span class="pdf-math-frac"><span class="pdf-math-num">l<sub>0</sub><sup>2</sup></span><span class="pdf-math-den">10</span></span>`,
+            `e<sub>i</sub> = max(${res.e_i_geo.toFixed(4)} ; ${(res.h_dir/30).toFixed(4)} ; 0.02) = ${res.e_i.toFixed(3)} m &nbsp;,&nbsp; e<sub>2</sub> = ${res.e_2.toFixed(4)} m &nbsp;(&lambda; = ${res.lambda.toFixed(1)} ${res.secondOrdre ? '>' : '&le;'} &lambda;<sub>lim</sub> = ${res.lambda_lim.toFixed(1)})`,
             `e<sub>i</sub> = ${res.e_i.toFixed(3)} m &nbsp;|&nbsp; e<sub>2</sub> = ${res.e_2.toFixed(4)} m`,
             `<li><strong>e<sub>i</sub></strong> : excentricité due aux imperfections géométriques initiales</li>
              <li><strong>e<sub>2</sub></strong> : excentricité de second ordre (déformation sous charge)</li>`
@@ -560,8 +611,8 @@ function buildPage2(moduleType, moduleTitle, state) {
             "1. Contrainte de compression moyenne sous effort axial",
             "EC2 §9.6.2",
             `&sigma;<sub>cp</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">N<sub>Ed</sub></span><span class="pdf-math-den">A<sub>c</sub></span></span> &nbsp;&le; 0.20 &times; f<sub>cd</sub>`,
-            `&sigma;<sub>cp</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${p.N_Ed.toFixed(2)}</span><span class="pdf-math-den">${res.Ac.toFixed(0)}</span></span> = ${res.sigma_cp.toFixed(2)} MPa &nbsp;,&nbsp; Limite = 0.20 &times; ${res.fcd.toFixed(2)} = ${(0.20*res.fcd).toFixed(2)} MPa`,
-            `&sigma;<sub>cp</sub> = ${res.sigma_cp.toFixed(2)} MPa &nbsp;(Condition de non-écrasement respectée)`,
+            `&sigma;<sub>cp</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${p.N_Ed.toFixed(2)} &times; 10<sup>-3</sup></span><span class="pdf-math-den">1.00 &times; ${p.h.toFixed(2)}</span></span> = ${res.sigma_cp_calc.toFixed(2)} MPa &nbsp;,&nbsp; Plafond pour V<sub>Rd,c</sub> = 0.20 &times; ${res.fcd.toFixed(2)} = ${(0.20*res.fcd).toFixed(2)} MPa`,
+            `&sigma;<sub>cp</sub> = ${res.sigma_cp_calc.toFixed(2)} MPa &nbsp;|&nbsp; N<sub>Rd</sub> = ${res.N_Rd.toFixed(0)} kN/ml pour N<sub>Ed</sub> = ${p.N_Ed.toFixed(0)} kN/ml &nbsp;(${p.N_Ed <= res.N_Rd ? 'compression admissible' : 'COMPRESSION EXCESSIVE'})`,
             `<li><strong>A<sub>c</sub></strong> : section brute de béton du voile (${res.Ac.toFixed(0)} cm²/ml)</li>`
         );
 
@@ -599,8 +650,8 @@ function buildPage2(moduleType, moduleTitle, state) {
             "2. Condition de rigidité (Diffusion des contraintes)",
             "Méthode des Bielles (Rapports géométriques)",
             `d<sub>req</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">B - a</span><span class="pdf-math-den">4</span></span> &nbsp;,&nbsp; d = h - c - <span class="pdf-math-frac"><span class="pdf-math-num">&phi;<sub>long</sub></span><span class="pdf-math-den">2</span></span>`,
-            `d<sub>req</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${p.B.toFixed(2)} - ${p.a.toFixed(2)}</span><span class="pdf-math-den">4</span></span> = ${res.d_req.toFixed(3)} m &nbsp;,&nbsp; d = ${p.h.toFixed(2)} - ${(p.enrobage/100).toFixed(3)} - 0.006 = ${res.d.toFixed(3)} m`,
-            `d<sub>req</sub> = ${res.d_req.toFixed(3)} m &nbsp;|&nbsp; d<sub>réel</sub> = ${res.d.toFixed(3)} m &nbsp;(Footing Rigide : OK)`,
+            `d<sub>req</sub> = <span class="pdf-math-frac"><span class="pdf-math-num">${p.B.toFixed(2)} - ${p.a.toFixed(2)}</span><span class="pdf-math-den">4</span></span> = ${res.d_req.toFixed(3)} m &nbsp;,&nbsp; d = ${p.h.toFixed(2)} - ${(p.enrobage/100).toFixed(3)} - ${(state.diamMain/2000).toFixed(3)} = ${res.d.toFixed(3)} m`,
+            `d<sub>req</sub> = ${res.d_req.toFixed(3)} m &nbsp;|&nbsp; d<sub>réel</sub> = ${res.d.toFixed(3)} m &nbsp;(${res.d >= res.d_req ? 'Semelle rigide : modèle de bielles applicable' : 'Semelle SOUPLE : modèle de bielles hors domaine'})`,
             `<li><strong>d<sub>req</sub></strong> : hauteur utile minimale requise</li>
              <li><strong>a</strong> : épaisseur du voile s'appuyant sur la fondation (${p.a.toFixed(2)} m)</li>`
         );
@@ -761,8 +812,9 @@ function buildPage3(moduleType, moduleTitle, state, clonedSvg) {
         const isConform = isConformMain && isConformRep;
         
         providedTableRows = `
-            <tr><td>Armatures principales transversales (Traction)</td><td>${res.As_req.toFixed(2)} cm²/ml</td><td>HA${p.diamMain} esp. ${p.espMain} cm</td><td>${res.As_prov_main.toFixed(2)} cm²/ml</td><td style="color:${isConformMain ? '#27ae60':'#c0392b'}; font-weight:bold;">${isConformMain ? 'CONFORME':'NON CONFORME'}</td></tr>
-            <tr><td>Armatures longitudinales de répartition</td><td>${res.As_rep_req.toFixed(2)} cm²/ml</td><td>HA${p.diamRep} esp. ${p.espRep} cm</td><td>${res.As_prov_rep.toFixed(2)} cm²/ml</td><td style="color:${isConformRep ? '#27ae60':'#c0392b'}; font-weight:bold;">${isConformRep ? 'CONFORME':'NON CONFORME'}</td></tr>
+            <tr><td>Armatures principales transversales (Traction)</td><td>${res.As_req.toFixed(2)} cm²/ml</td><td>HA${state.diamMain} esp. ${p.espMain} cm</td><td>${res.As_prov_main.toFixed(2)} cm²/ml</td><td style="color:${isConformMain ? '#27ae60':'#c0392b'}; font-weight:bold;">${isConformMain ? 'CONFORME':'NON CONFORME'}</td></tr>
+            <tr><td>Armatures longitudinales de répartition</td><td>${res.As_rep_req.toFixed(2)} cm²/ml</td><td>HA${state.diamRep} esp. ${p.espRep} cm</td><td>${res.As_prov_rep.toFixed(2)} cm²/ml</td><td style="color:${isConformRep ? '#27ae60':'#c0392b'}; font-weight:bold;">${isConformRep ? 'CONFORME':'NON CONFORME'}</td></tr>
+            <tr><td>Effort tranchant à d du nu du voile</td><td>V<sub>Rd,c</sub> = ${res.V_Rdc.toFixed(1)} kN/ml</td><td>Béton seul (EC2 §6.2.2)</td><td>V<sub>Ed</sub> = ${res.V_Ed.toFixed(1)} kN/ml</td><td style="color:${res.V_Ed <= res.V_Rdc ? '#27ae60':'#c0392b'}; font-weight:bold;">${res.V_Ed <= res.V_Rdc ? 'CONFORME':'NON CONFORME'}</td></tr>
         `;
         
         complianceStatusHTML = `
@@ -784,8 +836,9 @@ function buildPage3(moduleType, moduleTitle, state, clonedSvg) {
         const isConform = isConformMain && isConformRep;
         
         providedTableRows = `
-            <tr><td>Nappe inférieure (Parallèle au côté A)</td><td>${res.As_A_req.toFixed(2)} cm²</td><td>${p.nb_A} HA${p.diamA}</td><td>${res.As_A_prov.toFixed(2)} cm²</td><td style="color:${isConformMain ? '#27ae60':'#c0392b'}; font-weight:bold;">${isConformMain ? 'CONFORME':'NON CONFORME'}</td></tr>
-            <tr><td>Nappe supérieure (Parallèle au côté B)</td><td>${res.As_B_req.toFixed(2)} cm²</td><td>${p.nb_B} HA${p.diamB}</td><td>${res.As_B_prov.toFixed(2)} cm²</td><td style="color:${isConformRep ? '#27ae60':'#c0392b'}; font-weight:bold;">${isConformRep ? 'CONFORME':'NON CONFORME'}</td></tr>
+            <tr><td>Nappe inférieure (Parallèle au côté A)</td><td>${res.As_A_req.toFixed(2)} cm²</td><td>${res.nb_A} HA${state.diamA}</td><td>${res.As_A_prov.toFixed(2)} cm²</td><td style="color:${isConformMain ? '#27ae60':'#c0392b'}; font-weight:bold;">${isConformMain ? 'CONFORME':'NON CONFORME'}</td></tr>
+            <tr><td>Nappe supérieure (Parallèle au côté B)</td><td>${res.As_B_req.toFixed(2)} cm²</td><td>${res.nb_B} HA${state.diamB}</td><td>${res.As_B_prov.toFixed(2)} cm²</td><td style="color:${isConformRep ? '#27ae60':'#c0392b'}; font-weight:bold;">${isConformRep ? 'CONFORME':'NON CONFORME'}</td></tr>
+            <tr><td>Poinçonnement (EC2 §6.4)</td><td>v<sub>Rd</sub> = ${res.poinconnement.v_Rd.toFixed(2)} MPa</td><td>Périmètre à ${(res.poinconnement.a_crit*100).toFixed(0)} cm du poteau</td><td>v<sub>Ed</sub> = ${res.poinconnement.v_Ed.toFixed(2)} MPa</td><td style="color:${res.poinconnement.ok ? '#27ae60':'#c0392b'}; font-weight:bold;">${res.poinconnement.ok ? 'CONFORME':'NON CONFORME'}</td></tr>
         `;
         
         complianceStatusHTML = `
@@ -963,9 +1016,12 @@ function animateValue(id, start, end, duration = 800, decimals = 2) {
 
 /**
  * Applique un effet de "Tilt 3D" (inclinaison magnétique) sur les éléments.
+ * Réservé aux cartes de modules de la page d'accueil (.module-card) : les
+ * pages de calcul (.panel, .result-card) contiennent des champs de saisie
+ * et des valeurs à lire, où l'inclinaison au survol gêne plus qu'elle n'aide.
  */
 function init3DTilt() {
-    const cards = document.querySelectorAll('.panel, .module-card, .result-card');
+    const cards = document.querySelectorAll('.module-card');
     cards.forEach(card => {
         card.classList.add('tilt-card');
         card.addEventListener('mousemove', (e) => {

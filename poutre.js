@@ -28,7 +28,9 @@ window.addEventListener('DOMContentLoaded', () => {
     // Restauration des paramètres sauvegardés localement
     inputs.forEach(id => {
         const savedVal = localStorage.getItem(`poutre_${id}`);
-        if (savedVal) {
+        // On ignore toute valeur stockée illisible : sinon un NaN se propagerait
+        // dans l'état applicatif et jusque dans la note de calcul PDF.
+        if (savedVal !== null && isFinite(parseFloat(savedVal))) {
             AppState.inputs[id] = parseFloat(savedVal);
             document.getElementById(id).value = savedVal;
         }
@@ -97,104 +99,13 @@ function getSVGTextColor() {
 
 /**
  * Calcul d'une poutre isostatique en flexion simple et cisaillement à l'ELU.
+ * La logique réglementaire est centralisée dans ec2-core.js (fonctions pures,
+ * couvertes par le harnais de tests tests-ec2.js).
  * @param {object} params Paramètres géométriques et mécaniques
  * @returns {object} Résultats de calcul et statuts de conformité
  */
 function calculateEC2(params) {
-    const { L, b, h, fck, G, Q, diameter, c_nom } = params;
-    
-    // Coefficients partiels de sécurité (situations durables et transitoires)
-    const gammaC = 1.5; 
-    const gammaS = 1.15; 
-    const fyk = 500; // Limite d'élasticité de l'acier (S500)
-    const alphaCc = 1.0; // Coefficient pour effets à long terme sur béton
-    
-    // Combinaisons d'actions à l'ELU (pEd = 1.35 * G + 1.5 * Q)
-    const p_elu = 1.35 * G + 1.5 * Q; 
-    const Med = (p_elu * Math.pow(L, 2)) / 8; // Moment maximal à mi-portée (kN.m)
-    const Ved = (p_elu * L) / 2; // Effort tranchant maximal sur appuis (kN)
-    
-    // Calcul de la hauteur utile réelle d
-    const phi_l = (diameter || 10) / 1000; // Diamètre des aciers principaux (m)
-    const phi_t = 0.008; // Diamètre estimé des cadres transversaux (m)
-    const d = h - c_nom - phi_t - (phi_l / 2);
-    
-    // Résistances de calcul des matériaux
-    const fcd = (alphaCc * fck) / gammaC; 
-    const fyd = fyk / gammaS; 
-    const fyd_cm2 = fyd / 10; // Limite élastique de calcul en kN/cm²
-    
-    // Condition de non-fragilité (section minimale d'armatures tendues EC2 §9.2.1.1)
-    const fctm = 0.30 * Math.pow(fck, 2/3); // Résistance moyenne à la traction du béton (MPa)
-    const As_min = Math.max(0.26 * (fctm / fyk) * b * d, 0.0013 * b * d) * 10000; // cm²
-
-    // Moment fléchissant ultime réduit
-    const Med_MN = Med / 1000; 
-    const mu_cu = Med_MN / (b * Math.pow(d, 2) * fcd);
-    
-    let alpha = 0;
-    let z = 0;
-    let As_req = 0;
-    let status = 'OK';
-    
-    // Limite théorique pour l'acier S500 à l'ELU (sans aciers comprimés)
-    const MU_CU_LIMIT = 0.371; 
-    
-    if (mu_cu > MU_CU_LIMIT) { 
-        status = 'ERROR_MUCU'; 
-        z = d * (1 - 0.4 * 0.45);
-    } else {
-        // Position de l'axe neutre relatif (alpha)
-        alpha = 1.25 * (1 - Math.sqrt(1 - 2 * mu_cu));
-        // Bras de levier du couple interne (z)
-        z = d * (1 - 0.4 * alpha);
-        // Section théorique requise d'armatures longitudinales tendues
-        As_req = (Med_MN / (z * fyd)) * 10000; 
-        As_req = Math.max(As_req, As_min); 
-    }
-    
-    // Résistance de l'effort tranchant (modèle des bielles d'inclinaison variable, EC2 §6.2.3)
-    const v1 = 0.6 * (1 - fck / 250); // Facteur de réduction de la résistance du béton fissuré
-    const Vrd_max_45 = (alphaCc * b * z * v1 * fcd) / 2 * 1000; // Résistance de la bielle pour theta = 45° (kN)
-
-    let cotTheta = 2.5; 
-    let Asw_s = 0;
-
-    if (Ved > Vrd_max_45 && status !== 'ERROR_MUCU') {
-        status = 'ERROR_SHEAR'; 
-    } else if (status !== 'ERROR_MUCU') {
-        // Recherche de la bielle la plus inclinée (cot theta minimal) pour optimiser les cadres
-        const contrainte_max = alphaCc * b * z * v1 * fcd * 1000;
-        const sin2theta = (2 * Ved) / contrainte_max;
-        
-        if (sin2theta < 1) {
-            const thetaRad = 0.5 * Math.asin(sin2theta);
-            const cotCalc = 1 / Math.tan(thetaRad);
-            cotTheta = Math.max(1.0, Math.min(2.5, cotCalc)); // cot theta bridé réglementairement entre 1 et 2.5
-        } else {
-            cotTheta = 1.0; 
-        }
-
-        // Calcul de la section d'aciers transversaux requise (Asw/s en cm²/m)
-        const Asw_s_calc = (Ved / (z * fyd_cm2 * cotTheta)); 
-        // Pourcentage minimal d'armatures transversales (EC2 §9.2.2)
-        const rho_w_min = (0.08 * Math.sqrt(fck)) / fyk; 
-        const Asw_s_min = rho_w_min * b * 10000; 
-        Asw_s = Math.max(Asw_s_calc, Asw_s_min);
-    }
-
-    return { 
-        Med, Ved, mu_cu, alpha, z, As_req, Asw_s, status, d, cotTheta,
-        fcd, fyd, fyd_cm2, fctm, p_elu, Vrd_max_45, As_min
-    };
-}
-
-function calculateRealSteelArrangement(As_req, diameter) {
-    const spec = STEEL_SPECS[diameter];
-    const sectionPerBar = spec.section;
-    const nbBarres = Math.ceil(As_req / sectionPerBar);
-    const actualSection = nbBarres * sectionPerBar;
-    return { nbBarres, actualSection, sectionPerBar };
+    return EC2.poutre(params);
 }
 
 // =========================================================
@@ -202,10 +113,14 @@ function calculateRealSteelArrangement(As_req, diameter) {
 // =========================================================
 
 function runController() {
+    const nbBarres = Math.max(1, AppState.nbBarres || 1);
     const calcParams = {
         ...AppState.inputs,
         diameter: AppState.selectedDiameter,
-        c_nom: AppState.c_enrobage
+        c_nom: AppState.c_enrobage,
+        nbBarres: nbBarres,
+        // Section réellement mise en oeuvre : nécessaire pour rho_l (V_Rd,c) et la flèche
+        As_prov: nbBarres * STEEL_SPECS[AppState.selectedDiameter].section
     };
     AppState.results = calculateEC2(calcParams);
     renderUI();
@@ -246,28 +161,24 @@ function renderUI() {
     document.getElementById('nbBarres').innerText = steelArrangement.nbBarres;
     document.getElementById('diamShow').innerText = AppState.selectedDiameter;
 
-    // Calcul de l'espacement net des aciers tendus
-    let spacing_cm = 0;
+    // Espacement libre entre aciers tendus (EC2 §8.2) : recalculé pour le nombre
+    // de barres réellement choisi par l'utilisateur, en mm puis affiché en cm.
     const diam_cm = AppState.selectedDiameter / 10;
-    const diam_cadre_cm = 0.8; 
+    const espLibre_mm = calculerEspacementLibre(res.inputs.b, steelArrangement.nbBarres);
+    const espLibreMin_mm = res.espLibreMin;
     if (steelArrangement.nbBarres > 1) {
-        const espace_dispo_cm = (p.b * 100) - (2 * AppState.c_enrobage * 100) - (2 * diam_cadre_cm);
-        const encombrement_aciers = steelArrangement.nbBarres * diam_cm;
-        spacing_cm = (espace_dispo_cm - encombrement_aciers) / (steelArrangement.nbBarres - 1);
-        document.getElementById('spacing').innerText = spacing_cm.toFixed(1);
+        document.getElementById('spacing').innerText = (espLibre_mm / 10).toFixed(1);
     } else {
         document.getElementById('spacing').innerText = 'N/A';
     }
     document.getElementById('coverageShow').innerText = (AppState.c_enrobage * 100).toFixed(1);
-    
-    // Section d'aciers maximale (4% de la section droite du béton, hors recouvrement)
-    const As_max = 0.04 * p.b * p.h * 10000; 
 
     // Vérification des différents critères de conformité
     const badge = document.getElementById('statusBadge');
     if (res.status === 'ERROR_MUCU') {
         badge.className = "status-badge status-red";
         badge.innerText = "Section béton insuffisante !";
+        document.getElementById('res-Asw').innerText = "—";
     } else if (res.status === 'ERROR_SHEAR') {
         badge.className = "status-badge status-red";
         badge.innerText = "Risque Rupture Bielles (Cisaillement)";
@@ -275,29 +186,66 @@ function renderUI() {
     } else if (steelArrangement.actualSection < res.As_req) {
         badge.className = "status-badge status-red";
         badge.innerText = "Ferraillage Insuffisant";
-    } else if (steelArrangement.actualSection > As_max) {
+    } else if (steelArrangement.actualSection > res.As_max) {
         badge.className = "status-badge status-red";
         badge.innerText = "Ferraillage Trop Important (As > 4%)";
-    } else if (steelArrangement.nbBarres > 1 && spacing_cm < Math.max(2.5, diam_cm)) {
+    } else if (steelArrangement.nbBarres > 1 && espLibre_mm < espLibreMin_mm) {
         badge.className = "status-badge status-red";
-        badge.innerText = "Aciers trop serrés (Bétonnage difficile)";
+        badge.innerText = "Aciers trop serrés (EC2 §8.2)";
+    } else if (!res.fleche.ok) {
+        badge.className = "status-badge status-orange";
+        badge.innerText = "Flèche à vérifier (L/d > limite EC2 §7.4.2)";
     } else {
         badge.className = "status-badge status-green";
         badge.innerText = "Section Conforme";
     }
-    
-    if (res.status !== 'ERROR_SHEAR') {
+
+    if (res.status !== 'ERROR_SHEAR' && res.status !== 'ERROR_MUCU') {
         document.getElementById('res-Asw').innerText = res.Asw_s.toFixed(2);
     }
 
-    drawPoutreSVG(p.b, p.h, As_to_draw, steelArrangement);
+    // Diagnostics réglementaires détaillés
+    const diagnostics = res.warnings.slice();
+    if (steelArrangement.nbBarres > 1 && espLibre_mm < espLibreMin_mm) {
+        diagnostics.unshift({
+            level: 'error',
+            text: "Espacement libre entre barres de " + (espLibre_mm / 10).toFixed(1) +
+                  " cm < minimum EC2 §8.2 de " + (espLibreMin_mm / 10).toFixed(1) +
+                  " cm : disposer les aciers sur deux lits ou élargir la poutre."
+        });
+    }
+    if (res.cisaillementMinimal) {
+        diagnostics.push({
+            level: 'info',
+            text: "Cadres HA8 à 2 brins : espacement pratique ≈ " + res.s_cadre_prop.toFixed(0) +
+                  " cm (maximum réglementaire 0.75·d = " + res.s_max_cadres.toFixed(0) + " cm)."
+        });
+    }
+    renderWarnings('ec2-warnings', diagnostics);
+
+    // On dessine avec les dimensions BORNÉES par ec2-core.js : une saisie vide ou
+    // nulle produirait sinon une échelle infinie et un SVG rempli de NaN.
+    drawPoutreSVG(res.inputs.b, res.inputs.h, As_to_draw, steelArrangement, espLibre_mm / 10);
+}
+
+/**
+ * Espacement libre (net) entre barres d'un même lit, en mm.
+ * Prend en compte l'enrobage et l'encombrement des cadres transversaux.
+ */
+function calculerEspacementLibre(b, nbBarres) {
+    const phi_l_mm = AppState.selectedDiameter;
+    const dispo_mm = (b - 2 * AppState.c_enrobage - 2 * 0.008) * 1000;
+    if (nbBarres > 1) {
+        return (dispo_mm - nbBarres * phi_l_mm) / (nbBarres - 1);
+    }
+    return dispo_mm - phi_l_mm;
 }
 
 // =========================================================
 // DESSIN DU PLAN DE FERRAILLAGE (SVG)
 // =========================================================
 
-function drawPoutreSVG(b, h, As, steelArrangement) {
+function drawPoutreSVG(b, h, As, steelArrangement, espLibre_cm) {
     const container = document.getElementById('svgContainer');
     const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
 
@@ -371,9 +319,9 @@ function drawPoutreSVG(b, h, As, steelArrangement) {
         svgContent += drawDimensionLine(x0+w_px, y0, x0+w_px, y0+h_px, `h = ${(h*100).toFixed(0)}`, "cm", -70, textColor, textColor);
         svgContent += drawDimensionLine(x0, y0+h_px, x0+c, y0+h_px, `c=${(AppState.c_enrobage*100).toFixed(1)}`, "", 15, textColor, textColor);
 
-        // Cotations des espacements nets entre barres
+        // Cotations des espacements libres entre barres (même valeur que le panneau de résultats)
         if (As > 0 && steelArrangement.nbBarres > 1) {
-            const spacing_cm = (b*100 - 2*AppState.c_enrobage*100) / (steelArrangement.nbBarres - 1);
+            const spacing_cm = espLibre_cm;
             const espaceBarres = (w_px - 2*c) / (steelArrangement.nbBarres - 1);
             for(let i=0; i<steelArrangement.nbBarres-1; i++) {
                 const startX = x0 + c + i*espaceBarres;
@@ -406,12 +354,15 @@ function drawPoutreSVG(b, h, As, steelArrangement) {
         // Barre de montage supérieure
         svgContent += `<line x1="${x0L+c_pxL}" y1="${y_haut}" x2="${x0L+wL_px-c_pxL}" y2="${y_haut}" stroke="#7f8c8d" stroke-width="6" stroke-linecap="round"/>`;
 
-        // Répartition des cadres transversaux
-        let Asw_s = AppState.results ? AppState.results.Asw_s : 1.0;
+        // Répartition des cadres transversaux (cadre HA8 à 2 brins ≈ 1.006 cm²),
+        // bornée par l'espacement maximal réglementaire s_l,max = 0.75 d (EC2 §9.2.2(6))
+        const resPoutre = AppState.results;
+        let Asw_s = resPoutre ? resPoutre.Asw_s : 1.0;
         if (isNaN(Asw_s) || Asw_s <= 0) Asw_s = 1.0;
-        let s_cadre_cm = Math.min(Math.max((1.00 / Asw_s) * 100, 5), 30);
+        const s_max_cm = resPoutre && isFinite(resPoutre.s_max_cadres) ? resPoutre.s_max_cadres : 30;
+        let s_cadre_cm = Math.min(Math.max((1.006 / Asw_s) * 100, 5), s_max_cm);
         const sL_px = (s_cadre_cm / 100) * scaleL;
-        const nb_cadres = Math.floor(wL_px / sL_px);
+        const nb_cadres = Math.min(Math.floor(wL_px / sL_px), 200);
 
         for (let i = 1; i < nb_cadres; i++) {
             const x_pos = x0L + i * sL_px;

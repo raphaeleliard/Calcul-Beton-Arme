@@ -130,6 +130,13 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
                     <div>cm²</div>
                     <div class="clickable-hint">🔍 EC2 Bielles (Nappe Sup)</div>
                 </div>
+
+                <div class="result-card" onclick="showFormula('poinconnement')">
+                    <div>Poinçonnement (taux)</div>
+                    <div class="result-value" id="res-poinc">0</div>
+                    <div>% de v<sub>Rd,c</sub></div>
+                    <div class="clickable-hint">🔍 EC2 §6.4</div>
+                </div>
             </div>
         </main>
 
@@ -137,6 +144,7 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
         <aside class="panel">
             <h2>3. Plan de Ferraillage</h2>
             <div id="statusBadge" class="status-badge status-green">Semelle Conforme</div>
+            <div id="ec2-warnings" class="ec2-warnings"></div>
             
             <div class="view-toggles">
                 <button id="btnViewCoupe" class="view-btn active" onclick="setView('coupe')">👁️ Vue en Coupe (A)</button>
@@ -180,6 +188,7 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
             </div>
         </aside>
     </div>
+    <script src="ec2-core.js"></script>
     <script src="semelle-isolee.js"></script>
     <script src="script.js"></script>
 </body>

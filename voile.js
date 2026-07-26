@@ -26,7 +26,9 @@ window.addEventListener('DOMContentLoaded', () => {
     // Restauration de l'état sauvegardé localement
     voileInputs.forEach(id => {
         const savedVal = localStorage.getItem(`voile_${id}`);
-        if (savedVal !== null) {
+        // On ignore toute valeur stockée illisible : sinon un NaN se propagerait
+        // dans l'état applicatif et jusque dans la note de calcul PDF.
+        if (savedVal !== null && isFinite(parseFloat(savedVal))) {
             AppState.inputs[id] = parseFloat(savedVal);
             const el = document.getElementById(id);
             if (el) el.value = savedVal;
@@ -91,62 +93,19 @@ function getSVGTextColor() {
 
 /**
  * Vérification réglementaire d'une bande de voile sous charge axiale et transversale.
+ * La logique réglementaire est centralisée dans ec2-core.js (fonctions pures,
+ * couvertes par le harnais de tests tests-ec2.js).
  * @param {object} params Paramètres du voile
  * @returns {object} Résultats de calcul
  */
 function calculateEurocode2(params) {
-    const { h, fck, N_Ed, V_Ed, enrobage, nappesCount, selectedTS } = params;
-    const c_nom = enrobage / 100; // Enrobage nominal (m)
-    
-    const b = 1.0; // Analyse sur une bande unitaire de 1 mètre
-    const Ac = b * h; // Section de béton (m²)
-    const fcd = fck / 1.5; // Résistance de calcul du béton (MPa)
-
-    // Calcul de la hauteur utile d
-    const phi_ts = TS_SPECS[selectedTS].diam / 1000; // Diamètre des barres du treillis (m)
-    let d = h - c_nom - (phi_ts / 2);
-    if (nappesCount === 1) {
-        d = h / 2; // Si 1 nappe centrale, par symétrie
-    }
-
-    // Sections minimales réglementaires des voiles (EC2 §9.6.2 & §9.6.3)
-    const As_vmin = 0.002 * Ac * 10000; // Armatures verticales minimales (cm²/ml)
-    // L'armature horizontale minimale doit représenter au moins 25% de la verticale
-    const As_hmin = Math.max(0.25 * As_vmin, 0.001 * Ac * 10000); // cm²/ml
-    
-    // Le treillis soudé standard isométrique devant reprendre ces deux sollicitations :
-    const As_req = Math.max(As_vmin, As_hmin);
-
-    // Armatures fournies réelles (section unitaire du TS * nombre de nappes)
-    const tsData = TS_SPECS[selectedTS];
-    const As_prov = tsData.section * nappesCount;
-
-    // Résistance à l'effort tranchant du béton non armé transversalement (EC2 §6.2.2)
-    const sigma_cp_calc = N_Ed / (Ac * 1000); // Contrainte moyenne de compression (MPa)
-    const sigma_cp = Math.min(sigma_cp_calc, 0.2 * fcd); // Limitée à 0.2 * fcd
-    
-    const k = Math.min(1 + Math.sqrt(200 / (d * 1000)), 2.0); // Facteur d'échelle (max 2.0)
-    const v_min = 0.035 * Math.pow(k, 1.5) * Math.sqrt(fck); // MPa
-    const k1 = 0.15; // Coefficient national français
-    const rho_l = Math.min(As_prov / (b * d * 10000), 0.02);
-    const C_Rdc = 0.18 / 1.5;
-    
-    // Calcul de la résistance théorique et minimale
-    const V_Rdc_calc = (C_Rdc * k * Math.pow(100 * rho_l * fck, 1/3) + k1 * sigma_cp) * b * d * 1000;
-    const V_Rdc_min = (v_min + k1 * sigma_cp) * b * d * 1000;
-    const V_Rdc = Math.max(V_Rdc_calc, V_Rdc_min); // Résistance finale (kN/ml)
-
-    let status = 'OK';
-    if (V_Ed > V_Rdc) {
-        status = 'ERROR_SHEAR';
-    } else if (As_prov < As_req) {
-        status = 'ERROR_STEEL';
-    }
-
-    return {
-        sigma_cp, d, V_Rdc, V_Rdc_calc, V_Rdc_min, v_min, As_vmin, As_hmin, As_req, As_prov, rho_l,
-        status, k, fcd, Ac
-    };
+    const ts = TS_SPECS[params.selectedTS];
+    return EC2.voile({
+        ...params,
+        tsDiam: ts.diam,
+        tsSection: ts.section,     // cm²/ml dans le sens porteur (fils longitudinaux)
+        tsSectionT: ts.section_t   // cm²/ml dans le sens transversal (fils de répartition)
+    });
 }
 
 // =========================================================
@@ -179,16 +138,24 @@ function renderUI() {
 
     // Validation de conformité et badge de statut
     const badge = document.getElementById('statusBadge');
-    if (res.status === 'ERROR_SHEAR') {
+    if (res.status === 'ERROR_AXIAL') {
+        badge.className = "status-badge status-red";
+        badge.innerText = "Compression excessive (N_Ed > N_Rd)";
+    } else if (res.status === 'ERROR_SHEAR') {
         badge.className = "status-badge status-red";
         badge.innerText = "Épaisseur insuffisante (Cisaillement > V_Rdc)";
     } else if (res.status === 'ERROR_STEEL') {
         badge.className = "status-badge status-red";
-        badge.innerText = "Ferraillage Insuffisant";
+        badge.innerText = "Aciers verticaux insuffisants (EC2 §9.6.2)";
+    } else if (res.status === 'ERROR_STEEL_H') {
+        badge.className = "status-badge status-red";
+        badge.innerText = "Aciers horizontaux insuffisants (EC2 §9.6.3)";
     } else {
         badge.className = "status-badge status-green";
         badge.innerText = "Voile Conforme";
     }
+
+    renderWarnings('ec2-warnings', res.warnings);
 
     drawSVG();
 }
@@ -201,7 +168,9 @@ function drawSVG() {
     const container = document.getElementById('svgContainer');
     const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
     
-    const p = AppState.inputs;
+    // Entrées bornées par ec2-core.js : une saisie vide ou nulle donnerait une
+    // échelle infinie, un SVG rempli de NaN et des boucles de dessin sans fin.
+    const p = AppState.results.inputs;
     const res = AppState.results;
     const tsData = TS_SPECS[AppState.selectedTS];
     
@@ -236,7 +205,7 @@ function drawSVG() {
         svgContent += `<line x1="${x0}" y1="${y0+h_px}" x2="${x0+w_px}" y2="${y0+h_px}" stroke="${concreteStroke}" stroke-width="3"/>`;
 
         const esp_ts = (tsData.esp / 1000) * scale;
-        const nb_points = Math.floor(w_px / esp_ts);
+        const nb_points = Math.min(Math.floor(w_px / esp_ts), 200);
         const offset_x = (w_px - (nb_points * esp_ts)) / 2;
         
         // Coordonnées des nappes de treillis soudés
@@ -289,7 +258,7 @@ function drawSVG() {
         svgContent += `<rect x="${xF}" y="${yF}" width="${wF_px}" height="${hF_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
         
         const esp_ts_F = (tsData.esp / 1000) * scaleF;
-        const nb_lines = Math.floor(wF_px / esp_ts_F);
+        const nb_lines = Math.min(Math.floor(wF_px / esp_ts_F), 200);
         
         // Fils verticaux et horizontaux du treillis
         for(let i=1; i<nb_lines; i++) {

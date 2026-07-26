@@ -38,7 +38,9 @@ window.addEventListener('DOMContentLoaded', () => {
     // Restauration des paramètres saisis par l'utilisateur
     semelleInputs.forEach(id => {
         const savedVal = localStorage.getItem(`sfilante_${id}`);
-        if (savedVal !== null) {
+        // On ignore toute valeur stockée illisible : sinon un NaN se propagerait
+        // dans l'état applicatif et jusque dans la note de calcul PDF.
+        if (savedVal !== null && isFinite(parseFloat(savedVal))) {
             AppState.inputs[id] = parseFloat(savedVal);
             const el = document.getElementById(id);
             if (el) el.value = savedVal;
@@ -118,78 +120,17 @@ function getSVGTextColor() {
 
 /**
  * Calcul et vérification de la semelle filante sur une bande unitaire de 1.0m.
+ * La logique réglementaire est centralisée dans ec2-core.js (fonctions pures,
+ * couvertes par le harnais de tests tests-ec2.js).
  * @param {object} params Paramètres géométriques et mécaniques
  * @returns {object} Variables d'état calculées et états de conformité
  */
 function calculateEurocode2(params) {
-    const { a, B, h, fck, q_adm, N_Ed, N_Eq, enrobage, espMain, espRep, diamMain, diamRep } = params;
-
-    const c_nom = enrobage / 100; // m
-    const fyd = 500 / 1.15;       // Limite d'élasticité de calcul de l'acier (MPa)
-    const fctm = 0.30 * Math.pow(fck, 2/3); // Résistance moyenne à la traction du béton (MPa)
-
-    // A. Évaluation de la contrainte effective sur le sol (ELS)
-    // On ajoute le poids propre de la semelle (béton armé estimé à 25 kN/m³)
-    const poidsPropre = B * 1.0 * h * 25; // kN/ml
-    const sigma_sol = (N_Eq + poidsPropre) / (B * 1.0 * 1000); // MPa
-    
-    let status = 'OK';
-    if (sigma_sol > q_adm) {
-        status = 'ERROR_BEARING';
-    }
-
-    // B. Condition de rigidité géométrique (Modèle des bielles)
-    // Pour justifier l'hypothèse de bielles rectilignes inclinées vers la base,
-    // la semelle doit respecter la condition de rigidité : d >= (B - a) / 4
-    const d_req = (B - a) / 4;
-    const phi_l = diamMain / 1000; // m
-    const d = h - c_nom - (phi_l / 2); // Hauteur utile de la nappe inférieure (m)
-    
-    if (d < d_req && status === 'OK') {
-        status = 'WARNING_FLEXIBLE'; // Semelle flexible (nécessite calcul en flexion pure ou augmentation de h)
-    }
-
-    // C. Section d'acier transversale minimale par la méthode des bielles (ELU)
-    let As_req_calc = 0;
-    if (B > a) {
-        // Effort de traction horizontal repris par les armatures inférieures :
-        // Fs_Ed = N_Ed * (B - a) / (8 * d)
-        // As = Fs_Ed / fyd
-        As_req_calc = (N_Ed * (B - a)) / (8 * d * fyd) * 10; // cm²/ml
-    }
-    
-    // Condition de non-fragilité minimale (Eurocode 2 §9.2.1.1)
-    const As_min = Math.max(0.26 * (fctm / 500) * 1.0 * d, 0.0013 * 1.0 * d) * 10000; // cm²/ml
-    const As_req = Math.max(As_req_calc, As_min);
-
-    // Section d'acier longitudinale de répartition minimale
-    // L'Eurocode 2 et les règles de l'art imposent As_rep >= 20% As_req
-    const As_rep_req = 0.20 * As_req;
-
-    // Calcul des sections réelles fournies (prov) sur une bande de 1ml
-    const secMain = STEEL_SPECS[diamMain].section;
-    const As_prov_main = (100 / espMain) * secMain; // cm²/ml
-
-    const secRep = STEEL_SPECS[diamRep].section;
-    const As_prov_rep = (100 / espRep) * secRep;   // cm²/ml
-    
-    if ((As_prov_main < As_req || As_prov_rep < As_rep_req) && status !== 'ERROR_BEARING') {
-        status = 'ERROR_STEEL';
-    }
-
-    return {
-        sigma_sol,
-        d_req,
-        d,
-        As_req_calc,
-        As_req,
-        As_rep_req,
-        As_min,
-        As_prov_main,
-        As_prov_rep,
-        status,
-        fyd
-    };
+    return EC2.semelleFilante({
+        ...params,
+        sectionMain: STEEL_SPECS[params.diamMain].section,
+        sectionRep: STEEL_SPECS[params.diamRep].section
+    });
 }
 
 // =========================================================================
@@ -236,6 +177,9 @@ function renderUI() {
     } else if (res.status === 'WARNING_FLEXIBLE') {
         badge.className = 'status-badge status-orange';
         badge.innerText = 'Semelle Flexible (d < d_req, bielles hors limites)';
+    } else if (res.status === 'ERROR_SHEAR') {
+        badge.className = 'status-badge status-red';
+        badge.innerText = 'Effort tranchant excessif (V_Ed > V_Rd,c)';
     } else if (res.status === 'ERROR_STEEL') {
         badge.className = 'status-badge status-red';
         badge.innerText = 'Ferraillage Insuffisant';
@@ -243,6 +187,8 @@ function renderUI() {
         badge.className = 'status-badge status-green';
         badge.innerText = 'Semelle Conforme';
     }
+
+    renderWarnings('ec2-warnings', res.warnings);
 
     drawSVG();
 }
@@ -256,7 +202,9 @@ function drawSVG() {
     const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
     const theme = document.documentElement.getAttribute('data-theme');
     
-    const p = AppState.inputs;
+    // Entrées bornées par ec2-core.js : une saisie vide ou nulle donnerait une
+    // échelle infinie, un SVG rempli de NaN et des boucles de dessin sans fin.
+    const p = AppState.results.inputs;
     const res = AppState.results;
     
     const svgSize = 800;

@@ -27,7 +27,9 @@ window.addEventListener('DOMContentLoaded', () => {
     // Restauration de l'état sauvegardé localement
     dalleInputs.forEach(id => {
         const savedVal = localStorage.getItem(`dalle_${id}`);
-        if (savedVal !== null) {
+        // On ignore toute valeur stockée illisible : sinon un NaN se propagerait
+        // dans l'état applicatif et jusque dans la note de calcul PDF.
+        if (savedVal !== null && isFinite(parseFloat(savedVal))) {
             AppState.inputs[id] = parseFloat(savedVal);
             const el = document.getElementById(id);
             if (el) el.value = savedVal;
@@ -108,88 +110,17 @@ function getSVGTextColor() {
 
 /**
  * Calcul réglementaire de la dalle pleine selon l'Eurocode 2.
+ * La logique réglementaire est centralisée dans ec2-core.js (fonctions pures,
+ * couvertes par le harnais de tests tests-ec2.js).
  * @param {object} params Paramètres géométriques et de charges
  * @returns {object} Résultats détaillés
  */
 function calculateEurocode2(params) {
-    const { L, h, G, Q, fck, enrobage, espacementInput, espRepInput, diamMain, diamRep } = params;
-    
-    const b = 1.0; // Largeur de bande unitaire (1 mètre)
-    const c_nom = enrobage / 100; // Enrobage nominal (m)
-    const espacement = espacementInput; // Espacement de l'armature principale (cm)
-    const esp_rep = espRepInput; // Espacement de l'armature de répartition (cm)
-
-    // Propriétés de calcul des matériaux
-    const gammaC = 1.5;
-    const gammaS = 1.15;
-    const fcd = fck / gammaC;
-    const fyk = 500;
-    const fyd = fyk / gammaS;
-    const fctm = 0.30 * Math.pow(fck, 2/3); // Résistance moyenne à la traction du béton
-
-    // Hauteur utile réelle d
-    const d = h - c_nom - (diamMain / 1000 / 2);
-
-    // Combinaison d'actions et calcul des sollicitations RDM (isostatique)
-    const p_elu = 1.35 * G + 1.5 * Q; // kN/ml
-    const Med = (p_elu * Math.pow(L, 2)) / 8; // Moment ultime à mi-portée (kN.m/ml)
-    const Ved = (p_elu * L) / 2; // Effort tranchant ultime sur appuis (kN/ml)
-
-    // Calcul en flexion simple
-    const Med_MN = Med / 1000;
-    const mu_cu = Med_MN / (b * Math.pow(d, 2) * fcd);
-    
-    let As_req = 0;
-    let status = 'OK';
-    let alpha = 0;
-    let z = 0;
-
-    // Condition de non-fragilité (section minimale de flexion, EC2 §9.2.1.1)
-    const As_min = Math.max(0.26 * (fctm / fyk) * b * d, 0.0013 * b * d) * 10000; // cm²/ml
-
-    if (mu_cu > 0.371) {
-        status = 'ERROR_MUCU'; 
-    } else {
-        alpha = 1.25 * (1 - Math.sqrt(1 - 2 * mu_cu));
-        z = d * (1 - 0.4 * alpha);
-        As_req = (Med_MN / (z * fyd)) * 10000; // Section théorique requise (cm²/ml)
-        As_req = Math.max(As_req, As_min);
-    }
-
-    // Section d'aciers principaux fournie
-    const sectionPerBarMain = STEEL_SPECS[diamMain].section;
-    const nbBarres_per_m = 100 / espacement;
-    const As_prov = sectionPerBarMain * nbBarres_per_m;
-
-    // Armatures de répartition transversales (EC2 §9.3.1.1)
-    const As_rep_req = Math.max(0.20 * As_prov, As_min);
-    const sectionPerBarRep = STEEL_SPECS[diamRep].section;
-    const As_prov_rep = sectionPerBarRep * (100 / esp_rep);
-
-    // Effort tranchant limite admissible par le béton seul (sans armatures de cisaillement, EC2 §6.2.2)
-    const k = Math.min(1 + Math.sqrt(200 / (d * 1000)), 2.0); // Facteur d'échelle (max 2.0)
-    const rho_l = Math.min(As_prov / (b * d * 10000), 0.02); // Taux d'armatures longitudinales (max 2%)
-    const v_min = 0.035 * Math.pow(k, 1.5) * Math.sqrt(fck);
-    const C_Rdc = 0.18 / gammaC;
-    const v_Rdc = C_Rdc * k * Math.pow(100 * rho_l * fck, 1/3);
-    const V_Rdc = Math.max(v_Rdc, v_min) * b * d * 1000; // Résistance en kN/ml
-
-    if (Ved > V_Rdc && status !== 'ERROR_MUCU') {
-        status = 'ERROR_SHEAR';
-    }
-
-    // Espacements maximaux admissibles (EC2 §9.3.1.1)
-    const s_max_main = Math.min(3 * (h * 100), 40); 
-    const s_max_rep = Math.min(3.5 * (h * 100), 45); 
-    
-    // Espacement net minimal pour le bétonnage
-    const esp_net = espacement - (diamMain / 10);
-
-    return {
-        Med, Ved, As_req, As_min, As_prov, As_prov_rep, As_rep_req,
-        V_Rdc, status, s_max_main, s_max_rep, esp_net, d, p_elu, fctm, fyd,
-        fcd, mu_cu, alpha, z, fyd_cm2: fyd / 10, k, rho_l
-    };
+    return EC2.dalle({
+        ...params,
+        sectionMain: STEEL_SPECS[params.diamMain].section,
+        sectionRep: STEEL_SPECS[params.diamRep].section
+    });
 }
 
 // =========================================================
@@ -230,6 +161,7 @@ function renderUI() {
 
     // Validation globale et mise à jour du badge de conformité
     const badge = document.getElementById('statusBadge');
+    const espLibreMin_cm = EC2.espacementLibreMin(AppState.diamMain, 20) / 10;
     if (res.status === 'ERROR_MUCU') {
         badge.className = "status-badge status-red";
         badge.innerText = "Épaisseur h insuffisante (Compression)";
@@ -242,16 +174,43 @@ function renderUI() {
     } else if (res.As_prov_rep < res.As_rep_req) {
         badge.className = "status-badge status-red";
         badge.innerText = "Acier Répartition Insuffisant";
-    } else if (res.esp_net < Math.max(2.5, AppState.diamMain / 10)) {
+    } else if (res.esp_net < espLibreMin_cm) {
         badge.className = "status-badge status-red";
-        badge.innerText = "Aciers trop rapprochés (Bétonnage)";
+        badge.innerText = "Aciers trop rapprochés (EC2 §8.2)";
     } else if (p.espacementInput > res.s_max_main || p.espRepInput > res.s_max_rep) {
         badge.className = "status-badge status-orange";
         badge.innerText = `Espacement > Limite EC2`;
+    } else if (!res.fleche.ok) {
+        badge.className = "status-badge status-orange";
+        badge.innerText = "Flèche à vérifier (L/d > limite EC2 §7.4.2)";
     } else {
         badge.className = "status-badge status-green";
         badge.innerText = "Dalle Conforme";
     }
+
+    const diagnostics = res.warnings.slice();
+    if (res.esp_net < espLibreMin_cm) {
+        diagnostics.unshift({
+            level: 'error',
+            text: "Espacement libre de " + res.esp_net.toFixed(1) + " cm < minimum EC2 §8.2 de " +
+                  espLibreMin_cm.toFixed(1) + " cm : augmenter l'espacement ou réduire le diamètre."
+        });
+    }
+    if (p.espacementInput > res.s_max_main) {
+        diagnostics.unshift({
+            level: 'warn',
+            text: "Espacement des aciers principaux (" + p.espacementInput + " cm) > s_max = min(3h ; 40 cm) = " +
+                  res.s_max_main.toFixed(0) + " cm (EC2 §9.3.1.1(3))."
+        });
+    }
+    if (p.espRepInput > res.s_max_rep) {
+        diagnostics.unshift({
+            level: 'warn',
+            text: "Espacement des aciers de répartition (" + p.espRepInput + " cm) > s_max = min(3.5h ; 45 cm) = " +
+                  res.s_max_rep.toFixed(0) + " cm (EC2 §9.3.1.1(3))."
+        });
+    }
+    renderWarnings('ec2-warnings', diagnostics);
 
     drawSVG();
 }
@@ -264,7 +223,9 @@ function drawSVG() {
     const container = document.getElementById('svgContainer');
     const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
     
-    const p = AppState.inputs;
+    // Entrées bornées par ec2-core.js : une saisie vide ou nulle donnerait une
+    // échelle infinie, un SVG rempli de NaN et des boucles de dessin sans fin.
+    const p = AppState.results.inputs;
     const res = AppState.results;
 
     const h = p.h;
@@ -302,7 +263,7 @@ function drawSVG() {
 
         // Barres principales longitudinales (vues de bout)
         const esp_px = (esp / 100) * scale;
-        const nb_points = Math.floor(w_px / esp_px);
+        const nb_points = Math.min(Math.floor(w_px / esp_px), 200);
         const offset_x = (w_px - (nb_points * esp_px)) / 2;
         const y_main = y0 + h_px - c_px - r_bar;
 
@@ -342,7 +303,7 @@ function drawSVG() {
         
         // Aciers principaux (Verticaux sur le dessin)
         const esp_pxP = (esp / 100) * scaleP;
-        const nb_main = Math.floor(wP_px / esp_pxP);
+        const nb_main = Math.min(Math.floor(wP_px / esp_pxP), 200);
         const offset_xP = (wP_px - (nb_main * esp_pxP)) / 2;
         
         for (let i = 0; i <= nb_main; i++) {
@@ -352,7 +313,7 @@ function drawSVG() {
 
         // Aciers de répartition (Horizontaux sur le dessin)
         const esp_rep_px = (p.espRepInput / 100) * scaleP;
-        const nb_rep = Math.floor(hP_px / esp_rep_px);
+        const nb_rep = Math.min(Math.floor(hP_px / esp_rep_px), 200);
         const offset_yP = (hP_px - (nb_rep * esp_rep_px)) / 2;
         
         for (let j = 0; j <= nb_rep; j++) {

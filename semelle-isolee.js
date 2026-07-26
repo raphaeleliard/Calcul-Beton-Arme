@@ -38,7 +38,9 @@ window.addEventListener('DOMContentLoaded', () => {
     // Restauration des paramètres saisis par l'utilisateur
     semelleInputs.forEach(id => {
         const savedVal = localStorage.getItem(`semelle_${id}`);
-        if (savedVal !== null) {
+        // On ignore toute valeur stockée illisible : sinon un NaN se propagerait
+        // dans l'état applicatif et jusque dans la note de calcul PDF.
+        if (savedVal !== null && isFinite(parseFloat(savedVal))) {
             AppState.inputs[id] = parseFloat(savedVal);
             const el = document.getElementById(id);
             if (el) el.value = savedVal;
@@ -118,77 +120,17 @@ function getSVGTextColor() {
 
 /**
  * Calcul et vérification de la semelle isolée sous poteau centré.
+ * La logique réglementaire est centralisée dans ec2-core.js (fonctions pures,
+ * couvertes par le harnais de tests tests-ec2.js).
  * @param {object} params Paramètres géométriques et charges de calcul
  * @returns {object} Résultats géotechniques, structurels et sections d'armatures
  */
 function calculateEurocode2(params) {
-    const { a, b, A, B, h, fck, q_adm, N_Ed, N_Eq, enrobage, diamA, diamB } = params;
-    const c_m = enrobage / 100; // m
-
-    // A. Évaluation de la contrainte effective sur le sol (ELS)
-    // On comptabilise le poids propre de la fondation (béton armé à 25 kN/m³)
-    const poidsPropre = A * B * h * 25; // kN
-    const sigma_sol = (N_Eq + poidsPropre) / (A * B * 1000); // MPa
-    
-    let status = 'OK';
-    if (sigma_sol > q_adm) {
-        status = 'ERROR_BEARING';
-    }
-
-    // B. Condition de rigidité géométrique bidirectionnelle (Modèle des bielles)
-    // La méthode simplifiée des bielles de l'Eurocode 2 s'applique pour des semelles rigides :
-    // d >= (A - a) / 4 dans le sens A, et d >= (B - b) / 4 dans le sens B.
-    const d_req_A = (A - a) / 4;
-    const d_req_B = (B - b) / 4;
-    const d_req = Math.max(d_req_A, d_req_B);
-    
-    // Calcul des hauteurs utiles par nappe :
-    // La nappe inférieure (// A) est posée en premier, sa hauteur utile d_A est maximale.
-    // La nappe supérieure (// B) repose sur la nappe A, sa hauteur utile d_B est réduite.
-    const phi_A = diamA / 1000; // m
-    const phi_B = diamB / 1000; // m
-    const d_A = h - c_m - (phi_A / 2); 
-    const d_B = h - c_m - phi_A - (phi_B / 2); 
-
-    if ((d_A < d_req_A || d_B < d_req_B) && status === 'OK') {
-        status = 'WARNING_FLEXIBLE';
-    }
-
-    // C. Section d'acier par la méthode des bielles (ELU)
-    const fyd = 500 / 1.15; // Limite d'élasticité de calcul de l'acier (MPa)
-    let As_A_req_calc = (N_Ed * (A - a)) / (8 * d_A * fyd) * 10; // cm²
-    let As_B_req_calc = (N_Ed * (B - b)) / (8 * d_B * fyd) * 10; // cm²
-
-    // Condition de non-fragilité minimale (Eurocode 2 §9.2.1.1)
-    const fctm = 0.30 * Math.pow(fck, 2/3); // MPa
-    const As_A_min = Math.max(0.26 * (fctm / 500) * B * d_A, 0.0013 * B * d_A) * 10000; // cm²
-    const As_B_min = Math.max(0.26 * (fctm / 500) * A * d_B, 0.0013 * A * d_B) * 10000; // cm²
-    
-    const As_A_req = Math.max(As_A_req_calc, As_A_min);
-    const As_B_req = Math.max(As_B_req_calc, As_B_min);
-
-    // D. Armatures réelles fournies (calcul de l'espacement et du nombre de barres)
-    const secA = STEEL_SPECS[diamA].section;
-    // On impose un espacement maximal réglementaire de 30 cm
-    let nb_A = Math.max(Math.ceil(As_A_req / secA), Math.ceil((B * 100 - 2 * c_m * 100) / 30) + 1); 
-    const As_A_prov = nb_A * secA;
-    const esp_A = nb_A > 1 ? (B * 100 - 2 * c_m * 100) / (nb_A - 1) : 0;
-
-    const secB = STEEL_SPECS[diamB].section;
-    let nb_B = Math.max(Math.ceil(As_B_req / secB), Math.ceil((A * 100 - 2 * c_m * 100) / 30) + 1);
-    const As_B_prov = nb_B * secB;
-    const esp_B = nb_B > 1 ? (A * 100 - 2 * c_m * 100) / (nb_B - 1) : 0;
-
-    if ((As_A_prov < As_A_req || As_B_prov < As_B_req) && status !== 'ERROR_BEARING') {
-        status = 'ERROR_STEEL';
-    }
-
-    return {
-        sigma_sol, d_req, d_A, d_B, d_req_A, d_req_B,
-        As_A_req_calc, As_B_req_calc, As_A_req, As_B_req, As_A_min, As_B_min,
-        As_A_prov, As_B_prov, nb_A, nb_B, esp_A, esp_B, 
-        status, poidsPropre, fyd
-    };
+    return EC2.semelleIsolee({
+        ...params,
+        sectionA: STEEL_SPECS[params.diamA].section,
+        sectionB: STEEL_SPECS[params.diamB].section
+    });
 }
 
 // =========================================================================
@@ -214,6 +156,13 @@ function renderUI() {
     document.getElementById('res-AsA').innerText = res.As_A_req.toFixed(2);
     document.getElementById('res-AsB').innerText = res.As_B_req.toFixed(2);
 
+    const poincEl = document.getElementById('res-poinc');
+    if (poincEl) {
+        const taux = Math.max(res.poinconnement.ratio_u1, res.poinconnement.ratio_u0);
+        poincEl.innerText = (taux * 100).toFixed(0);
+        poincEl.style.color = taux > 1 ? 'var(--danger)' : 'var(--success)';
+    }
+
     // Nappe inférieure
     document.getElementById('info-nbA').innerText = res.nb_A;
     document.getElementById('info-diamA').innerText = AppState.diamA;
@@ -231,6 +180,9 @@ function renderUI() {
     if (res.status === 'ERROR_BEARING') {
         badge.className = 'status-badge status-red';
         badge.innerText = 'Surface insuffisante (σ_sol > q_adm)';
+    } else if (res.status === 'ERROR_PUNCHING') {
+        badge.className = 'status-badge status-red';
+        badge.innerText = 'Poinçonnement (EC2 §6.4) : augmenter h';
     } else if (res.status === 'WARNING_FLEXIBLE') {
         badge.className = 'status-badge status-orange';
         badge.innerText = 'Semelle Flexible (d < d_req, bielles hors limites)';
@@ -241,6 +193,8 @@ function renderUI() {
         badge.className = 'status-badge status-green';
         badge.innerText = 'Semelle Conforme';
     }
+
+    renderWarnings('ec2-warnings', res.warnings);
 
     drawSVG();
 }
@@ -254,7 +208,9 @@ function drawSVG() {
     const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
     const theme = document.documentElement.getAttribute('data-theme');
     
-    const p = AppState.inputs;
+    // Entrées bornées par ec2-core.js : une saisie vide ou nulle donnerait une
+    // échelle infinie, un SVG rempli de NaN et des boucles de dessin sans fin.
+    const p = AppState.results.inputs;
     const res = AppState.results;
     
     const svgSize = 800;
@@ -442,11 +398,28 @@ function showFormula(type) {
                   "As = N_Ed × (A - a) / (8 × d_A × fyd)\n\n" +
                   "Calcule la section nécessaire sous l'effort normal ultime pour équilibrer la traction à la base de la bielle de compression s'étendant parallèlement à la dimension A. Cette section est comparée aux exigences minimales de non-fragilité de l'Eurocode 2."; 
             break;
-        case 'As_B': 
+        case 'As_B':
             msg = "Calcul des armatures de la nappe supérieure (// B) :\n" +
                   "As = N_Ed × (B - b) / (8 × d_B × fyd)\n\n" +
-                  "Détermine la section pour l'axe parallèle à B. On prend en compte la réduction de la hauteur utile (d_B = d_A - Ø_A) liée à la superposition des barres de la nappe A."; 
+                  "Détermine la section pour l'axe parallèle à B. On prend en compte la réduction de la hauteur utile (d_B = d_A - Ø_A) liée à la superposition des barres de la nappe A.";
             break;
+        case 'poinconnement': {
+            const poinc = AppState.results ? AppState.results.poinconnement : null;
+            msg = "Vérification du poinçonnement (EC2 §6.4.4) :\n" +
+                  "v_Ed = β × V_Ed,réduit / (u × d)  ≤  v_Rd,c × 2d/a\n\n" +
+                  "Pour une semelle, la vérification est menée sur les périmètres de contrôle " +
+                  "situés à une distance a ≤ 2d du nu du poteau, en déduisant la réaction du sol " +
+                  "comprise à l'intérieur du périmètre. La résistance est majorée du facteur 2d/a.\n" +
+                  "On vérifie en outre au nu du poteau que v_Ed ≤ v_Rd,max = 0.5 × ν × f_cd.\n\n" +
+                  (poinc
+                      ? "Ici : périmètre critique à " + (poinc.a_crit * 100).toFixed(0) + " cm du poteau, " +
+                        "v_Ed = " + poinc.v_Ed.toFixed(2) + " MPa pour v_Rd = " + poinc.v_Rd.toFixed(2) +
+                        " MPa (taux " + (poinc.ratio_u1 * 100).toFixed(0) + " %).\n" +
+                        "Au nu du poteau : v_Ed = " + poinc.v_Ed0.toFixed(2) + " MPa pour v_Rd,max = " +
+                        poinc.v_Rd_max.toFixed(2) + " MPa."
+                      : "");
+            break;
+        }
     }
     showModal("Explications Techniques Eurocode 2", msg);
 }

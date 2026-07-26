@@ -34,36 +34,33 @@
         <div id="test-results"></div>
     </main>
 
-    <!-- Fichiers du projet nécessaires aux tests -->
+    <!--
+        Les tests portent sur ec2-core.js, qui ne contient que des fonctions pures :
+        aucun mock du DOM n'est nécessaire, et les six modules sont couverts par la
+        même page. La même suite tourne en ligne de commande : `node tests-ec2.js`.
+    -->
+    <script src="ec2-core.js"></script>
+    <script src="tests-ec2.js"></script>
     <script>
-        // Mocking the DOM elements required by poteau.js for initialization to prevent errors
         document.addEventListener('DOMContentLoaded', () => {
-            const keys = ['L', 'a', 'b', 'beta', 'fck', 'fyk', 'N_Ed', 'M_Ed', 'enrobage', 'nb_a', 'nb_b'];
-            keys.forEach(k => {
-                const el = document.createElement('input');
-                el.id = k;
-                el.type = 'hidden';
-                document.body.appendChild(el);
-            });
-            const d1 = document.createElement('div'); d1.id = 'res-N_Rd'; document.body.appendChild(d1);
-            const d2 = document.createElement('div'); d2.id = 'res-l0'; document.body.appendChild(d2);
-            const d3 = document.createElement('div'); d3.id = 'res-N_cr'; document.body.appendChild(d3);
-            const d4 = document.createElement('div'); d4.id = 'res-lambda'; document.body.appendChild(d4);
-            const d5 = document.createElement('div'); d5.id = 'res-As_min'; document.body.appendChild(d5);
-            const d6 = document.createElement('div'); d6.id = 'res-As_calc'; document.body.appendChild(d6);
-            const d7 = document.createElement('div'); d7.id = 'steelReq'; document.body.appendChild(d7);
-            const d8 = document.createElement('div'); d8.id = 'steelChosen'; document.body.appendChild(d8);
-            const d9 = document.createElement('div'); d9.id = 'nbBarres'; document.body.appendChild(d9);
-            const d10 = document.createElement('div'); d10.id = 'diamShow'; document.body.appendChild(d10);
-            const d11 = document.createElement('div'); d11.id = 'recommendation'; document.body.appendChild(d11);
-            const d12 = document.createElement('div'); d12.id = 'spacing'; document.body.appendChild(d12);
-            const d13 = document.createElement('div'); d13.id = 'coverageShow'; document.body.appendChild(d13);
-            const d14 = document.createElement('div'); d14.id = 'statusBadge'; document.body.appendChild(d14);
-            const d15 = document.createElement('div'); d15.id = 'svgContainer'; document.body.appendChild(d15);
+            const resultsContainer = document.getElementById('test-results');
+            const summaryContainer = document.getElementById('test-summary');
+            const cases = EC2Tests.run();
+            const passed = cases.filter(t => t.passed).length;
+
+            resultsContainer.innerHTML = cases.map(t => `
+                <div class="test-case ${t.passed ? 'pass' : 'fail'}">
+                    <span><strong>${t.name}</strong><br>
+                        Attendu : ${t.expected} | Obtenu : ${typeof t.actual === 'number' ? t.actual.toPrecision(6) : t.actual}
+                        ${t.detail ? '<br>' + t.detail : ''}
+                    </span>
+                    <span class="test-badge ${t.passed ? 'badge-pass' : 'badge-fail'}">${t.passed ? 'PASS' : 'FAIL'}</span>
+                </div>
+            `).join('');
+
+            summaryContainer.className = `summary ${passed === cases.length ? 'success' : 'error'}`;
+            summaryContainer.innerText = `Résultats : ${passed} / ${cases.length} tests réussis.`;
         });
     </script>
-    <script src="script.js"></script>
-    <script src="poteau.js"></script>
-    <script src="tests_poteau.js" defer></script>
 </body>
 </html>

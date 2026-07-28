@@ -199,7 +199,8 @@ function renderUI() {
 
 function drawSVG() {
     const container = document.getElementById('svgContainer');
-    const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
+    const { textColor, concreteFill, concreteStroke } = getThemeColors();
+    const rebar = getRebarColors();
     const theme = document.documentElement.getAttribute('data-theme');
     
     // Entrées bornées par ec2-core.js : une saisie vide ou nulle donnerait une
@@ -210,11 +211,14 @@ function drawSVG() {
     const svgSize = 800;
     const margin = 140;
     
+    let pxParMetre = 0;   // échelle de la vue active, transmise à finalizePlan
+
     let svgContent = `<svg viewBox="0 0 ${svgSize} ${svgSize}" xmlns="http://www.w3.org/2000/svg" id="semellesvg" style="width: 100%; height: 100%;">`;
 
     if (AppState.currentView === 'coupe') {
         const maxDim = Math.max(p.B, p.h + 0.5);
         const scale = (svgSize - 2 * margin) / maxDim;
+        pxParMetre = scale;
         
         const w_px = p.B * scale;
         const h_px = p.h * scale;
@@ -240,7 +244,7 @@ function drawSVG() {
         const diamMain_px = (AppState.diamMain / 1000) * scale;
         const strokeWMain = Math.max(diamMain_px, 4);
         const hook = Math.max(15 * (AppState.diamMain / 1000) * scale, 25);
-        svgContent += `<path d="M ${x0+c_px} ${yMain-hook} L ${x0+c_px} ${yMain} L ${x0+w_px-c_px} ${yMain} L ${x0+w_px-c_px} ${yMain-hook}" fill="none" stroke="#c0392b" stroke-width="${strokeWMain}" stroke-linejoin="round" stroke-linecap="round"/>`;
+        svgContent += `<path d="M ${x0+c_px} ${yMain-hook} L ${x0+c_px} ${yMain} L ${x0+w_px-c_px} ${yMain} L ${x0+w_px-c_px} ${yMain-hook}" fill="none" stroke="${rebar.main}" stroke-width="${strokeWMain}" stroke-linejoin="round" stroke-linecap="round"/>`;
 
         // Aciers longitudinaux de répartition (cercles)
         const diamRep_px = (AppState.diamRep / 1000) * scale;
@@ -253,7 +257,7 @@ function drawSVG() {
         
         for (let i = 0; i <= nb_rep_circles; i++) {
             const bx = x0 + offset_x + i * espRep_px;
-            svgContent += `<circle cx="${bx}" cy="${yRep}" r="${radiusRep}" fill="#2980b9"/>`;
+            svgContent += `<circle cx="${bx}" cy="${yRep}" r="${radiusRep}" fill="${rebar.stirrup}"/>`;
         }
 
         // Cotations semelle
@@ -265,6 +269,7 @@ function drawSVG() {
         // Vue en Plan (Bande unitaire de 1.0m)
         const maxDim = Math.max(p.B, 1.0);
         const scale = (svgSize - 2 * margin) / maxDim;
+        pxParMetre = scale;
         
         const w_px = p.B * scale; 
         const h_px = 1.0 * scale; 
@@ -291,7 +296,7 @@ function drawSVG() {
         const offset_y = (h_px - (nb_main * espMain_px)) / 2;
         for (let i = 0; i <= nb_main; i++) {
             const yL = y0 + offset_y + i * espMain_px;
-            svgContent += `<line x1="${x0+c_px}" y1="${yL}" x2="${x0+w_px-c_px}" y2="${yL}" stroke="#c0392b" stroke-width="${strokeWMain}" stroke-linecap="round"/>`;
+            svgContent += `<line x1="${x0+c_px}" y1="${yL}" x2="${x0+w_px-c_px}" y2="${yL}" stroke="${rebar.main}" stroke-width="${strokeWMain}" stroke-linecap="round"/>`;
         }
 
         // Barres d'armatures longitudinales (lignes bleues verticales)
@@ -302,7 +307,7 @@ function drawSVG() {
         const offset_x = (w_px - (nb_rep * espRep_px)) / 2;
         for (let i = 0; i <= nb_rep; i++) {
             const xL = x0 + offset_x + i * espRep_px;
-            svgContent += `<line x1="${xL}" y1="${y0 + strokeWRep/2}" x2="${xL}" y2="${y0+h_px - strokeWRep/2}" stroke="#2980b9" stroke-width="${strokeWRep}" stroke-linecap="round"/>`;
+            svgContent += `<line x1="${xL}" y1="${y0 + strokeWRep/2}" x2="${xL}" y2="${y0+h_px - strokeWRep/2}" stroke="${rebar.stirrup}" stroke-width="${strokeWRep}" stroke-linecap="round"/>`;
         }
 
         // Cotations
@@ -322,21 +327,25 @@ function drawSVG() {
         }
     }
 
-    // Bloc Légende
-    svgContent += `
-    <g transform="translate(${svgSize - 220}, ${svgSize - 165})">
-        <rect x="0" y="0" width="200" height="145" rx="6" ry="6" fill="${legendBg}" stroke="${concreteStroke}" stroke-width="1.5"/>
-        <text x="15" y="25" font-weight="bold" font-size="16" fill="${textColor}">Légende</text>
-        <line x1="15" y1="50" x2="35" y2="50" stroke="#c0392b" stroke-width="4"/>
-        <text x="45" y="55" font-size="14" fill="${textColor}">Acier Principal</text>
-        <line x1="15" y1="80" x2="35" y2="80" stroke="#2980b9" stroke-width="4"/>
-        <text x="45" y="85" font-size="14" fill="${textColor}">Acier Répartition</text>
-        <text x="15" y="110" font-size="13" font-weight="bold" fill="${textColor}">As,req: ${res.As_prov_main.toFixed(2)} cm²/ml (HA${AppState.diamMain})</text>
-        <text x="15" y="130" font-size="13" font-weight="bold" fill="${textColor}">As,rep: ${res.As_prov_rep.toFixed(2)} cm²/ml (HA${AppState.diamRep})</text>
-    </g>`;
 
     svgContent += '</svg>';
     container.innerHTML = svgContent;
+
+    finalizePlan('svgContainer', {
+        titre: AppState.currentView === 'coupe'
+            ? `Coupe de la semelle filante, ${p.B.toFixed(2)} mètres de large sur ${(p.h*100).toFixed(0)} centimètres de haut`
+            : `Vue en plan du ferraillage de la semelle filante sur un mètre linéaire`,
+        pxParMetre: pxParMetre,
+        maxRatio: 2.6
+    });
+
+    renderPlanLegend([
+        { forme: 'line', couleur: rebar.main,    texte: 'Aciers transversaux' },
+        { forme: 'line', couleur: rebar.stirrup, texte: 'Aciers de répartition' }
+    ], [
+        `Transversaux : HA${AppState.diamMain} / ${p.espMain} cm → ${res.As_prov_main.toFixed(2)} cm²/ml`,
+        `Répartition : HA${AppState.diamRep} / ${p.espRep} cm → ${res.As_prov_rep.toFixed(2)} cm²/ml`
+    ]);
 }
 
 // =========================================================================

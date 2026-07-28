@@ -82,12 +82,28 @@ function exportPlanAsPNG(svgContainerId, filename, drawCallback) {
     if (drawCallback) drawCallback(); // Force dessin en mode clair
 
     svg = document.getElementById(svgContainerId).tagName.toLowerCase() === 'svg' ? document.getElementById(svgContainerId) : document.querySelector(`#${svgContainerId} svg`);
-    const svgData = new XMLSerializer().serializeToString(svg);
+
+    // Le canevas suit le format du viewBox : depuis que celui-ci est recadré sur
+    // le dessin, un canevas carré imposé étirerait le plan.
+    const vb = (svg.getAttribute('viewBox') || '0 0 1 1').split(/\s+/).map(Number);
+    const format = (vb[2] > 0 && vb[3] > 0) ? vb[2] / vb[3] : 1;
+    const COTE_MAX = 1600;
+
+    // On fige les dimensions dans le SVG sérialisé : sans largeur ni hauteur
+    // intrinsèques, certains navigateurs refusent de le décoder en image.
+    const clone = svg.cloneNode(true);
+    const largeur = format >= 1 ? COTE_MAX : Math.round(COTE_MAX * format);
+    const hauteur = format >= 1 ? Math.round(COTE_MAX / format) : COTE_MAX;
+    clone.setAttribute('width', largeur);
+    clone.setAttribute('height', hauteur);
+    clone.removeAttribute('style');
+
+    const svgData = new XMLSerializer().serializeToString(clone);
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const img = new Image();
 
-    canvas.width = 1200; canvas.height = 1200;
+    canvas.width = largeur; canvas.height = hauteur;
 
     img.onload = () => {
         ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -112,6 +128,21 @@ function getThemeColors() {
         concreteFill: theme === 'dark' ? '#2d3436' : '#f0f3f4',
         concreteStroke: theme === 'dark' ? '#636e72' : '#7f8c8d',
         legendBg: theme === 'dark' ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)'
+    };
+}
+
+/**
+ * Couleurs des armatures, adaptées au thème.
+ * Les teintes sombres d'origine tombaient à 2.3:1 de contraste sur le béton
+ * du thème sombre ; chaque variante retenue dépasse ici le seuil de 3:1 exigé
+ * par le WCAG 1.4.11 pour un objet graphique porteur d'information.
+ */
+function getRebarColors() {
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    return {
+        main:    dark ? '#ff6b5b' : '#c0392b',  // aciers longitudinaux tendus
+        stirrup: dark ? '#4fb3f0' : '#2980b9',  // cadres, épingles, répartition
+        montage: dark ? '#b0bec5' : '#7f8c8d'   // aciers de montage
     };
 }
 
@@ -239,15 +270,236 @@ function drawDimensionLine(x1, y1, x2, y2, value, unit = "cm", offset = 30, text
     const textAngle = (angle > 90 || angle < -90) ? angle + 180 : angle;
     const textShift = offset > 0 ? -6 : 16; 
 
+    // Le fond de l'étiquette est posé ici en taille nulle : il est mesuré et
+    // redimensionné sur le texte réellement rendu par finalizePlan(), la largeur
+    // d'un libellé n'étant pas connaissable avant son insertion dans le document.
+    const bgFill = (textColor === '#000000' || textColor === '#000') ? '#ffffff' : '#1e1e1e';
+    const libelle = unit ? `${value} ${unit}` : `${value}`;
+
     return `
-        <line x1="${x1}" y1="${y1}" x2="${ox1}" y2="${oy1}" stroke="${strokeColor}" stroke-dasharray="3,3" stroke-width="1"/>
-        <line x1="${x2}" y1="${y2}" x2="${ox2}" y2="${oy2}" stroke="${strokeColor}" stroke-dasharray="3,3" stroke-width="1"/>
-        <line x1="${ox1}" y1="${oy1}" x2="${ox2}" y2="${oy2}" stroke="${strokeColor}" stroke-width="1.5"/>
-        <line x1="${ox1-px*4-nx*4}" y1="${oy1-py*4-ny*4}" x2="${ox1+px*4+nx*4}" y2="${oy1+py*4+ny*4}" stroke="${strokeColor}" stroke-width="2"/>
-        <line x1="${ox2-px*4-nx*4}" y1="${oy2-py*4-ny*4}" x2="${ox2+px*4+nx*4}" y2="${oy2+py*4+ny*4}" stroke="${strokeColor}" stroke-width="2"/>
-        <rect x="${midX-20}" y="${midY+textShift-10}" width="40" height="14" fill="${textColor === '#000000' || textColor === '#000' ? '#ffffff' : '#1e1e1e'}" opacity="0.8" rx="2"/>
-        <text x="${midX}" y="${midY}" text-anchor="middle" font-size="14" fill="${textColor}" transform="rotate(${textAngle} ${midX} ${midY}) translate(0, ${textShift})">${value} ${unit}</text>
+        <line x1="${x1}" y1="${y1}" x2="${ox1}" y2="${oy1}" stroke="${strokeColor}" stroke-dasharray="3,3" data-base-stroke="0.9"/>
+        <line x1="${x2}" y1="${y2}" x2="${ox2}" y2="${oy2}" stroke="${strokeColor}" stroke-dasharray="3,3" data-base-stroke="0.9"/>
+        <line x1="${ox1}" y1="${oy1}" x2="${ox2}" y2="${oy2}" stroke="${strokeColor}" data-base-stroke="1.3"/>
+        <line x1="${ox1-px*4-nx*4}" y1="${oy1-py*4-ny*4}" x2="${ox1+px*4+nx*4}" y2="${oy1+py*4+ny*4}" stroke="${strokeColor}" data-base-stroke="1.8"/>
+        <line x1="${ox2-px*4-nx*4}" y1="${oy2-py*4-ny*4}" x2="${ox2+px*4+nx*4}" y2="${oy2+py*4+ny*4}" stroke="${strokeColor}" data-base-stroke="1.8"/>
+        <g transform="rotate(${textAngle} ${midX} ${midY}) translate(0, ${textShift})">
+            <rect class="dim-label-bg" x="${midX}" y="${midY}" width="0" height="0" fill="${bgFill}" opacity="0.85" rx="2"/>
+            <text class="dim-label" x="${midX}" y="${midY}" text-anchor="middle" data-base-size="12.5" fill="${textColor}">${libelle}</text>
+        </g>
     `;
+}
+
+// ==========================================
+// MISE EN PAGE DES PLANS DE FERRAILLAGE
+// ==========================================
+
+/**
+ * Ajuste un plan de ferraillage après son insertion dans le document.
+ *
+ * Le canevas était auparavant un carré fixe de 800x800 unités affiché dans un
+ * cadre d'environ 400 px : le dessin n'occupait que 7 à 17 % de la surface selon
+ * le module, et le texte des cotations tombait à 6-7 px à l'écran. On recadre
+ * donc le viewBox sur l'emprise réelle du contenu, puis on dimensionne textes et
+ * traits pour qu'ils gardent une taille constante à l'écran quel que soit le zoom.
+ *
+ * @param {string} containerId  Conteneur du SVG
+ * @param {object} options      {titre, pxParMetre, minRatio, maxRatio, padding}
+ */
+function finalizePlan(containerId, options = {}) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const svg = container.querySelector('svg');
+    if (!svg) return;
+
+    const padding = options.padding !== undefined ? options.padding : 26;
+    const minRatio = options.minRatio || 0.70;
+    const maxRatio = options.maxRatio || 2.60;
+    const LARGEUR_REF = 430; // largeur d'affichage de référence, en pixels
+
+    let vue = null;
+
+    // Les fonds décoratifs (trame, cartouche) sont retirés du calcul d'emprise :
+    // couvrant tout le canevas, ils rendraient le recadrage sans effet. Ils sont
+    // ensuite étendus au viewBox retenu.
+    const fonds = svg.querySelectorAll('[data-plan-bg]');
+    fonds.forEach(el => el.setAttribute('display', 'none'));
+
+    // Le recadrage et la mise à l'échelle du texte sont interdépendants (le texte
+    // fait partie de l'emprise) : deux passes suffisent à converger.
+    for (let passe = 0; passe < 2; passe++) {
+        let box;
+        try { box = svg.getBBox(); } catch (e) { return; }
+        if (!box || !isFinite(box.width) || box.width <= 0 || box.height <= 0) return;
+
+        let x = box.x - padding, y = box.y - padding;
+        let w = box.width + 2 * padding, h = box.height + 2 * padding;
+
+        // On étire le viewBox jusqu'au format retenu pour que le dessin remplisse
+        // son cadre : sans cela une bande de dalle (5:1) laisserait 90 % de vide.
+        const ratio = Math.min(maxRatio, Math.max(minRatio, w / h));
+        if (w / h > ratio) { const nh = w / ratio; y -= (nh - h) / 2; h = nh; }
+        else { const nw = h * ratio; x -= (nw - w) / 2; w = nw; }
+
+        svg.setAttribute('viewBox', `${x} ${y} ${w} ${h}`);
+        vue = { x, y, w, h, ratio };
+
+        // k unités du dessin valent 1 pixel à l'écran : on y ramène les tailles
+        const k = w / LARGEUR_REF;
+        svg.querySelectorAll('[data-base-size]').forEach(el => {
+            el.setAttribute('font-size', (parseFloat(el.dataset.baseSize) * k).toFixed(2));
+        });
+        svg.querySelectorAll('[data-base-stroke]').forEach(el => {
+            el.setAttribute('stroke-width', (parseFloat(el.dataset.baseStroke) * k).toFixed(2));
+        });
+    }
+
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    container.style.setProperty('--plan-ratio', vue.ratio.toFixed(3));
+
+    // Les fonds décoratifs sont rétablis à la dimension du cadre définitif
+    fonds.forEach(el => {
+        el.removeAttribute('display');
+        el.setAttribute('x', vue.x); el.setAttribute('y', vue.y);
+        el.setAttribute('width', vue.w); el.setAttribute('height', vue.h);
+    });
+
+    const k = vue.w / LARGEUR_REF;
+
+    // Fond des étiquettes de cote, ajusté au texte effectivement rendu
+    svg.querySelectorAll('.dim-label').forEach(texte => {
+        const fond = texte.previousElementSibling;
+        if (!fond || !fond.classList.contains('dim-label-bg')) return;
+        let tb;
+        try { tb = texte.getBBox(); } catch (e) { return; }
+        const marge = 3 * k;
+        fond.setAttribute('x', (tb.x - marge).toFixed(2));
+        fond.setAttribute('y', (tb.y - marge * 0.5).toFixed(2));
+        fond.setAttribute('width', (tb.width + 2 * marge).toFixed(2));
+        fond.setAttribute('height', (tb.height + marge).toFixed(2));
+        fond.setAttribute('rx', (2 * k).toFixed(2));
+    });
+
+    // Échelle graphique : elle reste juste quel que soit l'agrandissement,
+    // contrairement à une mention « 1:20 » qui ne vaut que pour une impression.
+    // On lui réserve une bande sous le dessin, sans quoi elle viendrait recouvrir
+    // les cotations situées en partie basse.
+    if (options.pxParMetre > 0) {
+        const bande = 26 * k;
+        vue.h += bande;
+        vue.ratio = vue.w / vue.h;
+        svg.setAttribute('viewBox', `${vue.x} ${vue.y} ${vue.w} ${vue.h}`);
+        container.style.setProperty('--plan-ratio', vue.ratio.toFixed(3));
+        fonds.forEach(el => el.setAttribute('height', vue.h));
+        svg.insertAdjacentHTML('beforeend', buildScaleBar(vue, options.pxParMetre, k));
+    }
+
+    // Restitution pour les lecteurs d'écran
+    svg.setAttribute('role', 'img');
+    if (options.titre) {
+        const ancien = svg.querySelector('title');
+        if (ancien) ancien.remove();
+        svg.insertAdjacentHTML('afterbegin', `<title>${options.titre}</title>`);
+        svg.setAttribute('aria-label', options.titre);
+    }
+
+    // Le bouton d'agrandissement vit dans le conteneur, que chaque tracé remplace :
+    // on le rétablit ici plutôt qu'une seule fois au chargement.
+    initPlanViewer(containerId);
+}
+
+/** Construit une échelle graphique de longueur « ronde » en bas du plan. */
+function buildScaleBar(vue, pxParMetre, k) {
+    const { textColor } = getThemeColors();
+    const cible = vue.w * 0.22; // ~22 % de la largeur du cadre
+    const PALIERS = [0.05, 0.10, 0.20, 0.25, 0.50, 1, 2, 5, 10];
+    let metres = PALIERS[0];
+    for (const p of PALIERS) { if (p * pxParMetre <= cible) metres = p; }
+
+    const longueur = metres * pxParMetre;
+    const x = vue.x + 14 * k;
+    const y = vue.y + vue.h - 9 * k; // dans la bande réservée sous le dessin
+    const t = 4 * k;
+    const libelle = metres >= 1 ? `${metres} m` : `${(metres * 100).toFixed(0)} cm`;
+
+    return `
+        <g class="plan-scale-bar" opacity="0.85">
+            <line x1="${x}" y1="${y}" x2="${x + longueur}" y2="${y}" stroke="${textColor}" stroke-width="${1.6 * k}"/>
+            <line x1="${x}" y1="${y - t}" x2="${x}" y2="${y + t}" stroke="${textColor}" stroke-width="${1.6 * k}"/>
+            <line x1="${x + longueur}" y1="${y - t}" x2="${x + longueur}" y2="${y + t}" stroke="${textColor}" stroke-width="${1.6 * k}"/>
+            <text x="${x + longueur / 2}" y="${y - 6 * k}" text-anchor="middle" font-size="${11 * k}" fill="${textColor}">${libelle}</text>
+        </g>`;
+}
+
+/**
+ * Affiche la légende sous le plan, en HTML : elle était auparavant dessinée dans
+ * le SVG à une position fixe, où elle pouvait recouvrir le dessin.
+ * @param {Array<{couleur:string, forme:string, texte:string}>} entrees
+ * @param {Array<string>} infos Lignes de synthèse (sections, diamètres…)
+ */
+function renderPlanLegend(entrees, infos = []) {
+    const cible = document.getElementById('planLegend');
+    if (!cible) return;
+
+    const puce = (e) => {
+        if (e.forme === 'dot') return `<span class="lg-dot" style="background:${e.couleur}"></span>`;
+        if (e.forme === 'box') return `<span class="lg-box" style="background:${e.couleur}"></span>`;
+        return `<span class="lg-line" style="background:${e.couleur}"></span>`;
+    };
+
+    cible.innerHTML =
+        `<div class="plan-legend-items">${entrees.map(e =>
+            `<span class="plan-legend-item">${puce(e)}${e.texte}</span>`).join('')}</div>` +
+        (infos.length ? `<div class="plan-legend-infos">${infos.map(i => `<span>${i}</span>`).join('')}</div>` : '');
+}
+
+/**
+ * Installe le bouton d'agrandissement du plan et sa surimpression plein écran.
+ * Appelé une seule fois au chargement ; sans effet si la page n'a pas de plan.
+ */
+function initPlanViewer(containerId = 'svgContainer') {
+    const container = document.getElementById(containerId);
+    if (!container || document.getElementById('planZoomBtn')) return;
+
+    const bouton = document.createElement('button');
+    bouton.id = 'planZoomBtn';
+    bouton.className = 'plan-zoom-btn';
+    bouton.type = 'button';
+    bouton.title = 'Agrandir le plan';
+    bouton.setAttribute('aria-label', 'Agrandir le plan de ferraillage');
+    bouton.innerHTML = '⛶';
+    bouton.addEventListener('click', () => openPlanOverlay(containerId));
+    container.appendChild(bouton);
+}
+
+function openPlanOverlay(containerId) {
+    const svg = document.querySelector(`#${containerId} svg`);
+    if (!svg) return;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'plan-overlay';
+    overlay.innerHTML = `
+        <div class="plan-overlay-inner">
+            <button class="plan-overlay-close" type="button" aria-label="Fermer">&times;</button>
+            <div class="plan-overlay-svg"></div>
+        </div>`;
+
+    const clone = svg.cloneNode(true);
+    clone.style.width = '100%';
+    clone.style.height = '100%';
+    overlay.querySelector('.plan-overlay-svg').appendChild(clone);
+
+    const fermer = () => {
+        overlay.remove();
+        document.removeEventListener('keydown', surEchap);
+    };
+    const surEchap = (e) => { if (e.key === 'Escape') fermer(); };
+
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) fermer(); });
+    overlay.querySelector('.plan-overlay-close').addEventListener('click', fermer);
+    document.addEventListener('keydown', surEchap);
+
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('active'));
 }
 
 // ==========================================

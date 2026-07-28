@@ -221,7 +221,8 @@ function renderUI() {
 
 function drawSVG() {
     const container = document.getElementById('svgContainer');
-    const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
+    const { textColor, concreteFill, concreteStroke } = getThemeColors();
+    const rebar = getRebarColors();
     
     // Entrées bornées par ec2-core.js : une saisie vide ou nulle donnerait une
     // échelle infinie, un SVG rempli de NaN et des boucles de dessin sans fin.
@@ -237,6 +238,7 @@ function drawSVG() {
     const w_m = 1.0; 
     const maxDim = Math.max(w_m, h);
     const scale = (svgSize - 2 * margin) / maxDim;
+    let pxParMetre = scale;   // échelle de la vue active, transmise à finalizePlan
     
     const w_px = w_m * scale;
     const h_px = h * scale;
@@ -269,13 +271,13 @@ function drawSVG() {
 
         for(let i=0; i<=nb_points; i++) {
             const nx = x0 + offset_x + (i * esp_px);
-            svgContent += `<circle cx="${nx}" cy="${y_main}" r="${r_bar}" fill="#c0392b"/>`;
+            svgContent += `<circle cx="${nx}" cy="${y_main}" r="${r_bar}" fill="${rebar.main}"/>`;
         }
 
         // Armatures de répartition transversales
         const y_rep = y_main - r_bar - r_rep;
         const strokeRepCoupe = Math.max(diam_rep_px, 2);
-        svgContent += `<line x1="${x0}" y1="${y_rep}" x2="${x0+w_px}" y2="${y_rep}" stroke="#2980b9" stroke-width="${strokeRepCoupe}" stroke-linecap="round"/>`;
+        svgContent += `<line x1="${x0}" y1="${y_rep}" x2="${x0+w_px}" y2="${y_rep}" stroke="${rebar.stirrup}" stroke-width="${strokeRepCoupe}" stroke-linecap="round"/>`;
         
         // Cotations
         svgContent += drawDimensionLine(x0, y0+h_px-c_px, x0, y0+h_px, `c=${(c_nom*100).toFixed(1)}`, "", 40, textColor, textColor);
@@ -291,6 +293,7 @@ function drawSVG() {
         // Vue en plan unitaire (1m x 1m)
         const maxDimPlan = 1.0;
         const scaleP = (svgSize - 2 * margin) / maxDimPlan;
+        pxParMetre = scaleP;
         const wP_px = maxDimPlan * scaleP;
         const hP_px = maxDimPlan * scaleP;
         const xP = (svgSize - wP_px) / 2;
@@ -308,7 +311,7 @@ function drawSVG() {
         
         for (let i = 0; i <= nb_main; i++) {
             const lx = xP + offset_xP + i*esp_pxP;
-            svgContent += `<line x1="${lx}" y1="${yP + strokeMain/2}" x2="${lx}" y2="${yP+hP_px - strokeMain/2}" stroke="#c0392b" stroke-width="${strokeMain}" stroke-linecap="round"/>`;
+            svgContent += `<line x1="${lx}" y1="${yP + strokeMain/2}" x2="${lx}" y2="${yP+hP_px - strokeMain/2}" stroke="${rebar.main}" stroke-width="${strokeMain}" stroke-linecap="round"/>`;
         }
 
         // Aciers de répartition (Horizontaux sur le dessin)
@@ -318,7 +321,7 @@ function drawSVG() {
         
         for (let j = 0; j <= nb_rep; j++) {
             const ly = yP + offset_yP + j*esp_rep_px;
-            svgContent += `<line x1="${xP + strokeRep/2}" y1="${ly}" x2="${xP+wP_px - strokeRep/2}" y2="${ly}" stroke="#2980b9" stroke-width="${strokeRep}" stroke-linecap="round"/>`;
+            svgContent += `<line x1="${xP + strokeRep/2}" y1="${ly}" x2="${xP+wP_px - strokeRep/2}" y2="${ly}" stroke="${rebar.stirrup}" stroke-width="${strokeRep}" stroke-linecap="round"/>`;
         }
 
         // Cotations
@@ -337,21 +340,25 @@ function drawSVG() {
         }
     }
 
-    // Légende
-    svgContent += `
-    <g transform="translate(${svgSize - 220}, ${svgSize - 165})">
-        <rect x="0" y="0" width="200" height="145" rx="6" ry="6" fill="${legendBg}" stroke="${concreteStroke}" stroke-width="1.5"/>
-        <text x="15" y="25" font-weight="bold" font-size="16" fill="${textColor}">Légende</text>
-        <circle cx="25" cy="50" r="6" fill="#c0392b"/>
-        <text x="45" y="55" font-size="14" fill="${textColor}">Acier Principal</text>
-        <line x1="15" y1="80" x2="35" y2="80" stroke="#2980b9" stroke-width="4"/>
-        <text x="45" y="85" font-size="14" fill="${textColor}">Acier Répartition</text>
-        <text x="15" y="110" font-size="13" font-weight="bold" fill="${textColor}">As,req: ${res.As_prov.toFixed(2)} cm²/ml (HA${AppState.diamMain})</text>
-        <text x="15" y="130" font-size="13" font-weight="bold" fill="${textColor}">As,rep: ${res.As_prov_rep.toFixed(2)} cm²/ml (HA${AppState.diamRep})</text>
-    </g>`;
 
     svgContent += '</svg>';
     container.innerHTML = svgContent;
+
+    finalizePlan('svgContainer', {
+        titre: AppState.currentView === 'coupe'
+            ? `Coupe d'une bande de dalle d'un mètre, épaisseur ${(p.h*100).toFixed(0)} centimètres, aciers HA${AppState.diamMain} espacés de ${p.espacementInput} centimètres`
+            : `Vue en plan du treillis d'armatures de la dalle sur un mètre carré`,
+        pxParMetre: pxParMetre,
+        maxRatio: 2.8
+    });
+
+    renderPlanLegend([
+        { forme: 'dot',  couleur: rebar.main,    texte: 'Aciers principaux' },
+        { forme: 'line', couleur: rebar.stirrup, texte: 'Aciers de répartition' }
+    ], [
+        `Principaux : HA${AppState.diamMain} / ${p.espacementInput} cm → ${res.As_prov.toFixed(2)} cm²/ml`,
+        `Répartition : HA${AppState.diamRep} / ${p.espRepInput} cm → ${res.As_prov_rep.toFixed(2)} cm²/ml`
+    ]);
 }
 
 // =========================================================

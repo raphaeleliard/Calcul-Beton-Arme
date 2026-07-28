@@ -235,13 +235,15 @@ function renderUI() {
 
 function generateColumnSVG(a, b, nb_a, nb_b, diameter, enrobage, As_chosen) {
     const svgContainer = document.getElementById('svgContainer');
-    const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
+    const { textColor, concreteFill, concreteStroke } = getThemeColors();
+    const rebar = getRebarColors();
     const theme = document.documentElement.getAttribute('data-theme');
 
     const svgSize = 800;
     const margin = 140;
     const maxDim = Math.max(a, b);
-    const scale = 400 / maxDim; 
+    const scale = 400 / maxDim;
+    let pxParMetre = scale;   // échelle de la vue active, transmise à finalizePlan
     
     const w_px = a * scale;
     const h_px = b * scale;
@@ -257,28 +259,27 @@ function generateColumnSVG(a, b, nb_a, nb_b, diameter, enrobage, As_chosen) {
             <path d="M 20 0 L 0 0 0 20" fill="none" stroke="${theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}" stroke-width="1"/>
         </pattern>
     </defs>
-    <rect width="100%" height="100%" fill="url(#grid)" />`;
+    <rect data-plan-bg="1" fill="url(#grid)" />`;
 
     if (AppState.currentView === 'coupe') {
         // Section transversale du béton
-        svgContent += `<rect x="${x0}" y="${y0}" width="${w_px}" height="${h_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
+        svgContent += `<rect x="${x0}" y="${y0}" width="${w_px}" height="${h_px}" fill="${concreteFill}" stroke="${concreteStroke}" data-base-stroke="1.6"/>`;
 
         // Cotations extérieures
         svgContent += drawDimensionLine(x0, y0, x0+w_px, y0, `a = ${(a*100).toFixed(0)}`, "cm", -35, textColor, textColor);
         svgContent += drawDimensionLine(x0+w_px, y0, x0+w_px, y0+h_px, `b = ${(b*100).toFixed(0)}`, "cm", -100, textColor, textColor);
 
         // Dessin du cadre transversal principal
-        const stirrupStroke = 5;
         const rx = x0 + c_px - radius_bar;
         const ry = y0 + c_px - radius_bar;
         const rw = w_px - 2*c_px + 2*radius_bar;
         const rh = h_px - 2*c_px + 2*radius_bar;
         const r_corner = radius_bar * 1.5;
 
-        svgContent += `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="${r_corner}" ry="${r_corner}" fill="none" stroke="#2980b9" stroke-width="${stirrupStroke}"/>`;
+        svgContent += `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="${r_corner}" ry="${r_corner}" fill="none" stroke="${rebar.stirrup}" data-base-stroke="2.6"/>`;
         
-        svgContent += `<line x1="${x0+c_px}" y1="${ry}" x2="${x0+c_px + 35}" y2="${ry + 35}" stroke="#2980b9" stroke-width="${stirrupStroke}" stroke-linecap="round"/>`;
-        svgContent += `<line x1="${rx}" y1="${y0+c_px}" x2="${rx + 35}" y2="${y0+c_px + 35}" stroke="#2980b9" stroke-width="${stirrupStroke}" stroke-linecap="round"/>`;
+        svgContent += `<line x1="${x0+c_px}" y1="${ry}" x2="${x0+c_px + 35}" y2="${ry + 35}" stroke="${rebar.stirrup}" data-base-stroke="2.6" stroke-linecap="round"/>`;
+        svgContent += `<line x1="${rx}" y1="${y0+c_px}" x2="${rx + 35}" y2="${y0+c_px + 35}" stroke="${rebar.stirrup}" data-base-stroke="2.6" stroke-linecap="round"/>`;
 
         svgContent += drawDimensionLine(x0, y0+h_px, x0+c_px, y0+h_px, `c=${enrobage.toFixed(1)}`, "", 15, textColor, textColor);
 
@@ -288,15 +289,15 @@ function generateColumnSVG(a, b, nb_a, nb_b, diameter, enrobage, As_chosen) {
         // Cadres / Épingles intérieures
         for (let j = 1; j < nb_b - 1; j++) {
             const y_pos = y0 + c_px + j * esp_y;
-            svgContent += `<line x1="${rx}" y1="${y_pos}" x2="${rx + rw}" y2="${y_pos}" stroke="#2980b9" stroke-width="${stirrupStroke - 1}" stroke-linecap="round"/>`;
-            svgContent += `<path d="M ${rx} ${y_pos} C ${rx-15} ${y_pos-20}, ${rx+20} ${y_pos-20}, ${rx+20} ${y_pos}" fill="none" stroke="#2980b9" stroke-width="${stirrupStroke - 1}" stroke-linecap="round"/>`;
-            svgContent += `<path d="M ${rx + rw} ${y_pos} C ${rx+rw+15} ${y_pos+20}, ${rx+rw-20} ${y_pos+20}, ${rx+rw-20} ${y_pos}" fill="none" stroke="#2980b9" stroke-width="${stirrupStroke - 1}" stroke-linecap="round"/>`;
+            svgContent += `<line x1="${rx}" y1="${y_pos}" x2="${rx + rw}" y2="${y_pos}" stroke="${rebar.stirrup}" data-base-stroke="2.0" stroke-linecap="round"/>`;
+            svgContent += `<path d="M ${rx} ${y_pos} C ${rx-15} ${y_pos-20}, ${rx+20} ${y_pos-20}, ${rx+20} ${y_pos}" fill="none" stroke="${rebar.stirrup}" data-base-stroke="2.0" stroke-linecap="round"/>`;
+            svgContent += `<path d="M ${rx + rw} ${y_pos} C ${rx+rw+15} ${y_pos+20}, ${rx+rw-20} ${y_pos+20}, ${rx+rw-20} ${y_pos}" fill="none" stroke="${rebar.stirrup}" data-base-stroke="2.0" stroke-linecap="round"/>`;
         }
         for (let i = 1; i < nb_a - 1; i++) {
             const x_pos = x0 + c_px + i * esp_x;
-            svgContent += `<line x1="${x_pos}" y1="${ry}" x2="${x_pos}" y2="${ry + rh}" stroke="#2980b9" stroke-width="${stirrupStroke - 1}" stroke-linecap="round"/>`;
-            svgContent += `<path d="M ${x_pos} ${ry} C ${x_pos+20} ${ry-15}, ${x_pos+20} ${ry+20}, ${x_pos} ${ry+20}" fill="none" stroke="#2980b9" stroke-width="${stirrupStroke - 1}" stroke-linecap="round"/>`;
-            svgContent += `<path d="M ${x_pos} ${ry + rh} C ${x_pos-20} ${ry+rh+15}, ${x_pos-20} ${ry+rh-20}, ${x_pos} ${ry+rh-20}" fill="none" stroke="#2980b9" stroke-width="${stirrupStroke - 1}" stroke-linecap="round"/>`;
+            svgContent += `<line x1="${x_pos}" y1="${ry}" x2="${x_pos}" y2="${ry + rh}" stroke="${rebar.stirrup}" data-base-stroke="2.0" stroke-linecap="round"/>`;
+            svgContent += `<path d="M ${x_pos} ${ry} C ${x_pos+20} ${ry-15}, ${x_pos+20} ${ry+20}, ${x_pos} ${ry+20}" fill="none" stroke="${rebar.stirrup}" data-base-stroke="2.0" stroke-linecap="round"/>`;
+            svgContent += `<path d="M ${x_pos} ${ry + rh} C ${x_pos-20} ${ry+rh+15}, ${x_pos-20} ${ry+rh-20}, ${x_pos} ${ry+rh-20}" fill="none" stroke="${rebar.stirrup}" data-base-stroke="2.0" stroke-linecap="round"/>`;
         }
 
         // Armatures longitudinales
@@ -305,7 +306,7 @@ function generateColumnSVG(a, b, nb_a, nb_b, diameter, enrobage, As_chosen) {
                 if (i === 0 || i === nb_a - 1 || j === 0 || j === nb_b - 1) {
                     const x_pos = x0 + c_px + i * esp_x;
                     const y_pos = y0 + c_px + j * esp_y;
-                    svgContent += `<circle cx="${x_pos}" cy="${y_pos}" r="${radius_bar}" fill="#c0392b"/>`;
+                    svgContent += `<circle cx="${x_pos}" cy="${y_pos}" r="${radius_bar}" fill="${rebar.main}"/>`;
                 }
             }
         }
@@ -313,35 +314,31 @@ function generateColumnSVG(a, b, nb_a, nb_b, diameter, enrobage, As_chosen) {
         // Cotations fines des espacements nets
         if (nb_a > 1) {
             const distance_a = (a*100 - 2*enrobage) / (nb_a - 1);
-            for(let i = 0; i < nb_a - 1; i++) {
-                const startX = x0 + c_px + i*esp_x;
-                const endX = x0 + c_px + (i+1)*esp_x;
-                svgContent += drawDimensionLine(startX, y0+h_px, endX, y0+h_px, distance_a.toFixed(1), "cm", 70, textColor, textColor);
-            }
+            svgContent += drawDimensionLine(x0 + c_px, y0+h_px, x0 + c_px + esp_x, y0+h_px,
+                distance_a.toFixed(1), "cm", 70, textColor, textColor);
         }
         
         if (nb_b > 1) {
             const distance_b = (b*100 - 2*enrobage) / (nb_b - 1);
-            for(let j = 0; j < nb_b - 1; j++) {
-                const startY = y0 + c_px + j*esp_y;
-                const endY = y0 + c_px + (j+1)*esp_y;
-                svgContent += drawDimensionLine(x0+w_px, startY, x0+w_px, endY, distance_b.toFixed(1), "cm", -60, textColor, textColor);
-            }
+            svgContent += drawDimensionLine(x0+w_px, y0 + c_px, x0+w_px, y0 + c_px + esp_y,
+                distance_b.toFixed(1), "cm", -60, textColor, textColor);
         }
     } else {
-        // Vue en élévation tronquée (1.5m)
-        const L_visu = 1.5; 
-        const w_m = a; 
-        const maxDimElev = Math.max(w_m, L_visu);
-        const scaleElev = 400 / maxDimElev;
+        // Vue en élévation à la hauteur RÉELLEMENT saisie : la vue était
+        // auparavant tronquée à 1.50 m quelle que soit la hauteur du poteau.
+        const L_reel = AppState.results.inputs.L;
+        const w_m = a;
+        const scaleElev = 460 / L_reel;
+        pxParMetre = scaleElev;
         const wElev_px = w_m * scaleElev;
-        const hElev_px = L_visu * scaleElev;
+        const hElev_px = L_reel * scaleElev;
         const xE = 120 + (400 - wElev_px) / 2;
-        const yE = 120 + (400 - hElev_px) / 2;
+        const yE = 120;
 
-        svgContent += `<rect x="${xE}" y="${yE}" width="${wElev_px}" height="${hElev_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
-        svgContent += `<line x1="${xE-15}" y1="${yE}" x2="${xE+wElev_px+15}" y2="${yE}" stroke="${concreteStroke}" stroke-width="2" stroke-dasharray="10,5"/>`;
-        svgContent += `<line x1="${xE-15}" y1="${yE+hElev_px}" x2="${xE+wElev_px+15}" y2="${yE+hElev_px}" stroke="${concreteStroke}" stroke-width="2" stroke-dasharray="10,5"/>`;
+        svgContent += `<rect x="${xE}" y="${yE}" width="${wElev_px}" height="${hElev_px}" fill="${concreteFill}" stroke="${concreteStroke}" data-base-stroke="1.6"/>`;
+        // Traits d'axe des noeuds (plancher bas et plancher haut)
+        svgContent += `<line x1="${xE-15}" y1="${yE}" x2="${xE+wElev_px+15}" y2="${yE}" stroke="${concreteStroke}" data-base-stroke="1.6" stroke-dasharray="10,5"/>`;
+        svgContent += `<line x1="${xE-15}" y1="${yE+hElev_px}" x2="${xE+wElev_px+15}" y2="${yE+hElev_px}" stroke="${concreteStroke}" data-base-stroke="1.6" stroke-dasharray="10,5"/>`;
 
         const cElev_px = (enrobage / 100) * scaleElev;
         const esp_x_elev = nb_a > 1 ? (wElev_px - 2*cElev_px) / (nb_a - 1) : 0;
@@ -352,7 +349,8 @@ function generateColumnSVG(a, b, nb_a, nb_b, diameter, enrobage, As_chosen) {
             const x_pos = xE + cElev_px + i * esp_x_elev;
             const dir = (i < nb_a / 2) ? 1 : (i === (nb_a - 1) / 2 ? 0 : -1);
             const crank = 8 * dir;
-            svgContent += `<path d="M ${x_pos} ${yE+hElev_px+15} L ${x_pos} ${yE + 35} L ${x_pos + crank} ${yE + 15} L ${x_pos + crank} ${yE - 15}" fill="none" stroke="#c0392b" stroke-width="${bar_w}" stroke-linejoin="round" stroke-linecap="round"/>`;
+            const retour = Math.min(hElev_px * 0.08, 35);
+            svgContent += `<path d="M ${x_pos} ${yE+hElev_px+15} L ${x_pos} ${yE + retour} L ${x_pos + crank} ${yE + retour*0.45} L ${x_pos + crank} ${yE - 15}" fill="none" stroke="${rebar.main}" stroke-width="${bar_w}" stroke-linejoin="round" stroke-linecap="round"/>`;
         }
 
         // Espacement réglementaire des cadres de confinement (EC2 §9.5.3)
@@ -363,11 +361,11 @@ function generateColumnSVG(a, b, nb_a, nb_b, diameter, enrobage, As_chosen) {
 
         for (let j = 0; j < nb_cadres; j++) {
             const y_pos = yE + y_offset + j * sElev_px;
-            svgContent += `<line x1="${xE+cElev_px-4}" y1="${y_pos}" x2="${xE+wElev_px-cElev_px+4}" y2="${y_pos}" stroke="#2980b9" stroke-width="4" stroke-linecap="round"/>`;
-            svgContent += `<path d="M ${xE+cElev_px} ${y_pos} C ${xE+cElev_px+15} ${y_pos-15}, ${xE+cElev_px+15} ${y_pos+15}, ${xE+cElev_px} ${y_pos}" fill="none" stroke="#2980b9" stroke-width="3" stroke-linecap="round"/>`;
+            svgContent += `<line x1="${xE+cElev_px-4}" y1="${y_pos}" x2="${xE+wElev_px-cElev_px+4}" y2="${y_pos}" stroke="${rebar.stirrup}" data-base-stroke="2.0" stroke-linecap="round"/>`;
+            svgContent += `<path d="M ${xE+cElev_px} ${y_pos} C ${xE+cElev_px+15} ${y_pos-15}, ${xE+cElev_px+15} ${y_pos+15}, ${xE+cElev_px} ${y_pos}" fill="none" stroke="${rebar.stirrup}" data-base-stroke="1.6" stroke-linecap="round"/>`;
         }
 
-        svgContent += drawDimensionLine(xE, yE, xE, yE+hElev_px, "L (tronqué)", "", 30, textColor, textColor);
+        svgContent += drawDimensionLine(xE, yE, xE, yE+hElev_px, `L = ${L_reel.toFixed(2)}`, "m", 34, textColor, textColor);
         if (nb_cadres > 1) {
             svgContent += drawDimensionLine(xE+wElev_px, yE+y_offset, xE+wElev_px, yE+y_offset+sElev_px, `s = ${s_cadre_cm.toFixed(1)}`, "cm", -30, textColor, textColor);
         }
@@ -375,23 +373,28 @@ function generateColumnSVG(a, b, nb_a, nb_b, diameter, enrobage, As_chosen) {
         svgContent += drawDimensionLine(xE+wElev_px-cElev_px, yE+hElev_px, xE+wElev_px, yE+hElev_px, "c", "", -20, textColor, textColor);
     }
 
-    // Légende
-    svgContent += `
-    <g transform="translate(${svgSize - 180}, ${svgSize - 195})">
-        <rect x="0" y="0" width="160" height="165" rx="6" ry="6" fill="${legendBg}" stroke="${concreteStroke}" stroke-width="1.5"/>
-        <text x="15" y="25" font-weight="bold" font-size="16" fill="${textColor}">Légende</text>
-        <circle cx="25" cy="50" r="7" fill="#c0392b"/>
-        <text x="45" y="55" font-size="15" fill="${textColor}">Aciers long.</text>
-        <line x1="15" y1="75" x2="35" y2="75" stroke="#2980b9" stroke-width="4"/>
-        <text x="45" y="80" font-size="15" fill="${textColor}">Cadres / Épingles</text>
-        <rect x="18" y="94" width="14" height="14" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>
-        <text x="45" y="106" font-size="15" fill="${textColor}">Béton</text>
-        <text x="15" y="126" font-size="14" font-weight="bold" fill="${textColor}">Section: ${As_chosen.toFixed(2)} cm²</text>
-        <text x="15" y="146" font-size="14" font-weight="bold" fill="${textColor}">Aciers: HA${AppState.selectedDiameter}</text>
-    </g>`;
 
     svgContent += '</svg>';
     svgContainer.innerHTML = svgContent;
+
+    finalizePlan('svgContainer', {
+        titre: AppState.currentView === 'coupe'
+            ? `Coupe du poteau, ${(a*100).toFixed(0)} sur ${(b*100).toFixed(0)} centimètres, ${nb_a*2 + Math.max(0, nb_b-2)*2} barres HA${diameter}`
+            : `Vue en élévation du poteau sur ${AppState.results.inputs.L.toFixed(2)} mètres de hauteur`,
+        pxParMetre: pxParMetre,
+        minRatio: AppState.currentView === 'coupe' ? 0.75 : 0.42,
+        maxRatio: 2.2
+    });
+
+    renderPlanLegend([
+        { forme: 'dot',  couleur: rebar.main,    texte: 'Aciers longitudinaux' },
+        { forme: 'line', couleur: rebar.stirrup, texte: 'Cadres / épingles' },
+        { forme: 'box',  couleur: concreteFill,  texte: 'Béton' }
+    ], [
+        `${nb_a*2 + Math.max(0, nb_b-2)*2} HA${diameter}`,
+        `A<sub>s</sub> = ${As_chosen.toFixed(2)} cm²`,
+        `Enrobage ${enrobage.toFixed(1)} cm`
+    ]);
 }
 
 // =========================================================

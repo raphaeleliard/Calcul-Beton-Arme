@@ -166,7 +166,8 @@ function renderUI() {
 
 function drawSVG() {
     const container = document.getElementById('svgContainer');
-    const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
+    const { textColor, concreteFill, concreteStroke } = getThemeColors();
+    const rebar = getRebarColors();
     
     // Entrées bornées par ec2-core.js : une saisie vide ou nulle donnerait une
     // échelle infinie, un SVG rempli de NaN et des boucles de dessin sans fin.
@@ -182,6 +183,7 @@ function drawSVG() {
     const w_m = 1.0; 
     const maxDim = Math.max(w_m, h);
     const scale = (svgSize - 2 * margin) / maxDim;
+    let pxParMetre = scale;   // échelle de la vue active, transmise à finalizePlan
     
     const w_px = w_m * scale;
     const h_px = h * scale;
@@ -219,10 +221,10 @@ function drawSVG() {
 
         // Dessin des nappes et de leurs fils transversaux
         nappesY.forEach(ny => {
-            svgContent += `<line x1="${x0}" y1="${ny}" x2="${x0+w_px}" y2="${ny}" stroke="#c0392b" stroke-width="${strokeW}" stroke-linecap="round"/>`;
+            svgContent += `<line x1="${x0}" y1="${ny}" x2="${x0+w_px}" y2="${ny}" stroke="${rebar.main}" stroke-width="${strokeW}" stroke-linecap="round"/>`;
             for(let i=0; i<=nb_points; i++) {
                 const nx = x0 + offset_x + (i * esp_ts);
-                svgContent += `<circle cx="${nx}" cy="${ny}" r="${r_bar}" fill="#c0392b"/>`;
+                svgContent += `<circle cx="${nx}" cy="${ny}" r="${r_bar}" fill="${rebar.main}"/>`;
             }
         });
 
@@ -231,9 +233,9 @@ function drawSVG() {
             const epingleW = Math.max(strokeW * 0.8, 2);
             for(let i=1; i<nb_points; i+=2) {
                 const nx = x0 + offset_x + (i * esp_ts);
-                svgContent += `<line x1="${nx}" y1="${nappesY[0]}" x2="${nx}" y2="${nappesY[1]}" stroke="#2980b9" stroke-width="${epingleW}" stroke-linecap="round"/>`;
-                svgContent += `<path d="M ${nx} ${nappesY[0]} C ${nx+15} ${nappesY[0]+15}, ${nx-15} ${nappesY[0]+15}, ${nx} ${nappesY[0]}" fill="none" stroke="#2980b9" stroke-width="${epingleW}" stroke-linecap="round" stroke-linejoin="round"/>`;
-                svgContent += `<path d="M ${nx} ${nappesY[1]} C ${nx-15} ${nappesY[1]-15}, ${nx+15} ${nappesY[1]-15}, ${nx} ${nappesY[1]}" fill="none" stroke="#2980b9" stroke-width="${epingleW}" stroke-linecap="round" stroke-linejoin="round"/>`;
+                svgContent += `<line x1="${nx}" y1="${nappesY[0]}" x2="${nx}" y2="${nappesY[1]}" stroke="${rebar.stirrup}" stroke-width="${epingleW}" stroke-linecap="round"/>`;
+                svgContent += `<path d="M ${nx} ${nappesY[0]} C ${nx+15} ${nappesY[0]+15}, ${nx-15} ${nappesY[0]+15}, ${nx} ${nappesY[0]}" fill="none" stroke="${rebar.stirrup}" stroke-width="${epingleW}" stroke-linecap="round" stroke-linejoin="round"/>`;
+                svgContent += `<path d="M ${nx} ${nappesY[1]} C ${nx-15} ${nappesY[1]-15}, ${nx+15} ${nappesY[1]-15}, ${nx} ${nappesY[1]}" fill="none" stroke="${rebar.stirrup}" stroke-width="${epingleW}" stroke-linecap="round" stroke-linejoin="round"/>`;
             }
         }
 
@@ -250,6 +252,7 @@ function drawSVG() {
         // Vue de face (Élévation unitaire)
         const maxDimF = 1.0;
         const scaleF = (svgSize - 2 * margin) / maxDimF;
+        pxParMetre = scaleF;
         const wF_px = maxDimF * scaleF;
         const hF_px = maxDimF * scaleF;
         const xF = (svgSize - wF_px) / 2 - 20;
@@ -262,8 +265,8 @@ function drawSVG() {
         
         // Fils verticaux et horizontaux du treillis
         for(let i=1; i<nb_lines; i++) {
-            svgContent += `<line x1="${xF + i*esp_ts_F}" y1="${yF}" x2="${xF + i*esp_ts_F}" y2="${yF+hF_px}" stroke="#c0392b" stroke-width="${strokeW}" stroke-linecap="round"/>`;
-            svgContent += `<line x1="${xF}" y1="${yF + i*esp_ts_F}" x2="${xF+wF_px}" y2="${yF + i*esp_ts_F}" stroke="#c0392b" stroke-width="${strokeW}" stroke-linecap="round"/>`;
+            svgContent += `<line x1="${xF + i*esp_ts_F}" y1="${yF}" x2="${xF + i*esp_ts_F}" y2="${yF+hF_px}" stroke="${rebar.main}" stroke-width="${strokeW}" stroke-linecap="round"/>`;
+            svgContent += `<line x1="${xF}" y1="${yF + i*esp_ts_F}" x2="${xF+wF_px}" y2="${yF + i*esp_ts_F}" stroke="${rebar.main}" stroke-width="${strokeW}" stroke-linecap="round"/>`;
         }
 
         // Cotations
@@ -273,20 +276,26 @@ function drawSVG() {
         }
     }
 
-    // Légende
-    svgContent += `
-    <g transform="translate(${svgSize - 180}, ${svgSize - 155})">
-        <rect x="0" y="0" width="160" height="135" rx="6" ry="6" fill="${legendBg}" stroke="${concreteStroke}" stroke-width="1.5"/>
-        <text x="15" y="25" font-weight="bold" font-size="16" fill="${textColor}">Légende</text>
-        <line x1="15" y1="50" x2="35" y2="50" stroke="#c0392b" stroke-width="3"/>
-        <circle cx="25" cy="50" r="4" fill="#c0392b"/>
-        <text x="45" y="55" font-size="15" fill="${textColor}">Treillis Soudé</text>
-        <text x="15" y="85" font-size="14" font-weight="bold" fill="${textColor}">Section: ${res.As_prov.toFixed(2)} cm²/ml</text>
-        <text x="15" y="115" font-size="14" font-weight="bold" fill="${textColor}">Treillis: ${AppState.selectedTS}</text>
-    </g>`;
 
     svgContent += '</svg>';
     container.innerHTML = svgContent;
+
+    finalizePlan('svgContainer', {
+        titre: AppState.currentView === 'coupe'
+            ? `Coupe d'une bande de voile d'un mètre, épaisseur ${(p.h*100).toFixed(0)} centimètres, ${p.nappesCount} nappe de treillis ${AppState.selectedTS}`
+            : `Vue de face du treillis soudé ${AppState.selectedTS} sur un mètre carré de voile`,
+        pxParMetre: pxParMetre,
+        maxRatio: 2.8
+    });
+
+    renderPlanLegend([
+        { forme: 'line', couleur: rebar.main,    texte: 'Treillis soudé' },
+        { forme: 'line', couleur: rebar.stirrup, texte: 'Épingles de liaison' }
+    ], [
+        `${AppState.selectedTS} en ${p.nappesCount} nappe(s)`,
+        `A<sub>s</sub> vertical : ${res.As_v_prov.toFixed(2)} cm²/ml`,
+        `A<sub>s</sub> horizontal : ${res.As_h_prov.toFixed(2)} cm²/ml`
+    ]);
 }
 
 // =========================================================

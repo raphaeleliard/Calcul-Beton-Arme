@@ -205,7 +205,8 @@ function renderUI() {
 
 function drawSVG() {
     const container = document.getElementById('svgContainer');
-    const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
+    const { textColor, concreteFill, concreteStroke } = getThemeColors();
+    const rebar = getRebarColors();
     const theme = document.documentElement.getAttribute('data-theme');
     
     // Entrées bornées par ec2-core.js : une saisie vide ou nulle donnerait une
@@ -216,12 +217,15 @@ function drawSVG() {
     const svgSize = 800;
     const margin = 140;
     
+    let pxParMetre = 0;   // échelle de la vue active, transmise à finalizePlan
+
     let svgContent = `<svg viewBox="0 0 ${svgSize} ${svgSize}" xmlns="http://www.w3.org/2000/svg" id="semellesvg" style="width: 100%; height: 100%;">`;
 
     if (AppState.currentView === 'coupe') {
         // Rendu de la coupe transversale (parallèle au côté A)
         const maxDim = Math.max(p.A, p.h + 0.5);
         const scale = (svgSize - 2 * margin) / maxDim;
+        pxParMetre = scale;
         
         const w_px = p.A * scale;
         const h_px = p.h * scale;
@@ -243,14 +247,14 @@ function drawSVG() {
         svgContent += `<line x1="${col_x0}" y1="${y0 - col_h_px - 20}" x2="${col_x0+a_px}" y2="${y0 - col_h_px - 20}" stroke="${textColor}" stroke-width="1.5"/>`;
         svgContent += `<line x1="${col_x0}" y1="${y0 - col_h_px - 25}" x2="${col_x0}" y2="${y0 - col_h_px - 15}" stroke="${textColor}" stroke-width="2"/>`;
         svgContent += `<line x1="${col_x0+a_px}" y1="${y0 - col_h_px - 25}" x2="${col_x0+a_px}" y2="${y0 - col_h_px - 15}" stroke="${textColor}" stroke-width="2"/>`;
-        svgContent += `<text x="${col_x0+a_px/2}" y="${y0 - col_h_px - 30}" text-anchor="middle" font-size="14" fill="${textColor}">a = ${(p.a*100).toFixed(0)} cm</text>`;
+        svgContent += `<text x="${col_x0+a_px/2}" y="${y0 - col_h_px - 30}" text-anchor="middle" font-size="14" data-base-size="12" fill="${textColor}">a = ${(p.a*100).toFixed(0)} cm</text>`;
 
         // Aciers nappe A (liaison longitudinale basse dans cette vue, avec ancrages relevés aux extrémités)
         const yA = y0 + h_px - c_px;
         const diamA_px = (AppState.diamA / 1000) * scale;
         const strokeWA = Math.max(diamA_px, 4);
         const hook = Math.max(15 * (AppState.diamA / 1000) * scale, 25);
-        svgContent += `<path d="M ${x0+c_px} ${yA-hook} L ${x0+c_px} ${yA} L ${x0+w_px-c_px} ${yA} L ${x0+w_px-c_px} ${yA-hook}" fill="none" stroke="#c0392b" stroke-width="${strokeWA}" stroke-linejoin="round" stroke-linecap="round"/>`;
+        svgContent += `<path d="M ${x0+c_px} ${yA-hook} L ${x0+c_px} ${yA} L ${x0+w_px-c_px} ${yA} L ${x0+w_px-c_px} ${yA-hook}" fill="none" stroke="${rebar.main}" stroke-width="${strokeWA}" stroke-linejoin="round" stroke-linecap="round"/>`;
 
         // Aciers nappe B (disposés au-dessus de la nappe A, vus de profil comme des cercles)
         const diamB_px = (AppState.diamB / 1000) * scale;
@@ -262,29 +266,30 @@ function drawSVG() {
         
         for (let i = 0; i < res.nb_B; i++) {
             const bx = x0 + offset_xB + i * espB_px;
-            svgContent += `<circle cx="${bx}" cy="${yB}" r="${radiusB}" fill="#2980b9"/>`;
+            svgContent += `<circle cx="${bx}" cy="${yB}" r="${radiusB}" fill="${rebar.stirrup}"/>`;
         }
 
         // Cotations semelle
         svgContent += `<line x1="${x0}" y1="${y0+h_px+60}" x2="${x0+w_px}" y2="${y0+h_px+60}" stroke="${textColor}" stroke-width="1.5"/>`;
         svgContent += `<line x1="${x0}" y1="${y0+h_px+55}" x2="${x0}" y2="${y0+h_px+65}" stroke="${textColor}" stroke-width="2"/>`;
         svgContent += `<line x1="${x0+w_px}" y1="${y0+h_px+55}" x2="${x0+w_px}" y2="${y0+h_px+65}" stroke="${textColor}" stroke-width="2"/>`;
-        svgContent += `<text x="${x0+w_px/2}" y="${y0+h_px+80}" text-anchor="middle" font-size="16" fill="${textColor}">A = ${(p.A).toFixed(2)} m</text>`;
+        svgContent += `<text x="${x0+w_px/2}" y="${y0+h_px+80}" text-anchor="middle" font-size="16" data-base-size="12.5" fill="${textColor}">A = ${(p.A).toFixed(2)} m</text>`;
 
         svgContent += `<line x1="${x0-30}" y1="${y0}" x2="${x0-30}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="1.5"/>`;
         svgContent += `<line x1="${x0-35}" y1="${y0}" x2="${x0-25}" y2="${y0}" stroke="${textColor}" stroke-width="2"/>`;
         svgContent += `<line x1="${x0-35}" y1="${y0+h_px}" x2="${x0-25}" y2="${y0+h_px}" stroke="${textColor}" stroke-width="2"/>`;
-        svgContent += `<text x="${x0-45}" y="${y0+h_px/2}" text-anchor="middle" font-size="16" fill="${textColor}" transform="rotate(-90 ${x0-45} ${y0+h_px/2})">h = ${(p.h*100).toFixed(0)} cm</text>`;
+        svgContent += `<text x="${x0-45}" y="${y0+h_px/2}" text-anchor="middle" font-size="16" data-base-size="12.5" fill="${textColor}" transform="rotate(-90 ${x0-45} ${y0+h_px/2})">h = ${(p.h*100).toFixed(0)} cm</text>`;
 
         svgContent += `<line x1="${x0}" y1="${y0+h_px+15}" x2="${x0+c_px}" y2="${y0+h_px+15}" stroke="${textColor}" stroke-width="1.5"/>`;
         svgContent += `<line x1="${x0}" y1="${y0+h_px+10}" x2="${x0}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2"/>`;
         svgContent += `<line x1="${x0+c_px}" y1="${y0+h_px+10}" x2="${x0+c_px}" y2="${y0+h_px+20}" stroke="${textColor}" stroke-width="2"/>`;
-        svgContent += `<text x="${x0+c_px/2}" y="${y0+h_px+30}" text-anchor="middle" font-size="12" fill="${textColor}">c=${(p.enrobage).toFixed(1)}</text>`;
+        svgContent += `<text x="${x0+c_px/2}" y="${y0+h_px+30}" text-anchor="middle" font-size="12" data-base-size="11" fill="${textColor}">c=${(p.enrobage).toFixed(1)}</text>`;
     } 
     else {
         // Rendu de la vue en plan de ferraillage
         const maxDim = Math.max(p.A, p.B);
         const scale = (svgSize - 2 * margin) / maxDim;
+        pxParMetre = scale;
         
         const wA_px = p.A * scale;
         const wB_px = p.B * scale;
@@ -304,9 +309,9 @@ function drawSVG() {
         svgContent += `<rect x="${col_x0}" y="${col_y0}" width="${a_px}" height="${b_px}" fill="${theme==='dark'?'#3d3d3d':'#dcdde1'}" stroke="${concreteStroke}" stroke-width="2"/>`;
         
         svgContent += `<line x1="${col_x0}" y1="${col_y0-15}" x2="${col_x0+a_px}" y2="${col_y0-15}" stroke="${textColor}" stroke-width="1.5"/>`;
-        svgContent += `<text x="${col_x0+a_px/2}" y="${col_y0-25}" text-anchor="middle" font-size="12" fill="${textColor}">a</text>`;
+        svgContent += `<text x="${col_x0+a_px/2}" y="${col_y0-25}" text-anchor="middle" font-size="12" data-base-size="11" fill="${textColor}">a</text>`;
         svgContent += `<line x1="${col_x0+a_px+15}" y1="${col_y0}" x2="${col_x0+a_px+15}" y2="${col_y0+b_px}" stroke="${textColor}" stroke-width="1.5"/>`;
-        svgContent += `<text x="${col_x0+a_px+25}" y="${col_y0+b_px/2}" text-anchor="middle" font-size="12" fill="${textColor}" alignment-baseline="middle">b</text>`;
+        svgContent += `<text x="${col_x0+a_px+25}" y="${col_y0+b_px/2}" text-anchor="middle" font-size="12" data-base-size="11" fill="${textColor}" alignment-baseline="middle">b</text>`;
 
         // Aciers nappe A (lignes rouges horizontales disposées le long de la hauteur B)
         const diamA_px = (AppState.diamA / 1000) * scale;
@@ -314,7 +319,7 @@ function drawSVG() {
         const espA_px = res.nb_A > 1 ? (wB_px - 2 * c_px) / (res.nb_A - 1) : 0;
         for (let i = 0; i < res.nb_A; i++) {
             const yL = y0 + c_px + i * espA_px;
-            svgContent += `<line x1="${x0+c_px}" y1="${yL}" x2="${x0+wA_px-c_px}" y2="${yL}" stroke="#c0392b" stroke-width="${strokeWPlanA}" stroke-linecap="round"/>`;
+            svgContent += `<line x1="${x0+c_px}" y1="${yL}" x2="${x0+wA_px-c_px}" y2="${yL}" stroke="${rebar.main}" stroke-width="${strokeWPlanA}" stroke-linecap="round"/>`;
         }
 
         // Aciers nappe B (lignes bleues verticales disposées le long de la largeur A)
@@ -323,19 +328,19 @@ function drawSVG() {
         const espB_px = res.nb_B > 1 ? (wA_px - 2 * c_px) / (res.nb_B - 1) : 0;
         for (let i = 0; i < res.nb_B; i++) {
             const xL = x0 + c_px + i * espB_px;
-            svgContent += `<line x1="${xL}" y1="${y0+c_px}" x2="${xL}" y2="${y0+wB_px-c_px}" stroke="#2980b9" stroke-width="${strokeWPlanB}" stroke-linecap="round"/>`;
+            svgContent += `<line x1="${xL}" y1="${y0+c_px}" x2="${xL}" y2="${y0+wB_px-c_px}" stroke="${rebar.stirrup}" stroke-width="${strokeWPlanB}" stroke-linecap="round"/>`;
         }
 
         // Cotations planétaires
         svgContent += `<line x1="${x0}" y1="${y0-60}" x2="${x0+wA_px}" y2="${y0-60}" stroke="${textColor}" stroke-width="1.5"/>`;
         svgContent += `<line x1="${x0}" y1="${y0-65}" x2="${x0}" y2="${y0-55}" stroke="${textColor}" stroke-width="2"/>`;
         svgContent += `<line x1="${x0+wA_px}" y1="${y0-65}" x2="${x0+wA_px}" y2="${y0-55}" stroke="${textColor}" stroke-width="2"/>`;
-        svgContent += `<text x="${x0+wA_px/2}" y="${y0-75}" text-anchor="middle" font-size="16" fill="${textColor}">A = ${(p.A).toFixed(2)} m</text>`;
+        svgContent += `<text x="${x0+wA_px/2}" y="${y0-75}" text-anchor="middle" font-size="16" data-base-size="12.5" fill="${textColor}">A = ${(p.A).toFixed(2)} m</text>`;
 
         svgContent += `<line x1="${x0+wA_px+60}" y1="${y0}" x2="${x0+wA_px+60}" y2="${y0+wB_px}" stroke="${textColor}" stroke-width="1.5"/>`;
         svgContent += `<line x1="${x0+wA_px+55}" y1="${y0}" x2="${x0+wA_px+65}" y2="${y0}" stroke="${textColor}" stroke-width="2"/>`;
         svgContent += `<line x1="${x0+wA_px+55}" y1="${y0+wB_px}" x2="${x0+wA_px+65}" y2="${y0+wB_px}" stroke="${textColor}" stroke-width="2"/>`;
-        svgContent += `<text x="${x0+wA_px+75}" y="${y0+wB_px/2}" text-anchor="middle" font-size="16" fill="${textColor}" transform="rotate(90 ${x0+wA_px+75} ${y0+wB_px/2})">B = ${(p.B).toFixed(2)} m</text>`;
+        svgContent += `<text x="${x0+wA_px+75}" y="${y0+wB_px/2}" text-anchor="middle" font-size="16" data-base-size="12.5" fill="${textColor}" transform="rotate(90 ${x0+wA_px+75} ${y0+wB_px/2})">B = ${(p.B).toFixed(2)} m</text>`;
 
         // Cotation espacements réels
         if (res.nb_A > 1) {
@@ -345,7 +350,7 @@ function drawSVG() {
             svgContent += `<line x1="${coteX}" y1="${startY}" x2="${coteX}" y2="${endY}" stroke="${textColor}" stroke-width="1.5"/>`;
             svgContent += `<line x1="${coteX-5}" y1="${startY}" x2="${coteX+5}" y2="${startY}" stroke="${textColor}" stroke-width="2"/>`;
             svgContent += `<line x1="${coteX-5}" y1="${endY}" x2="${coteX+5}" y2="${endY}" stroke="${textColor}" stroke-width="2"/>`;
-            svgContent += `<text x="${coteX-10}" y="${(startY+endY)/2}" alignment-baseline="middle" text-anchor="end" font-size="14" fill="${textColor}">${res.esp_A.toFixed(1)} cm</text>`;
+            svgContent += `<text x="${coteX-10}" y="${(startY+endY)/2}" alignment-baseline="middle" text-anchor="end" font-size="14" data-base-size="12" fill="${textColor}">${res.esp_A.toFixed(1)} cm</text>`;
         }
 
         if (res.nb_B > 1) {
@@ -355,25 +360,29 @@ function drawSVG() {
             svgContent += `<line x1="${startX}" y1="${coteY}" x2="${endX}" y2="${coteY}" stroke="${textColor}" stroke-width="1.5"/>`;
             svgContent += `<line x1="${startX}" y1="${coteY-5}" x2="${startX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
             svgContent += `<line x1="${endX}" y1="${coteY-5}" x2="${endX}" y2="${coteY+5}" stroke="${textColor}" stroke-width="2"/>`;
-            svgContent += `<text x="${(startX+endX)/2}" y="${coteY-10}" text-anchor="middle" font-size="14" fill="${textColor}">${res.esp_B.toFixed(1)} cm</text>`;
+            svgContent += `<text x="${(startX+endX)/2}" y="${coteY-10}" text-anchor="middle" font-size="14" data-base-size="12" fill="${textColor}">${res.esp_B.toFixed(1)} cm</text>`;
         }
     }
 
-    // Légende
-    svgContent += `
-    <g transform="translate(${svgSize - 220}, ${svgSize - 165})">
-        <rect x="0" y="0" width="200" height="145" rx="6" ry="6" fill="${legendBg}" stroke="${concreteStroke}" stroke-width="1.5"/>
-        <text x="15" y="25" font-weight="bold" font-size="16" fill="${textColor}">Légende</text>
-        <line x1="15" y1="50" x2="35" y2="50" stroke="#c0392b" stroke-width="4"/>
-        <text x="45" y="55" font-size="14" fill="${textColor}">Nappe Inf (// A)</text>
-        <line x1="15" y1="80" x2="35" y2="80" stroke="#2980b9" stroke-width="4"/>
-        <text x="45" y="85" font-size="14" fill="${textColor}">Nappe Sup (// B)</text>
-        <text x="15" y="110" font-size="13" font-weight="bold" fill="${textColor}">As // A: ${res.As_A_prov.toFixed(2)} cm² (HA${AppState.diamA})</text>
-        <text x="15" y="130" font-size="13" font-weight="bold" fill="${textColor}">As // B: ${res.As_B_prov.toFixed(2)} cm² (HA${AppState.diamB})</text>
-    </g>`;
 
     svgContent += '</svg>';
     container.innerHTML = svgContent;
+
+    finalizePlan('svgContainer', {
+        titre: AppState.currentView === 'coupe'
+            ? `Coupe de la semelle isolée, ${p.A.toFixed(2)} mètres de large sur ${(p.h*100).toFixed(0)} centimètres de haut`
+            : `Vue en plan du ferraillage de la semelle, ${p.A.toFixed(2)} sur ${p.B.toFixed(2)} mètres`,
+        pxParMetre: pxParMetre,
+        maxRatio: 2.4
+    });
+
+    renderPlanLegend([
+        { forme: 'line', couleur: rebar.main,    texte: 'Nappe inférieure (// A)' },
+        { forme: 'line', couleur: rebar.stirrup, texte: 'Nappe supérieure (// B)' }
+    ], [
+        `${res.nb_A} HA${AppState.diamA} → ${res.As_A_prov.toFixed(2)} cm²`,
+        `${res.nb_B} HA${AppState.diamB} → ${res.As_B_prov.toFixed(2)} cm²`
+    ]);
 }
 
 // =========================================================================

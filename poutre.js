@@ -247,12 +247,16 @@ function calculerEspacementLibre(b, nbBarres) {
 
 function drawPoutreSVG(b, h, As, steelArrangement, espLibre_cm) {
     const container = document.getElementById('svgContainer');
-    const { textColor, concreteFill, concreteStroke, legendBg } = getThemeColors();
+    const { textColor, concreteFill, concreteStroke } = getThemeColors();
+    const rebar = getRebarColors();
 
     const svgSize = 800;
     const margin = 140;
     const maxDim = Math.max(b, h);
     const scale = (svgSize - 2*margin) / maxDim;
+    // Renseignés par la vue active, puis transmis à finalizePlan
+    let pxParMetre = scale;
+    let maxRatioVue = 2.2;
     
     const w_px = b * scale;
     const h_px = h * scale;
@@ -267,30 +271,29 @@ function drawPoutreSVG(b, h, As, steelArrangement, espLibre_cm) {
     
     if (AppState.currentView === 'coupe') {
         // Section droite en béton
-        svgContent += `<rect x="${x0}" y="${y0}" width="${w_px}" height="${h_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
+        svgContent += `<rect x="${x0}" y="${y0}" width="${w_px}" height="${h_px}" fill="${concreteFill}" stroke="${concreteStroke}" data-base-stroke="1.6"/>`;
         
         if (As > 0) {
             // Dessin des armatures transversales (cadres)
-            const stirrupStroke = 5;
             const rx = x0 + c - radius_bar;
             const ry = y0 + c - radius_bar;
             const rw = w_px - 2*c + 2*radius_bar;
             const rh = h_px - 2*c + 2*radius_bar;
             const r_corner = radius_bar * 1.5;
 
-            svgContent += `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="${r_corner}" ry="${r_corner}" fill="none" stroke="#2980b9" stroke-width="${stirrupStroke}"/>`;
+            svgContent += `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="${r_corner}" ry="${r_corner}" fill="none" stroke="${rebar.stirrup}" data-base-stroke="2.6"/>`;
 
             // Crochets des cadres
-            svgContent += `<line x1="${x0+c}" y1="${ry}" x2="${x0+c + 35}" y2="${ry + 35}" stroke="#2980b9" stroke-width="${stirrupStroke}" stroke-linecap="round"/>`;
-            svgContent += `<line x1="${rx}" y1="${y0+c}" x2="${rx + 35}" y2="${y0+c + 35}" stroke="#2980b9" stroke-width="${stirrupStroke}" stroke-linecap="round"/>`;
+            svgContent += `<line x1="${x0+c}" y1="${ry}" x2="${x0+c + 35}" y2="${ry + 35}" stroke="${rebar.stirrup}" data-base-stroke="2.6" stroke-linecap="round"/>`;
+            svgContent += `<line x1="${rx}" y1="${y0+c}" x2="${rx + 35}" y2="${y0+c + 35}" stroke="${rebar.stirrup}" data-base-stroke="2.6" stroke-linecap="round"/>`;
 
             // Aciers de peau / de montage transversaux (épingles éventuelles)
             const nbEspaceurs = 5;
             for(let i = 1; i < nbEspaceurs; i++) {
                 const y = y0 + c + ((h_px - 2*c) * i / nbEspaceurs);
-                svgContent += `<line x1="${rx}" y1="${y}" x2="${rx + rw}" y2="${y}" stroke="#2980b9" stroke-width="${stirrupStroke - 1}"/>`;
-                svgContent += `<path d="M ${rx} ${y} C ${rx-15} ${y-20}, ${rx+20} ${y-20}, ${rx+20} ${y}" fill="none" stroke="#2980b9" stroke-width="${stirrupStroke - 1}" stroke-linecap="round"/>`;
-                svgContent += `<path d="M ${rx + rw} ${y} C ${rx+rw+15} ${y+20}, ${rx+rw-20} ${y+20}, ${rx+rw-20} ${y}" fill="none" stroke="#2980b9" stroke-width="${stirrupStroke - 1}" stroke-linecap="round"/>`;
+                svgContent += `<line x1="${rx}" y1="${y}" x2="${rx + rw}" y2="${y}" stroke="${rebar.stirrup}" data-base-stroke="2.0"/>`;
+                svgContent += `<path d="M ${rx} ${y} C ${rx-15} ${y-20}, ${rx+20} ${y-20}, ${rx+20} ${y}" fill="none" stroke="${rebar.stirrup}" data-base-stroke="2.0" stroke-linecap="round"/>`;
+                svgContent += `<path d="M ${rx + rw} ${y} C ${rx+rw+15} ${y+20}, ${rx+rw-20} ${y+20}, ${rx+rw-20} ${y}" fill="none" stroke="${rebar.stirrup}" data-base-stroke="2.0" stroke-linecap="round"/>`;
             }
             
             // Aciers longitudinaux inférieurs tendus
@@ -300,13 +303,13 @@ function drawPoutreSVG(b, h, As, steelArrangement, espLibre_cm) {
             for(let i=0; i<nbBarres; i++) {
                 const bx = nbBarres === 1 ? x0 + w_px/2 : x0 + c + (i * espaceBarres);
                 const by = y0 + h_px - c;
-                svgContent += `<circle cx="${bx}" cy="${by}" r="${radius_bar}" fill="#c0392b"/>`;
+                svgContent += `<circle cx="${bx}" cy="${by}" r="${radius_bar}" fill="${rebar.main}"/>`;
             }
             
             // Aciers supérieurs de montage (ancrage des cadres)
             const appuiRadius = Math.max(radius_bar * 0.8, 4);
-            svgContent += `<circle cx="${x0+c}" cy="${y0+c}" r="${appuiRadius}" fill="#7f8c8d"/>`;
-            svgContent += `<circle cx="${x0+w_px-c}" cy="${y0+c}" r="${appuiRadius}" fill="#7f8c8d"/>`;
+            svgContent += `<circle cx="${x0+c}" cy="${y0+c}" r="${appuiRadius}" fill="${rebar.montage}"/>`;
+            svgContent += `<circle cx="${x0+w_px-c}" cy="${y0+c}" r="${appuiRadius}" fill="${rebar.montage}"/>`;
         }
 
         // Cotation de la hauteur utile d
@@ -319,83 +322,94 @@ function drawPoutreSVG(b, h, As, steelArrangement, espLibre_cm) {
         svgContent += drawDimensionLine(x0+w_px, y0, x0+w_px, y0+h_px, `h = ${(h*100).toFixed(0)}`, "cm", -70, textColor, textColor);
         svgContent += drawDimensionLine(x0, y0+h_px, x0+c, y0+h_px, `c=${(AppState.c_enrobage*100).toFixed(1)}`, "", 15, textColor, textColor);
 
-        // Cotations des espacements libres entre barres (même valeur que le panneau de résultats)
+        // Espacement libre entre barres : coté une seule fois, les barres étant
+        // équidistantes (auparavant la même valeur était répétée n-1 fois).
         if (As > 0 && steelArrangement.nbBarres > 1) {
-            const spacing_cm = espLibre_cm;
             const espaceBarres = (w_px - 2*c) / (steelArrangement.nbBarres - 1);
-            for(let i=0; i<steelArrangement.nbBarres-1; i++) {
-                const startX = x0 + c + i*espaceBarres;
-                const endX = x0 + c + (i+1)*espaceBarres;
-                svgContent += drawDimensionLine(startX, y0+h_px, endX, y0+h_px, spacing_cm.toFixed(1), "cm", 70, textColor, textColor);
-            }
+            svgContent += drawDimensionLine(x0 + c, y0+h_px, x0 + c + espaceBarres, y0+h_px,
+                espLibre_cm.toFixed(1), "cm", 70, textColor, textColor);
         }
     } else {
-        // Vue longitudinale simplifiée
-        const L_visu = 2.0; 
-        const maxDimL = Math.max(L_visu, h);
-        const scaleL = (svgSize - 2*margin) / maxDimL;
-        const wL_px = L_visu * scaleL;
+        // Vue longitudinale à la portée RÉELLEMENT saisie : la longueur était
+        // auparavant figée à 2.00 m, si bien qu'une poutre de 5 m et une de 10 m
+        // donnaient exactement le même dessin.
+        const L_reel = AppState.results.inputs.L;
+        const scaleL = (svgSize - 2*margin) / L_reel;
+        const wL_px = L_reel * scaleL;
         const hL_px = h * scaleL;
-        const x0L = (svgSize - wL_px) / 2 - 20;
+        const x0L = margin;
         const y0L = (svgSize - hL_px) / 2;
         const c_pxL = AppState.c_enrobage * scaleL;
+        const barW = Math.max((AppState.selectedDiameter / 1000) * scaleL, 2.5);
 
-        svgContent += `<rect x="${x0L}" y="${y0L}" width="${wL_px}" height="${hL_px}" fill="${concreteFill}" stroke="${concreteStroke}" stroke-width="2"/>`;
-        svgContent += `<line x1="${x0L-20}" y1="${y0L}" x2="${x0L}" y2="${y0L}" stroke="${concreteStroke}" stroke-width="2" stroke-dasharray="8,8"/>`;
-        svgContent += `<line x1="${x0L-20}" y1="${y0L+hL_px}" x2="${x0L}" y2="${y0L+hL_px}" stroke="${concreteStroke}" stroke-width="2" stroke-dasharray="8,8"/>`;
-        svgContent += `<line x1="${x0L+wL_px}" y1="${y0L}" x2="${x0L+wL_px+20}" y2="${y0L}" stroke="${concreteStroke}" stroke-width="2" stroke-dasharray="8,8"/>`;
-        svgContent += `<line x1="${x0L+wL_px}" y1="${y0L+hL_px}" x2="${x0L+wL_px+20}" y2="${y0L+hL_px}" stroke="${concreteStroke}" stroke-width="2" stroke-dasharray="8,8"/>`;
+        svgContent += `<rect x="${x0L}" y="${y0L}" width="${wL_px}" height="${hL_px}" fill="${concreteFill}" stroke="${concreteStroke}" data-base-stroke="1.6"/>`;
+
+        // Symboles d'appui simple aux deux extrémités
+        const appui = (cx) => {
+            const t = hL_px * 0.22;
+            return `<path d="M ${cx} ${y0L+hL_px} L ${cx-t} ${y0L+hL_px+t*1.4} L ${cx+t} ${y0L+hL_px+t*1.4} Z"
+                     fill="none" stroke="${concreteStroke}" data-base-stroke="1.6" stroke-linejoin="round"/>`;
+        };
+        svgContent += appui(x0L) + appui(x0L + wL_px);
 
         const y_bas = y0L + hL_px - c_pxL;
         const y_haut = y0L + c_pxL;
-        const hookL = 25;
-        // Barre longitudinale tendue avec crochets normatifs aux extrémités
-        svgContent += `<path d="M ${x0L+c_pxL} ${y_bas-hookL} L ${x0L+c_pxL} ${y_bas} L ${x0L+wL_px-c_pxL} ${y_bas} L ${x0L+wL_px-c_pxL} ${y_bas-hookL}" fill="none" stroke="#c0392b" stroke-width="${Math.max(radius_bar * 0.8, 4)}" stroke-linejoin="round"/>`;
-        // Barre de montage supérieure
-        svgContent += `<line x1="${x0L+c_pxL}" y1="${y_haut}" x2="${x0L+wL_px-c_pxL}" y2="${y_haut}" stroke="#7f8c8d" stroke-width="6" stroke-linecap="round"/>`;
+        const hookL = Math.min(hL_px * 0.35, c_pxL + hL_px * 0.3);
 
-        // Répartition des cadres transversaux (cadre HA8 à 2 brins ≈ 1.006 cm²),
-        // bornée par l'espacement maximal réglementaire s_l,max = 0.75 d (EC2 §9.2.2(6))
+        // Aciers tendus avec crochets d'ancrage aux appuis
+        svgContent += `<path d="M ${x0L+c_pxL} ${y_bas-hookL} L ${x0L+c_pxL} ${y_bas} L ${x0L+wL_px-c_pxL} ${y_bas} L ${x0L+wL_px-c_pxL} ${y_bas-hookL}" fill="none" stroke="${rebar.main}" stroke-width="${barW}" stroke-linejoin="round" stroke-linecap="round"/>`;
+        // Aciers de montage en partie supérieure
+        svgContent += `<line x1="${x0L+c_pxL}" y1="${y_haut}" x2="${x0L+wL_px-c_pxL}" y2="${y_haut}" stroke="${rebar.montage}" stroke-width="${barW*0.8}" stroke-linecap="round"/>`;
+
+        // Répartition des cadres (cadre HA8 à 2 brins ≈ 1.006 cm²), bornée par
+        // l'espacement maximal réglementaire s_l,max = 0.75 d (EC2 §9.2.2(6))
         const resPoutre = AppState.results;
         let Asw_s = resPoutre ? resPoutre.Asw_s : 1.0;
         if (isNaN(Asw_s) || Asw_s <= 0) Asw_s = 1.0;
         const s_max_cm = resPoutre && isFinite(resPoutre.s_max_cadres) ? resPoutre.s_max_cadres : 30;
-        let s_cadre_cm = Math.min(Math.max((1.006 / Asw_s) * 100, 5), s_max_cm);
+        const s_cadre_cm = Math.min(Math.max((1.006 / Asw_s) * 100, 5), s_max_cm);
         const sL_px = (s_cadre_cm / 100) * scaleL;
         const nb_cadres = Math.min(Math.floor(wL_px / sL_px), 200);
+        const crochet = Math.min(hL_px * 0.12, 10);
 
-        for (let i = 1; i < nb_cadres; i++) {
-            const x_pos = x0L + i * sL_px;
-            svgContent += `<line x1="${x_pos}" y1="${y_haut}" x2="${x_pos}" y2="${y_bas}" stroke="#2980b9" stroke-width="3"/>`;
-            svgContent += `<path d="M ${x_pos} ${y_haut} C ${x_pos+15} ${y_haut+15}, ${x_pos-15} ${y_haut+15}, ${x_pos} ${y_haut}" fill="none" stroke="#2980b9" stroke-width="3"/>`;
+        for (let i = 0; i <= nb_cadres; i++) {
+            const x_pos = x0L + c_pxL + i * sL_px;
+            if (x_pos > x0L + wL_px - c_pxL) break;
+            svgContent += `<line x1="${x_pos}" y1="${y_haut}" x2="${x_pos}" y2="${y_bas}" stroke="${rebar.stirrup}" data-base-stroke="1.4"/>`;
+            svgContent += `<path d="M ${x_pos} ${y_haut} C ${x_pos+crochet} ${y_haut+crochet}, ${x_pos-crochet} ${y_haut+crochet}, ${x_pos} ${y_haut}" fill="none" stroke="${rebar.stirrup}" data-base-stroke="1.4"/>`;
         }
 
-        // Cotations de la vue longitudinale
-        svgContent += drawDimensionLine(x0L, y0L, x0L, y0L+hL_px, `h = ${(h*100).toFixed(0)}`, "cm", 30, textColor, textColor);
+        // Cotations : portée réelle, hauteur, espacement des cadres
+        svgContent += drawDimensionLine(x0L, y0L, x0L+wL_px, y0L, `L = ${L_reel.toFixed(2)}`, "m", -46, textColor, textColor);
+        svgContent += drawDimensionLine(x0L, y0L, x0L, y0L+hL_px, `h = ${(h*100).toFixed(0)}`, "cm", 34, textColor, textColor);
         if (nb_cadres > 2) {
-            svgContent += drawDimensionLine(x0L+sL_px, y0L+hL_px, x0L+2*sL_px, y0L+hL_px, `s = ${s_cadre_cm.toFixed(1)}`, "cm", 30, textColor, textColor);
+            svgContent += drawDimensionLine(x0L+c_pxL, y0L+hL_px, x0L+c_pxL+sL_px, y0L+hL_px,
+                `s = ${s_cadre_cm.toFixed(0)}`, "cm", 42, textColor, textColor);
         }
-
-        svgContent += drawDimensionLine(x0L+wL_px, y0L+hL_px, x0L+wL_px, y0L+hL_px-c_pxL, "c", "", -20, textColor, textColor);
+        pxParMetre = scaleL;
+        maxRatioVue = 3.4;
     }
-
-    // Légende du schéma
-    svgContent += `
-    <g transform="translate(${svgSize - 180}, ${svgSize - 205})">
-        <rect x="0" y="0" width="160" height="175" rx="6" ry="6" fill="${legendBg}" stroke="${concreteStroke}" stroke-width="1.5"/>
-        <text x="15" y="25" font-weight="bold" font-size="16" fill="${textColor}">Légende</text>
-        <circle cx="25" cy="50" r="7" fill="#c0392b"/>
-        <text x="45" y="55" font-size="15" fill="${textColor}">Aciers long.</text>
-        <line x1="15" y1="80" x2="35" y2="80" stroke="#2980b9" stroke-width="4"/>
-        <text x="45" y="85" font-size="15" fill="${textColor}">Cadres / Épingles</text>
-        <circle cx="25" cy="110" r="7" fill="#7f8c8d"/>
-        <text x="45" y="115" font-size="15" fill="${textColor}">Aciers montage</text>
-        <text x="15" y="140" font-size="14" font-weight="bold" fill="${textColor}">Section: ${steelArrangement.actualSection.toFixed(2)} cm²</text>
-        <text x="15" y="160" font-size="14" font-weight="bold" fill="${textColor}">Aciers: HA${AppState.selectedDiameter}</text>
-    </g>`;
 
     svgContent += `</svg>`;
     container.innerHTML = svgContent;
+
+    finalizePlan('svgContainer', {
+        titre: AppState.currentView === 'coupe'
+            ? `Coupe transversale de la poutre, ${b*100} sur ${h*100} centimètres, ${steelArrangement.nbBarres} barres HA${AppState.selectedDiameter} en partie tendue`
+            : `Vue longitudinale de la poutre sur ${AppState.results.inputs.L.toFixed(2)} mètres de portée`,
+        pxParMetre: pxParMetre,
+        maxRatio: maxRatioVue
+    });
+
+    renderPlanLegend([
+        { forme: 'dot',  couleur: rebar.main,    texte: 'Aciers longitudinaux' },
+        { forme: 'line', couleur: rebar.stirrup, texte: 'Cadres / épingles' },
+        { forme: 'dot',  couleur: rebar.montage, texte: 'Aciers de montage' }
+    ], [
+        `${steelArrangement.nbBarres} HA${AppState.selectedDiameter}`,
+        `A<sub>s</sub> = ${steelArrangement.actualSection.toFixed(2)} cm²`,
+        `Enrobage ${(AppState.c_enrobage*100).toFixed(1)} cm`
+    ]);
 }
 
 // =========================================================

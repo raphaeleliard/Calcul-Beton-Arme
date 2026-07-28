@@ -306,6 +306,17 @@ function drawDimensionLine(x1, y1, x2, y2, value, unit = "cm", offset = 30, text
  * @param {object} options      {titre, pxParMetre, minRatio, maxRatio, padding}
  */
 function finalizePlan(containerId, options = {}) {
+    try {
+        finaliserPlanInterne(containerId, options);
+    } catch (e) {
+        // Le plan est déjà tracé à ce stade : une défaillance de la mise en page
+        // ne doit jamais laisser un cadre vide à l'utilisateur.
+        console.error('Mise en page du plan impossible, tracé conservé tel quel :', e);
+        initPlanViewer(containerId);
+    }
+}
+
+function finaliserPlanInterne(containerId, options) {
     const container = document.getElementById(containerId);
     if (!container) return;
     const svg = container.querySelector('svg');
@@ -379,18 +390,33 @@ function finalizePlan(containerId, options = {}) {
         fond.setAttribute('rx', (2 * k).toFixed(2));
     });
 
-    // Échelle graphique : elle reste juste quel que soit l'agrandissement,
-    // contrairement à une mention « 1:20 » qui ne vaut que pour une impression.
-    // On lui réserve une bande sous le dessin, sans quoi elle viendrait recouvrir
-    // les cotations situées en partie basse.
-    if (options.pxParMetre > 0) {
-        const bande = 26 * k;
+    // Cartouche bas : légende et échelle graphique. Une bande leur est réservée
+    // sous le dessin — dessinées par-dessus, elles recouvriraient les cotations.
+    // La légende appartient au SVG lui-même pour figurer dans les exports PNG
+    // et PDF, où un simple bloc HTML placé à côté n'aurait pas été repris.
+    const aLegende = options.legende && options.legende.entrees && options.legende.entrees.length;
+    const aEchelle = options.pxParMetre > 0;
+
+    if (aLegende || aEchelle) {
+        const groupe = aLegende ? buildLegendGroup(svg, vue, k, options.legende) : null;
+        const hLegende = groupe ? groupe.hauteur : 0;
+        const hEchelle = aEchelle ? 24 * k : 0;
+        const bande = hLegende + hEchelle + 6 * k;
+
         vue.h += bande;
         vue.ratio = vue.w / vue.h;
         svg.setAttribute('viewBox', `${vue.x} ${vue.y} ${vue.w} ${vue.h}`);
         container.style.setProperty('--plan-ratio', vue.ratio.toFixed(3));
         fonds.forEach(el => el.setAttribute('height', vue.h));
-        svg.insertAdjacentHTML('beforeend', buildScaleBar(vue, options.pxParMetre, k));
+
+        if (groupe) {
+            // La légende se cale en haut de la bande, l'échelle en dessous
+            groupe.el.setAttribute('transform',
+                `translate(0, ${vue.y + vue.h - bande + 4 * k})`);
+        }
+        if (aEchelle) {
+            svg.insertAdjacentHTML('beforeend', buildScaleBar(vue, options.pxParMetre, k));
+        }
     }
 
     // Restitution pour les lecteurs d'écran
@@ -405,6 +431,79 @@ function finalizePlan(containerId, options = {}) {
     // Le bouton d'agrandissement vit dans le conteneur, que chaque tracé remplace :
     // on le rétablit ici plutôt qu'une seule fois au chargement.
     initPlanViewer(containerId);
+}
+
+/**
+ * Construit la légende à l'intérieur du SVG, sur une ou deux lignes selon la
+ * place disponible. Les largeurs de texte n'étant connues qu'une fois le
+ * contenu inséré, le groupe est ajouté puis mesuré et repositionné.
+ * @returns {{el:SVGGElement, hauteur:number}}
+ */
+function buildLegendGroup(svg, vue, k, legende) {
+    const { textColor } = getThemeColors();
+    const H_LIGNE = 14 * k;
+    const ECART = 14 * k;
+    const marge = 14 * k;
+    const largeurUtile = vue.w - 2 * marge;
+
+    const groupe = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    groupe.setAttribute('class', 'plan-legend-svg');
+    svg.appendChild(groupe);
+
+    // Chaque entrée est un groupe « puce + libellé », mesuré après insertion
+    const entrees = legende.entrees.map(e => {
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        let puce;
+        if (e.forme === 'dot') {
+            puce = `<circle cx="${4 * k}" cy="${-3.5 * k}" r="${4 * k}" fill="${e.couleur}"/>`;
+        } else if (e.forme === 'box') {
+            puce = `<rect x="0" y="${-8 * k}" width="${9 * k}" height="${9 * k}" fill="${e.couleur}" stroke="${textColor}" stroke-width="${0.6 * k}"/>`;
+        } else {
+            puce = `<rect x="0" y="${-5 * k}" width="${13 * k}" height="${3.2 * k}" rx="${1.6 * k}" fill="${e.couleur}"/>`;
+        }
+        g.innerHTML = puce +
+            `<text x="${16 * k}" y="0" font-size="${11.5 * k}" fill="${textColor}">${e.texte}</text>`;
+        groupe.appendChild(g);
+        return g;
+    });
+
+    // Disposition en lignes, repli dès que la largeur utile est dépassée.
+    // L'origine est celle du viewBox recadré, et non du canevas d'origine.
+    const x0 = vue.x + marge;
+    let x = x0, y = H_LIGNE, lignes = 1;
+    entrees.forEach(g => {
+        const l = g.querySelector('text').getComputedTextLength() + 16 * k;
+        if (x > x0 && x + l > x0 + largeurUtile) { x = x0; y += H_LIGNE; lignes++; }
+        g.setAttribute('transform', `translate(${x}, ${y})`);
+        x += l + ECART;
+    });
+
+    // Synthèse (sections, diamètres) : mêmes règles de repli, les libellés
+    // pouvant être longs. Les balises HTML éventuelles sont retirées, le SVG
+    // ne sachant pas rendre <sub>.
+    if (legende.infos && legende.infos.length) {
+        y += H_LIGNE;
+        lignes++;
+        x = x0;
+        const infos = legende.infos.map(i => {
+            const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            t.setAttribute('font-size', 11.5 * k);
+            t.setAttribute('font-weight', '600');
+            t.setAttribute('fill', textColor);
+            t.textContent = String(i).replace(/<[^>]*>/g, '');
+            groupe.appendChild(t);
+            return t;
+        });
+        infos.forEach(t => {
+            const l = t.getComputedTextLength();
+            if (x > x0 && x + l > x0 + largeurUtile) { x = x0; y += H_LIGNE; lignes++; }
+            t.setAttribute('x', x);
+            t.setAttribute('y', y);
+            x += l + ECART;
+        });
+    }
+
+    return { el: groupe, hauteur: lignes * H_LIGNE + 4 * k };
 }
 
 /** Construit une échelle graphique de longueur « ronde » en bas du plan. */
@@ -428,28 +527,6 @@ function buildScaleBar(vue, pxParMetre, k) {
             <line x1="${x + longueur}" y1="${y - t}" x2="${x + longueur}" y2="${y + t}" stroke="${textColor}" stroke-width="${1.6 * k}"/>
             <text x="${x + longueur / 2}" y="${y - 6 * k}" text-anchor="middle" font-size="${11 * k}" fill="${textColor}">${libelle}</text>
         </g>`;
-}
-
-/**
- * Affiche la légende sous le plan, en HTML : elle était auparavant dessinée dans
- * le SVG à une position fixe, où elle pouvait recouvrir le dessin.
- * @param {Array<{couleur:string, forme:string, texte:string}>} entrees
- * @param {Array<string>} infos Lignes de synthèse (sections, diamètres…)
- */
-function renderPlanLegend(entrees, infos = []) {
-    const cible = document.getElementById('planLegend');
-    if (!cible) return;
-
-    const puce = (e) => {
-        if (e.forme === 'dot') return `<span class="lg-dot" style="background:${e.couleur}"></span>`;
-        if (e.forme === 'box') return `<span class="lg-box" style="background:${e.couleur}"></span>`;
-        return `<span class="lg-line" style="background:${e.couleur}"></span>`;
-    };
-
-    cible.innerHTML =
-        `<div class="plan-legend-items">${entrees.map(e =>
-            `<span class="plan-legend-item">${puce(e)}${e.texte}</span>`).join('')}</div>` +
-        (infos.length ? `<div class="plan-legend-infos">${infos.map(i => `<span>${i}</span>`).join('')}</div>` : '');
 }
 
 /**

@@ -281,21 +281,23 @@ function drawSVG() {
     container.innerHTML = svgContent;
 
     finalizePlan('svgContainer', {
+        legende: {
+            entrees: [
+        { forme: 'line', couleur: rebar.main,    texte: 'Treillis soudé' },
+        { forme: 'line', couleur: rebar.stirrup, texte: 'Épingles de liaison' }
+    ],
+            infos: [
+        `${AppState.selectedTS} en ${p.nappesCount} nappe(s)`,
+        `A<sub>s</sub> vertical : ${res.As_v_prov.toFixed(2)} cm²/ml`,
+        `A<sub>s</sub> horizontal : ${res.As_h_prov.toFixed(2)} cm²/ml`
+    ]
+        },
         titre: AppState.currentView === 'coupe'
             ? `Coupe d'une bande de voile d'un mètre, épaisseur ${(p.h*100).toFixed(0)} centimètres, ${p.nappesCount} nappe de treillis ${AppState.selectedTS}`
             : `Vue de face du treillis soudé ${AppState.selectedTS} sur un mètre carré de voile`,
         pxParMetre: pxParMetre,
         maxRatio: 2.8
     });
-
-    renderPlanLegend([
-        { forme: 'line', couleur: rebar.main,    texte: 'Treillis soudé' },
-        { forme: 'line', couleur: rebar.stirrup, texte: 'Épingles de liaison' }
-    ], [
-        `${AppState.selectedTS} en ${p.nappesCount} nappe(s)`,
-        `A<sub>s</sub> vertical : ${res.As_v_prov.toFixed(2)} cm²/ml`,
-        `A<sub>s</sub> horizontal : ${res.As_h_prov.toFixed(2)} cm²/ml`
-    ]);
 }
 
 // =========================================================

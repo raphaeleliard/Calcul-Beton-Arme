@@ -345,20 +345,22 @@ function drawSVG() {
     container.innerHTML = svgContent;
 
     finalizePlan('svgContainer', {
+        legende: {
+            entrees: [
+        { forme: 'dot',  couleur: rebar.main,    texte: 'Aciers principaux' },
+        { forme: 'line', couleur: rebar.stirrup, texte: 'Aciers de répartition' }
+    ],
+            infos: [
+        `Principaux : HA${AppState.diamMain} / ${p.espacementInput} cm → ${res.As_prov.toFixed(2)} cm²/ml`,
+        `Répartition : HA${AppState.diamRep} / ${p.espRepInput} cm → ${res.As_prov_rep.toFixed(2)} cm²/ml`
+    ]
+        },
         titre: AppState.currentView === 'coupe'
             ? `Coupe d'une bande de dalle d'un mètre, épaisseur ${(p.h*100).toFixed(0)} centimètres, aciers HA${AppState.diamMain} espacés de ${p.espacementInput} centimètres`
             : `Vue en plan du treillis d'armatures de la dalle sur un mètre carré`,
         pxParMetre: pxParMetre,
         maxRatio: 2.8
     });
-
-    renderPlanLegend([
-        { forme: 'dot',  couleur: rebar.main,    texte: 'Aciers principaux' },
-        { forme: 'line', couleur: rebar.stirrup, texte: 'Aciers de répartition' }
-    ], [
-        `Principaux : HA${AppState.diamMain} / ${p.espacementInput} cm → ${res.As_prov.toFixed(2)} cm²/ml`,
-        `Répartition : HA${AppState.diamRep} / ${p.espRepInput} cm → ${res.As_prov_rep.toFixed(2)} cm²/ml`
-    ]);
 }
 
 // =========================================================

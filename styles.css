@@ -220,19 +220,6 @@ svg { max-width: 100%; max-height: 100%; }
 }
 .plan-overlay-close:hover { color: var(--danger); }
 
-/* Légende du plan, sortie du SVG pour ne plus recouvrir le dessin */
-.plan-legend { margin-top: 0.6rem; font-size: 0.8rem; color: var(--text-muted); }
-.plan-legend-items { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; }
-.plan-legend-item { display: inline-flex; align-items: center; gap: 0.35rem; }
-.plan-legend-infos {
-    display: flex; flex-wrap: wrap; gap: 0.3rem 1rem;
-    margin-top: 0.4rem; padding-top: 0.4rem;
-    border-top: 1px solid var(--border-color);
-    font-weight: 600; color: var(--text-main);
-}
-.lg-dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
-.lg-line { width: 16px; height: 4px; border-radius: 2px; display: inline-block; flex-shrink: 0; }
-.lg-box { width: 12px; height: 12px; border-radius: 2px; display: inline-block; flex-shrink: 0; border: 1px solid var(--border-color); }
 
 .steel-selector {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(50px, 1fr));
@@ -790,4 +777,4 @@ footer { text-align: center; padding: 1rem; color: var(--text-muted); font-size:
     display: inline-block;
     transition: color 0.3s;
 }
-
+

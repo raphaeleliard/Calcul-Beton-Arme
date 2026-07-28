@@ -394,22 +394,24 @@ function drawPoutreSVG(b, h, As, steelArrangement, espLibre_cm) {
     container.innerHTML = svgContent;
 
     finalizePlan('svgContainer', {
+        legende: {
+            entrees: [
+        { forme: 'dot',  couleur: rebar.main,    texte: 'Aciers longitudinaux' },
+        { forme: 'line', couleur: rebar.stirrup, texte: 'Cadres / épingles' },
+        { forme: 'dot',  couleur: rebar.montage, texte: 'Aciers de montage' }
+    ],
+            infos: [
+        `${steelArrangement.nbBarres} HA${AppState.selectedDiameter}`,
+        `A<sub>s</sub> = ${steelArrangement.actualSection.toFixed(2)} cm²`,
+        `Enrobage ${(AppState.c_enrobage*100).toFixed(1)} cm`
+    ]
+        },
         titre: AppState.currentView === 'coupe'
             ? `Coupe transversale de la poutre, ${b*100} sur ${h*100} centimètres, ${steelArrangement.nbBarres} barres HA${AppState.selectedDiameter} en partie tendue`
             : `Vue longitudinale de la poutre sur ${AppState.results.inputs.L.toFixed(2)} mètres de portée`,
         pxParMetre: pxParMetre,
         maxRatio: maxRatioVue
     });
-
-    renderPlanLegend([
-        { forme: 'dot',  couleur: rebar.main,    texte: 'Aciers longitudinaux' },
-        { forme: 'line', couleur: rebar.stirrup, texte: 'Cadres / épingles' },
-        { forme: 'dot',  couleur: rebar.montage, texte: 'Aciers de montage' }
-    ], [
-        `${steelArrangement.nbBarres} HA${AppState.selectedDiameter}`,
-        `A<sub>s</sub> = ${steelArrangement.actualSection.toFixed(2)} cm²`,
-        `Enrobage ${(AppState.c_enrobage*100).toFixed(1)} cm`
-    ]);
 }
 
 // =========================================================

@@ -369,20 +369,22 @@ function drawSVG() {
     container.innerHTML = svgContent;
 
     finalizePlan('svgContainer', {
+        legende: {
+            entrees: [
+        { forme: 'line', couleur: rebar.main,    texte: 'Nappe inférieure (// A)' },
+        { forme: 'line', couleur: rebar.stirrup, texte: 'Nappe supérieure (// B)' }
+    ],
+            infos: [
+        `${res.nb_A} HA${AppState.diamA} → ${res.As_A_prov.toFixed(2)} cm²`,
+        `${res.nb_B} HA${AppState.diamB} → ${res.As_B_prov.toFixed(2)} cm²`
+    ]
+        },
         titre: AppState.currentView === 'coupe'
             ? `Coupe de la semelle isolée, ${p.A.toFixed(2)} mètres de large sur ${(p.h*100).toFixed(0)} centimètres de haut`
             : `Vue en plan du ferraillage de la semelle, ${p.A.toFixed(2)} sur ${p.B.toFixed(2)} mètres`,
         pxParMetre: pxParMetre,
         maxRatio: 2.4
     });
-
-    renderPlanLegend([
-        { forme: 'line', couleur: rebar.main,    texte: 'Nappe inférieure (// A)' },
-        { forme: 'line', couleur: rebar.stirrup, texte: 'Nappe supérieure (// B)' }
-    ], [
-        `${res.nb_A} HA${AppState.diamA} → ${res.As_A_prov.toFixed(2)} cm²`,
-        `${res.nb_B} HA${AppState.diamB} → ${res.As_B_prov.toFixed(2)} cm²`
-    ]);
 }
 
 // =========================================================================

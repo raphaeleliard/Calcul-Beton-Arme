@@ -332,20 +332,22 @@ function drawSVG() {
     container.innerHTML = svgContent;
 
     finalizePlan('svgContainer', {
+        legende: {
+            entrees: [
+        { forme: 'line', couleur: rebar.main,    texte: 'Aciers transversaux' },
+        { forme: 'line', couleur: rebar.stirrup, texte: 'Aciers de répartition' }
+    ],
+            infos: [
+        `Transversaux : HA${AppState.diamMain} / ${p.espMain} cm → ${res.As_prov_main.toFixed(2)} cm²/ml`,
+        `Répartition : HA${AppState.diamRep} / ${p.espRep} cm → ${res.As_prov_rep.toFixed(2)} cm²/ml`
+    ]
+        },
         titre: AppState.currentView === 'coupe'
             ? `Coupe de la semelle filante, ${p.B.toFixed(2)} mètres de large sur ${(p.h*100).toFixed(0)} centimètres de haut`
             : `Vue en plan du ferraillage de la semelle filante sur un mètre linéaire`,
         pxParMetre: pxParMetre,
         maxRatio: 2.6
     });
-
-    renderPlanLegend([
-        { forme: 'line', couleur: rebar.main,    texte: 'Aciers transversaux' },
-        { forme: 'line', couleur: rebar.stirrup, texte: 'Aciers de répartition' }
-    ], [
-        `Transversaux : HA${AppState.diamMain} / ${p.espMain} cm → ${res.As_prov_main.toFixed(2)} cm²/ml`,
-        `Répartition : HA${AppState.diamRep} / ${p.espRep} cm → ${res.As_prov_rep.toFixed(2)} cm²/ml`
-    ]);
 }
 
 // =========================================================================

@@ -378,6 +378,18 @@ function generateColumnSVG(a, b, nb_a, nb_b, diameter, enrobage, As_chosen) {
     svgContainer.innerHTML = svgContent;
 
     finalizePlan('svgContainer', {
+        legende: {
+            entrees: [
+        { forme: 'dot',  couleur: rebar.main,    texte: 'Aciers longitudinaux' },
+        { forme: 'line', couleur: rebar.stirrup, texte: 'Cadres / épingles' },
+        { forme: 'box',  couleur: concreteFill,  texte: 'Béton' }
+    ],
+            infos: [
+        `${nb_a*2 + Math.max(0, nb_b-2)*2} HA${diameter}`,
+        `A<sub>s</sub> = ${As_chosen.toFixed(2)} cm²`,
+        `Enrobage ${enrobage.toFixed(1)} cm`
+    ]
+        },
         titre: AppState.currentView === 'coupe'
             ? `Coupe du poteau, ${(a*100).toFixed(0)} sur ${(b*100).toFixed(0)} centimètres, ${nb_a*2 + Math.max(0, nb_b-2)*2} barres HA${diameter}`
             : `Vue en élévation du poteau sur ${AppState.results.inputs.L.toFixed(2)} mètres de hauteur`,
@@ -385,16 +397,6 @@ function generateColumnSVG(a, b, nb_a, nb_b, diameter, enrobage, As_chosen) {
         minRatio: AppState.currentView === 'coupe' ? 0.75 : 0.42,
         maxRatio: 2.2
     });
-
-    renderPlanLegend([
-        { forme: 'dot',  couleur: rebar.main,    texte: 'Aciers longitudinaux' },
-        { forme: 'line', couleur: rebar.stirrup, texte: 'Cadres / épingles' },
-        { forme: 'box',  couleur: concreteFill,  texte: 'Béton' }
-    ], [
-        `${nb_a*2 + Math.max(0, nb_b-2)*2} HA${diameter}`,
-        `A<sub>s</sub> = ${As_chosen.toFixed(2)} cm²`,
-        `Enrobage ${enrobage.toFixed(1)} cm`
-    ]);
 }
 
 // =========================================================

@@ -1,0 +1,13 @@
+{
+  "name": "calcul-beton-arme",
+  "version": "1.0.0",
+  "description": "Outil pédagogique de dimensionnement en béton armé selon l'Eurocode 2 (NF EN 1992-1-1 et Annexe Nationale française).",
+  "private": true,
+  "author": "Raphaël ELIARD",
+  "scripts": {
+    "test": "node tests-ec2.js && node tests-supply-chain.js",
+    "test:ec2": "node tests-ec2.js",
+    "test:supply-chain": "node tests-supply-chain.js",
+    "serve": "python -m http.server 8000"
+  }
+}

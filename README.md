@@ -16,11 +16,13 @@ Application statique : aucun serveur ni build n'est nécessaire, il suffit d'ouv
 | `poutre.js`, `dalle.js`, `poteau.js`, `voile.js`, `semelle-isolee.js`, `semelle-filante.js` | Interface de chaque module : saisie, affichage, tracé SVG. Le calcul est délégué à `ec2-core.js`. |
 | `script.js` | Données aciers, thème clair/sombre, exports PNG et note de calcul PDF. |
 | `tests-ec2.js` | Suite de tests du noyau de calcul. |
+| `tests-supply-chain.js` | Vérifie les dépendances tierces et la CSP des pages. |
 
 ## Tests
 
 ```bash
-node tests-ec2.js           # en ligne de commande
+npm test                    # les deux harnais, sort en code 1 si un test échoue
+node tests-ec2.js           # noyau Eurocode 2 seul
 VERBOSE=1 node tests-ec2.js # avec le détail de chaque test
 ```
 

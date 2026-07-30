@@ -1,0 +1,16 @@
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node
+node_modules/
+
+# Outillage local
+.claude/
+
+# Artefacts de debug
+debug*.png
+*_screenshot.png
+temp_*.html
+temp_*.js

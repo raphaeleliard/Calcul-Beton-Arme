@@ -1,6 +1,6 @@
 {
   "name": "calcul-beton-arme",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Outil pédagogique de dimensionnement en béton armé selon l'Eurocode 2 (NF EN 1992-1-1 et Annexe Nationale française).",
   "private": true,
   "author": "Raphaël ELIARD",

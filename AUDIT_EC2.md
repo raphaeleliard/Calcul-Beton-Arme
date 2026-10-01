@@ -5,8 +5,68 @@ Annexe Nationale française**, puis correction. Ce document sert de note d'honn�
 technique : il liste ce qui a été réparé, et surtout ce que l'outil **ne vérifie
 toujours pas**.
 
-Référentiel de vérification : `tests-ec2.js` — 83 tests, exécutables en ligne de
+Référentiel de vérification : `tests-ec2.js` — 109 tests, exécutables en ligne de
 commande (`node tests-ec2.js`) ou dans le navigateur (`tests.html`).
+
+> **Version 2.0** : une seconde revue a mis en évidence des erreurs non sécuritaires
+> qui avaient échappé au premier audit (poteau, voile, dalle, semelle filante) et des
+> notes PDF qui concluaient « CONFORME » à tort. Elles sont décrites en **§0** ; les
+> sections suivantes conservent l'historique de la première revue, mises à jour.
+
+---
+
+## 0. Revue v2 — erreurs corrigées et fonctionnalités ajoutées
+
+### 0.1 Erreurs non sécuritaires corrigées
+
+| # | Module | Erreur | Correction |
+|---|--------|--------|------------|
+| 1 | Poteau | La flexion composée était traitée par `A_s = A_s,N + M/(z·f_yd)`, total réparti sur deux faces. Dès que le béton est presque entièrement mobilisé par N, le moment exige un couple d'aciers tendus **et** comprimés : le ferraillage était sous-estimé (rapport M_Ed/M_Rd jusqu'à 1.4 à 1.7 sur un 30 × 30 sous N = 1400 à 1800 kN). | **Diagramme d'interaction N-M** par compatibilité des déformations (§6.1) : loi parabole-rectangle, acier élasto-plastique, pivots A, B, C. `A_s,req` est la plus petite section symétrique dont le diagramme contient (N_Ed ; M_Ed,tot), et la disposition réelle des barres (barres intermédiaires comprises) est vérifiée. |
+| 2 | Poteau | `K_φ = 1` était présenté comme « sécuritaire ». C'est faux : `K_φ = 1 + β·φ_ef ≥ 1`, le prendre égal à 1 néglige le fluage et réduit e₂ (jusqu'à −40 %). L'élancement limite utilisait en même temps A = 0.7, qui suppose φ_ef ≈ 2 : les deux hypothèses se contredisaient. | `φ_ef` devient une donnée (défaut 2.0) ; `K_φ` (§5.8.8.3(4)), `K_r` (§5.8.8.3(3), recalculé avec la section réellement disposée) et `A = 1/(1 + 0.2 φ_ef)` en découlent. |
+| 3 | Voile | `N_Rd = A_c·f_cd + A_s·σ_sc` supposait une compression parfaitement centrée. L'excentricité minimale du §6.1(4) (h/30 ≥ 20 mm, soit h/10 pour 20 cm) n'était pas prise en compte, ni le flambement : N = 2900 kN/ml était déclaré admissible alors que M_Rd(N) < N·e₀. | La hauteur libre `l_w` et les conditions d'appui deviennent des données. Imperfections (§5.2), excentricité minimale, second ordre par courbure nominale, puis vérification sur le diagramme N-M de la bande de 1 m. |
+| 4 | Dalle | Espacements maximaux : le code appliquait 3h ≤ 40 cm / 3.5h ≤ 45 cm en les présentant comme ceux de la « zone de moment maximal ». Le §9.3.1.1(3) y impose **2h ≤ 25 cm** (principal) et **3h ≤ 40 cm** (répartition) — or la mi-portée d'une dalle isostatique est précisément cette zone. | Valeurs corrigées ; leur dépassement est désormais une non-conformité (et non un simple avertissement). |
+| 5 | Semelle filante | L'effort tranchant n'était vérifié que si tous les autres critères étaient satisfaits : il était **masqué** dès que la semelle était souple, c'est-à-dire précisément quand il devient déterminant (cas reproduit : V_Ed = 304 > V_Rd,c = 215 kN/ml, seul un badge orange s'affichait). | Le tranchant est toujours vérifié ; le statut suit l'ordre de gravité. |
+| 6 | Note PDF (tous modules) | La conclusion « STATUT GÉNÉRAL DE CONFORMITÉ » ne comparait que la section d'acier. Une poutre en rupture de bielles, une semelle poinçonnée ou dont le sol est surchargé, un poteau ou un voile écrasé sortaient « ✓ CONFORME ». La ligne « effort tranchant : CONFORME » de la poutre était même écrite en dur. | Chaque module renvoie la liste exhaustive `checks` de ses vérifications. **L'écran et la note PDF tirent leur verdict de cette seule liste** (`EC2.verdict`) : ils ne peuvent plus se contredire. La note détaille chaque critère sur une page dédiée. |
+| 7 | Poteau (interface) | Les libellés du coefficient β étaient inversés : « 0.5 – articulé-articulé », « 1.0 – encastré-encastré », « 2.0 – libre-libre ». Choisir « articulé-articulé » divisait la longueur de flambement par deux. | 0.5 encastré/encastré, 0.7 encastré/articulé, 1.0 articulé/articulé, 2.0 encastré/libre. |
+
+### 0.2 Écarts mineurs corrigés
+
+- **v_min** selon l'Annexe Nationale française : 0.053/γc·k^1.5·√fck (poutres, dalles
+  sans redistribution transversale, semelles) et 0.35/γc·√fck (voiles).
+- **Poinçonnement** : v_Rd,max = 0.4·ν·f_cd au nu du poteau (valeur recommandée du
+  §6.4.5(3) depuis le corrigendum AC:2010) au lieu de 0.5·ν·f_cd.
+- **Excentricité minimale** du poteau : elle sert de plancher au moment du premier ordre,
+  M_0Ed = max(M_Ed + N·e_i ; N·e₀), au lieu de s'ajouter à e_M (surdimensionnement).
+- **Voile à nappe unique** : non conforme au §9.6.2(3) (la moitié de A_s,v,min sur chaque
+  face) ; l'ancien message citait une règle « deux nappes au-delà de 20 cm » absente de l'EC2.
+- **Flèche** : la correction A_s,prov/A_s,req n'est appliquée que si la section fournie
+  couvre la section requise (elle produisait une « limite » de 6.5 sans signification).
+- **Cadres de poutre** : s_l,max = 0.75 d sans plafond de 60 cm (ce plafond relève du
+  §9.2.2(8), espacement transversal des brins, désormais vérifié séparément).
+- Références et libellés : μ_lim = 0.372 (et non 0.371), §3.1.7 (et non §3.1.6),
+  A_s,min des poteaux au §9.5.2, « second lit inférieur » (et non « nappe supérieure »)
+  pour la semelle isolée, f_ctm et diamètre réels dans la note de la dalle.
+
+### 0.3 Fonctionnalités ajoutées
+
+1. **Diagramme d'interaction N-M** (`EC2.sectionNM`) : poteau et voile, avec une vue
+   graphique du domaine résistant et du point de calcul dans le module poteau, et une
+   recommandation de ferraillage vérifiée sur ce diagramme.
+2. **Poids propre** ajouté automatiquement à G (case à cocher, poutre et dalle).
+3. **Enrobage nominal** calculé (§4.4.1) : classe d'exposition, durée d'utilisation,
+   modulation de la classe structurale (Tableau 4.3N), c_min,b, Δc_dev = 10 mm, et
+   §4.4.1.3(4) pour les fondations (béton de propreté ou contact direct avec le sol).
+4. **Ancrages et recouvrements** (§8.4, §8.7) : f_bd, l_b,rqd, l_bd, l₀. Ancrage sur appui
+   d'extrémité des poutres et dalles avec l'effort F_E = V_Ed·a_l/z (§9.2.1.4) ; besoin de
+   crochets signalé pour les semelles.
+5. **États limites de service** (§7.2, §7.3) : contraintes de l'acier et du béton en section
+   fissurée (α_e = 15), ouverture des fissures w_k sous combinaison quasi-permanente
+   (ψ₂ selon la catégorie d'usage) comparée au Tableau 7.1N.
+
+Côté interface : liste des vérifications affichée à l'écran, recommandation de ferraillage
+applicable en un clic, signalement des saisies ramenées dans le domaine de calcul,
+étiquettes de champ associées, cartes de résultats utilisables au clavier, annonce du
+statut aux lecteurs d'écran, en-tête compact sur téléphone.
 
 ---
 
@@ -132,23 +192,24 @@ La plupart sont désormais rappelés à l'écran.
 **Modèle structurel**
 - Tous les éléments fléchis sont traités comme **isostatiques sur deux appuis simples**
   (`M = pL²/8`). Ni continuité, ni encastrement, ni charges ponctuelles, ni porte-à-faux.
-- Le **poids propre n'est jamais ajouté automatiquement** aux charges permanentes.
+- Le poids propre est ajouté automatiquement à G pour la poutre et la dalle (case à
+  cocher, activée par défaut).
 - Une seule combinaison ELU (`1.35 G + 1.5 Q`) : pas de combinaisons accidentelles,
   sismiques, ni de coefficients ψ.
 
 **États limites de service**
 - La flèche n'est vérifiée que par le critère forfaitaire `L/d`. Aucun calcul de
   flèche réelle (section fissurée, fluage, retrait) n'est effectué.
-- **Aucune vérification de la fissuration** (§7.3 : `w_k`, espacement et diamètre
-  maximaux des barres).
-- Aucune vérification des contraintes à l'ELS (§7.2).
+- Fissuration et contraintes (§7.2, §7.3) : vérifiées pour la poutre et la dalle avec
+  α_e = 15 forfaitaire et les valeurs w_max recommandées du Tableau 7.1N (l'Annexe
+  Nationale peut les moduler). Ni A_s,min de maîtrise de la fissuration (§7.3.2), ni
+  méthode simplifiée sans calcul direct (§7.3.3).
 
 **Dispositions constructives**
-- L'**enrobage n'est pas calculé** : il est saisi. `c_nom = c_min + Δc_dev` selon la
-  classe d'exposition (§4.4.1) reste à la charge de l'utilisateur.
-- Ni **longueurs d'ancrage**, ni **longueurs de recouvrement** (§8.4 et §8.7).
-- Pas d'épure d'arrêt des barres ni de décalage du diagramme des moments
-  (règle du décalage `a_l`, §9.2.1.3).
+- Enrobage : classe structurale S4 de référence, modulations du Tableau 4.3N
+  recommandé ; le contrôle qualité spécifique (−1 classe, Δc_dev réduit) n'est pas proposé.
+- Ancrages : α₃ = α₄ = α₅ = 1 (hypothèse conservative), barres droites.
+- Pas d'épure d'arrêt des barres : toutes les barres tendues sont filantes.
 
 **Par module**
 - *Poutre* : section rectangulaire uniquement (pas de section en T) ; armatures
@@ -156,14 +217,12 @@ La plupart sont désormais rappelés à l'écran.
   pas de vérification de bielle d'about ni d'appui direct.
 - *Dalle* : portée sur un seul sens. Ni dalle sur quatre appuis, ni dalle continue,
   ni plancher-dalle (donc pas de poinçonnement sous poteau).
-- *Poteau* : flexion composée traitée par une méthode simplifiée à bras de levier
-  constant — un diagramme d'interaction N–M serait exact ; un avertissement apparaît
-  au-delà de `e > h/4`. Flexion déviée non traitée. Le fluage (`K_φ`) et le taux
-  d'acier réel (`K_r`) sont pris égaux à 1, hypothèse sécuritaire. `N_cr` est affiché
-  à titre pédagogique mais n'intervient pas dans les vérifications.
-- *Voile* : **ni flambement, ni comportement dans le plan** (contreventement) — la
-  hauteur libre du voile n'est même pas une donnée d'entrée. Le module ne vérifie
-  qu'une bande de 1 m sous compression et cisaillement hors-plan.
+- *Poteau* : flexion composée dans le plan de flambement uniquement (le moment saisi est
+  supposé agir autour de l'axe faible, hypothèse conservative s'il agit autour de l'axe
+  fort). Flexion déviée non traitée. Méthode de la courbure nominale avec B = 1.1 et
+  C = 0.7 par défaut (ω et r_m inconnus).
+- *Voile* : compression excentrée et flambement **hors plan** vérifiés ; le comportement
+  **dans le plan** (contreventement, effort tranchant dans le plan) ne l'est pas.
 - *Semelles* : charge strictement **centrée**, sans moment ni effort horizontal, donc
   pas de diagramme trapézoïdal ni de vérification de décompression du sol. La portance
   est traitée en « contrainte admissible » à l'ELS, **pas selon l'Eurocode 7**
@@ -185,9 +244,15 @@ La plupart sont désormais rappelés à l'écran.
 - `μ_lim = 0.372` correspond au pivot A/B pour du S500 : c'est la limite au-delà de
   laquelle des aciers comprimés deviennent nécessaires. Un avertissement apparaît dès
   `μ > 0.295` (soit `x/d > 0.45`), seuil usuel de ductilité.
+- Poinçonnement : v_Rd,max = 0.4·ν·f_cd (valeur recommandée du §6.4.5(3)).
 - Pour l'effort tranchant, `θ` est optimisé (bielle la plus inclinée possible) dans
   les bornes réglementaires `1 ≤ cot θ ≤ 2.5`. Le dimensionnement des cadres reste
   fait avec `V_Ed` **au nu de l'appui**, sans profiter de la réduction du §6.2.1(8) :
   c'est un choix conservatif.
 - Poinçonnement calculé avec `β = 1.0` (charge centrée). Toute excentricité rendrait
   cette valeur non conservative.
+- `v_min` de la dalle : la valeur « dalle avec redistribution transversale » de l'AN
+  (0.34/γc·√fck) n'est pas retenue ; sous charge répartie, une bande portant dans un seul
+  sens n'en bénéficie pas.
+- Flexion composée : loi parabole-rectangle pour le béton, palier horizontal pour l'acier,
+  aire de béton occupée par les barres non déduite.

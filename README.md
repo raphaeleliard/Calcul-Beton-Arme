@@ -5,6 +5,12 @@ Outil pédagogique de dimensionnement en béton armé selon l'**Eurocode 2**
 poteau, voile, semelle isolée et semelle filante, avec tracé du plan de ferraillage
 et note de calcul PDF.
 
+Chaque module affiche la **liste de toutes les vérifications menées** (ELU, ELS,
+dispositions constructives) ; le badge de statut et la note PDF tirent leur conclusion
+de cette même liste. Points notables : diagramme d'interaction N-M pour les poteaux et
+voiles, second ordre par la courbure nominale, enrobage calculé selon la classe
+d'exposition, ancrages et recouvrements, contraintes et fissuration à l'ELS.
+
 Application statique : aucun serveur ni build n'est nécessaire, il suffit d'ouvrir
 `index.html`.
 
@@ -14,7 +20,7 @@ Application statique : aucun serveur ni build n'est nécessaire, il suffit d'ouv
 |---------|------|
 | `ec2-core.js` | **Noyau de calcul réglementaire.** Fonctions pures, sans DOM ni état global : c'est ici que vit toute la logique Eurocode 2. |
 | `poutre.js`, `dalle.js`, `poteau.js`, `voile.js`, `semelle-isolee.js`, `semelle-filante.js` | Interface de chaque module : saisie, affichage, tracé SVG. Le calcul est délégué à `ec2-core.js`. |
-| `script.js` | Données aciers, thème clair/sombre, exports PNG et note de calcul PDF. |
+| `script.js` | Données aciers, thème, liaison des champs, tableau des vérifications, accessibilité, exports PNG et note de calcul PDF. |
 | `tests-ec2.js` | Suite de tests du noyau de calcul. |
 | `tests-supply-chain.js` | Vérifie les dépendances tierces et la CSP des pages. |
 
@@ -35,9 +41,10 @@ Lire **[`AUDIT_EC2.md`](AUDIT_EC2.md)** avant d'exploiter un résultat : le docu
 recense les vérifications réellement effectuées et, surtout, celles qui ne le sont
 pas (fissuration, ancrages, continuité, flambement des voiles, Eurocode 7…).
 
-En résumé : éléments **isostatiques** sur deux appuis simples, chargement uniforme,
-combinaison ELU `1.35 G + 1.5 Q`, bétons **≤ C50/60**, acier S500, charges centrées
-sur les fondations. Le poids propre n'est pas ajouté automatiquement.
+En résumé : éléments fléchis **isostatiques** sur deux appuis simples, chargement
+uniforme, combinaison ELU `1.35 G + 1.5 Q`, bétons **≤ C50/60**, acier S500 (S400
+possible pour le poteau), charges centrées sur les fondations, flexion composée dans un
+seul plan pour le poteau, comportement hors plan seulement pour le voile.
 
 Cet outil est destiné à l'apprentissage : il ne remplace pas une note de calcul
 vérifiée par un ingénieur.

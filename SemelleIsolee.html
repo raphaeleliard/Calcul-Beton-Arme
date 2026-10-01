@@ -56,58 +56,94 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
         <!-- PANNEAU 1 : PARAMÈTRES -->
         <aside class="panel">
             <h2>1. Paramètres</h2>
-            <form id="semelleForm">
+            <form id="semelleForm" onsubmit="return false;">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
                     <div class="input-group">
-                        <label title="Côté du poteau parallèle à la dimension A de la semelle">Poteau a (m) [// A] <span style="cursor:help">ℹ️</span></label>
+                        <label for="a" title="Côté du poteau parallèle à la dimension A de la semelle">Poteau a (m) [// A] <span style="cursor:help" aria-hidden="true">ℹ️</span></label>
                         <input type="number" id="a" value="0.30" step="0.05">
                     </div>
                     <div class="input-group">
-                        <label title="Côté du poteau parallèle à la dimension B de la semelle">Poteau b (m) [// B] <span style="cursor:help">ℹ️</span></label>
+                        <label for="b" title="Côté du poteau parallèle à la dimension B de la semelle">Poteau b (m) [// B] <span style="cursor:help" aria-hidden="true">ℹ️</span></label>
                         <input type="number" id="b" value="0.30" step="0.05">
                     </div>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
                     <div class="input-group">
-                        <label>Semelle A (m)</label>
+                        <label for="A">Semelle A (m)</label>
                         <input type="number" id="A" value="1.50" step="0.10">
                     </div>
                     <div class="input-group">
-                        <label>Semelle B (m)</label>
+                        <label for="B">Semelle B (m)</label>
                         <input type="number" id="B" value="1.50" step="0.10">
                     </div>
                 </div>
                 <div class="input-group">
-                    <label>Hauteur semelle h (m)</label>
+                    <label for="h">Hauteur semelle h (m)</label>
                     <input type="number" id="h" value="0.40" step="0.05">
                 </div>
 
                 <h2 style="margin-top: 1.5rem;">Matériaux & Sol</h2>
                 <div class="input-group">
-                    <label>Béton (fck en MPa)</label>
+                    <label for="fck">Béton (classe de résistance)</label>
                     <select id="fck">
                         <option value="20">C20/25</option>
                         <option value="25" selected>C25/30</option>
                         <option value="30">C30/37</option>
+                        <option value="35">C35/45</option>
+                        <option value="40">C40/50</option>
+                        <option value="45">C45/55</option>
+                        <option value="50">C50/60</option>
                     </select>
                 </div>
                 <div class="input-group">
-                    <label>Contrainte sol q_adm (MPa)</label>
+                    <label for="q_adm">Contrainte sol q_adm (MPa)</label>
                     <input type="number" id="q_adm" value="0.25" step="0.05">
                 </div>
 
                 <h2 style="margin-top: 1.5rem;">Charges & Enrobage</h2>
                 <div class="input-group">
-                    <label>Effort normal ELU N_Ed (kN)</label>
+                    <label for="N_Ed">Effort normal ELU N_Ed (kN)</label>
                     <input type="number" id="N_Ed" value="600" step="10">
                 </div>
                 <div class="input-group">
-                    <label>Effort normal ELS N_Eq (kN)</label>
+                    <label for="N_Eq">Effort normal ELS N_Eq (kN)</label>
                     <input type="number" id="N_Eq" value="430" step="10">
                 </div>
                 <div class="input-group">
-                    <label>Enrobage c (cm)</label>
-                    <input type="number" id="enrobage" value="4.0" step="0.5" min="3.0">
+                    <label for="enrobage">Enrobage c (cm)</label>
+                    <input type="number" id="enrobage" value="5.0" step="0.5" min="3.0">
+                </div>
+
+                <h2 class="section-title">Durabilité (EC2 §4.4.1)</h2>
+                <div class="input-group">
+                    <label for="exposition">Classe d'exposition</label>
+                    <select id="exposition">
+                        <option value="X0">X0 — aucun risque de corrosion</option>
+                        <option value="XC1">XC1 — intérieur sec ou humide en permanence</option>
+                        <option value="XC2" selected>XC2 — humide, rarement sec (fondations)</option>
+                        <option value="XC3">XC3 — humidité modérée, extérieur abrité</option>
+                        <option value="XC4">XC4 — alternance humidité / séchage</option>
+                        <option value="XD1">XD1 — chlorures, humidité modérée</option>
+                        <option value="XD2">XD2 — chlorures, humide</option>
+                        <option value="XD3">XD3 — chlorures, alternance (parkings)</option>
+                        <option value="XS1">XS1 — air marin</option>
+                        <option value="XS2">XS2 — immergé en eau de mer</option>
+                        <option value="XS3">XS3 — marnage, embruns</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="duree100">Durée d'utilisation de projet</label>
+                    <select id="duree100">
+                        <option value="0" selected>50 ans (bâtiments courants)</option>
+                        <option value="1">100 ans (ouvrages monumentaux, ponts)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="contactSol">Coulage de la fondation</label>
+                    <select id="contactSol">
+                        <option value="proprete" selected>Sur béton de propreté (c_min ≥ 40 mm)</option>
+                        <option value="sol">Directement contre le sol (c_min ≥ 75 mm)</option>
+                    </select>
                 </div>
             </form>
         </aside>
@@ -153,12 +189,18 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
                     <div class="clickable-hint">🔍 EC2 §6.4</div>
                 </div>
             </div>
+
+            <h2 class="section-title">Vérifications Eurocode 2</h2>
+            <div id="checks" aria-live="polite"></div>
+
+            <h2 class="section-title">Dispositions constructives</h2>
+            <div id="dispositions" class="ferraillage-info"></div>
         </main>
 
         <!-- PANNEAU 3 : VALIDATION & VISUEL -->
         <aside class="panel">
             <h2>3. Plan de Ferraillage</h2>
-            <div id="statusBadge" class="status-badge status-green">Semelle Conforme</div>
+            <div id="statusBadge" class="status-badge status-green" role="status" aria-live="polite">Calcul en cours…</div>
             <div id="ec2-warnings" class="ec2-warnings"></div>
             
             <div class="view-toggles">
@@ -167,8 +209,8 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
             </div>
             
             <div style="margin-bottom: 0.5rem;">
-                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.85rem;" title="Aciers disposés parallèlement au côté A">Nappe Inférieure (// A) <span style="cursor:help">ℹ️</span></label>
-                <div class="steel-selector" id="sel-A">
+                <span id="lblNappeA" style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.85rem;" title="Aciers disposés parallèlement au côté A">Lit inférieur (// A) <span style="cursor:help" aria-hidden="true">ℹ️</span></span>
+                <div class="steel-selector" id="sel-A" role="group" aria-labelledby="lblNappeA">
                     <button class="steel-btn" data-diam="10">HA10</button>
                     <button class="steel-btn active" data-diam="12">HA12</button>
                     <button class="steel-btn" data-diam="14">HA14</button>
@@ -177,8 +219,8 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
             </div>
             
             <div style="margin-bottom: 1rem;">
-                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.85rem;" title="Aciers disposés parallèlement au côté B">Nappe Supérieure (// B) <span style="cursor:help">ℹ️</span></label>
-                <div class="steel-selector" id="sel-B">
+                <span id="lblNappeB" style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.85rem;" title="Aciers disposés parallèlement au côté B, posés sur le premier lit">Second lit inférieur (// B) <span style="cursor:help" aria-hidden="true">ℹ️</span></span>
+                <div class="steel-selector" id="sel-B" role="group" aria-labelledby="lblNappeB">
                     <button class="steel-btn" data-diam="10">HA10</button>
                     <button class="steel-btn active" data-diam="12">HA12</button>
                     <button class="steel-btn" data-diam="14">HA14</button>
@@ -187,9 +229,9 @@ le modèle des bielles de compression pour garantir l'assise structurelle.
             </div>
 
             <div class="ferraillage-info">
-                <div><span class="info-label">Nappe // A:</span> <span id="info-nbA">0</span> HA<span id="info-diamA">12</span> (<span id="info-secA">0.00</span> cm² > <span id="req-secA">0.00</span>)</div>
+                <div><span class="info-label">Nappe // A:</span> <span id="info-nbA">0</span> HA<span id="info-diamA">12</span> (<span id="info-secA">0.00</span> cm² pour <span id="req-secA">0.00</span>)</div>
                 <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 5px 0;">
-                <div><span class="info-label">Nappe // B:</span> <span id="info-nbB">0</span> HA<span id="info-diamB">12</span> (<span id="info-secB">0.00</span> cm² > <span id="req-secB">0.00</span>)</div>
+                <div><span class="info-label">Nappe // B:</span> <span id="info-nbB">0</span> HA<span id="info-diamB">12</span> (<span id="info-secB">0.00</span> cm² pour <span id="req-secB">0.00</span>)</div>
             </div>
             
             <div class="svg-container" id="svgContainer">

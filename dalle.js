@@ -13,73 +13,49 @@
 // =========================================================
 
 const AppState = {
-    inputs: { L: 4.0, h: 0.20, G: 6.0, Q: 2.5, fck: 25, enrobage: 3.0, espacementInput: 15, espRepInput: 20 },
-    diamMain: 10,
+    inputs: {
+        L: 4.0, h: 0.20, G: 6.0, Q: 2.5, fck: 25, enrobage: 3.0,
+        espacementInput: 20, espRepInput: 25,
+        poidsPropre: true, psi2: 0.3, exposition: 'XC1', duree100: 0
+    },
+    diamMain: 12,
     diamRep: 8,
     currentView: 'coupe',
-    results: null
+    results: null,
+    dispositions: []
 };
 
-const dalleInputs = Object.keys(AppState.inputs);
-
-// Initialisation au chargement du DOM
 window.addEventListener('DOMContentLoaded', () => {
-    // Restauration de l'état sauvegardé localement
-    dalleInputs.forEach(id => {
-        const savedVal = localStorage.getItem(`dalle_${id}`);
-        // On ignore toute valeur stockée illisible : sinon un NaN se propagerait
-        // dans l'état applicatif et jusque dans la note de calcul PDF.
-        if (savedVal !== null && isFinite(parseFloat(savedVal))) {
-            AppState.inputs[id] = parseFloat(savedVal);
-            const el = document.getElementById(id);
-            if (el) el.value = savedVal;
-        }
-    });
-    
-    const savedDiamMain = localStorage.getItem('dalle_diamMain');
-    if (savedDiamMain) AppState.diamMain = parseInt(savedDiamMain);
-    const savedDiamRep = localStorage.getItem('dalle_diamRep');
-    if (savedDiamRep) AppState.diamRep = parseInt(savedDiamRep);
-    
+    lierChamps('dalle_', AppState.inputs, Object.keys(AppState.inputs), runController);
+    try {
+        const savedDiamMain = parseInt(localStorage.getItem('dalle_diamMain'), 10);
+        if (STEEL_SPECS[savedDiamMain]) AppState.diamMain = savedDiamMain;
+        const savedDiamRep = parseInt(localStorage.getItem('dalle_diamRep'), 10);
+        if (STEEL_SPECS[savedDiamRep]) AppState.diamRep = savedDiamRep;
+    } catch (e) { /* stockage indisponible */ }
+
     bindEvents();
     updateSteelSelectors();
     runController();
 });
 
 function bindEvents() {
-    // Écoute des modifications des paramètres de saisie
-    dalleInputs.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('input', (e) => {
-                AppState.inputs[id] = parseFloat(e.target.value) || 0;
-                localStorage.setItem(`dalle_${id}`, e.target.value);
-                runController();
-            });
-        }
-    });
-
-    // Choix des diamètres pour les armatures principales (longitudinales)
     document.querySelectorAll('#sel-Main .steel-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            AppState.diamMain = parseInt(e.target.dataset.diameter);
-            localStorage.setItem('dalle_diamMain', AppState.diamMain);
+            AppState.diamMain = parseInt(e.currentTarget.dataset.diameter, 10);
+            try { localStorage.setItem('dalle_diamMain', AppState.diamMain); } catch (err) { /* ignoré */ }
             updateSteelSelectors();
             runController();
         });
     });
-    
-    // Choix des diamètres pour les armatures de répartition (transversales)
     document.querySelectorAll('#sel-Rep .steel-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            AppState.diamRep = parseInt(e.target.dataset.diameter);
-            localStorage.setItem('dalle_diamRep', AppState.diamRep);
+            AppState.diamRep = parseInt(e.currentTarget.dataset.diameter, 10);
+            try { localStorage.setItem('dalle_diamRep', AppState.diamRep); } catch (err) { /* ignoré */ }
             updateSteelSelectors();
             runController();
         });
     });
-
-    // Callback lors des changements de thèmes visuels
     window.onThemeChange = () => renderUI();
 }
 
@@ -92,16 +68,11 @@ function setView(view) {
 
 function updateSteelSelectors() {
     document.querySelectorAll('#sel-Main .steel-btn').forEach(btn => {
-        btn.classList.toggle('active', parseInt(btn.dataset.diameter) === AppState.diamMain);
+        btn.classList.toggle('active', parseInt(btn.dataset.diameter, 10) === AppState.diamMain);
     });
     document.querySelectorAll('#sel-Rep .steel-btn').forEach(btn => {
-        btn.classList.toggle('active', parseInt(btn.dataset.diameter) === AppState.diamRep);
+        btn.classList.toggle('active', parseInt(btn.dataset.diameter, 10) === AppState.diamRep);
     });
-}
-
-function getSVGTextColor() {
-    const theme = document.documentElement.getAttribute('data-theme');
-    return theme === 'dark' ? '#e0e0e0' : '#1e293b';
 }
 
 // =========================================================
@@ -109,11 +80,8 @@ function getSVGTextColor() {
 // =========================================================
 
 /**
- * Calcul réglementaire de la dalle pleine selon l'Eurocode 2.
- * La logique réglementaire est centralisée dans ec2-core.js (fonctions pures,
- * couvertes par le harnais de tests tests-ec2.js).
- * @param {object} params Paramètres géométriques et de charges
- * @returns {object} Résultats détaillés
+ * Calcul réglementaire de la dalle pleine (ELU, ELS, dispositions).
+ * La logique réglementaire est centralisée dans ec2-core.js.
  */
 function calculateEurocode2(params) {
     return EC2.dalle({
@@ -128,89 +96,63 @@ function calculateEurocode2(params) {
 // =========================================================
 
 function runController() {
-    const params = {
+    AppState.results = calculateEurocode2({
         ...AppState.inputs,
         diamMain: AppState.diamMain,
         diamRep: AppState.diamRep
-    };
-    AppState.results = calculateEurocode2(params);
+    });
     renderUI();
 }
 
 function renderUI() {
     const res = AppState.results;
     const p = AppState.inputs;
-    
-    // Rendu des valeurs numériques
+    const q = res.inputs;
+    const flexionOK = res.status !== 'ERROR_MUCU';
+
     document.getElementById('res-Med').innerText = res.Med.toFixed(2);
     document.getElementById('res-Ved').innerText = res.Ved.toFixed(1);
-    document.getElementById('res-As_req').innerText = res.status === 'ERROR_MUCU' ? "Erreur" : res.As_req.toFixed(2);
+    document.getElementById('res-As_req').innerText = flexionOK ? res.As_req.toFixed(2) : '—';
     document.getElementById('res-Vrdc').innerText = res.V_Rdc.toFixed(1);
     document.getElementById('res-As_rep').innerText = res.As_rep_req.toFixed(2);
     document.getElementById('res-As_min').innerText = res.As_min.toFixed(2);
 
     document.getElementById('info-diamMain').innerText = AppState.diamMain;
-    document.getElementById('info-espMain').innerText = p.espacementInput;
+    document.getElementById('info-espMain').innerText = q.espacementInput;
     document.getElementById('info-secMain').innerText = res.As_prov.toFixed(2);
-    document.getElementById('req-secMain').innerText = res.As_req.toFixed(2);
+    document.getElementById('req-secMain').innerText = flexionOK ? res.As_req.toFixed(2) : '—';
 
     document.getElementById('info-diamRep').innerText = AppState.diamRep;
-    document.getElementById('info-espRep').innerText = p.espRepInput;
+    document.getElementById('info-espRep').innerText = q.espRepInput;
     document.getElementById('info-secRep').innerText = res.As_prov_rep.toFixed(2);
     document.getElementById('req-secRep').innerText = res.As_rep_req.toFixed(2);
 
-    // Validation globale et mise à jour du badge de conformité
-    const badge = document.getElementById('statusBadge');
-    const espLibreMin_cm = EC2.espacementLibreMin(AppState.diamMain, 20) / 10;
-    if (res.status === 'ERROR_MUCU') {
-        badge.className = "status-badge status-red";
-        badge.innerText = "Épaisseur h insuffisante (Compression)";
-    } else if (res.status === 'ERROR_SHEAR') {
-        badge.className = "status-badge status-red";
-        badge.innerText = "Risque Cisaillement (V_Ed > V_Rdc)";
-    } else if (res.As_prov < res.As_req) {
-        badge.className = "status-badge status-red";
-        badge.innerText = "Ferraillage Principal Insuffisant";
-    } else if (res.As_prov_rep < res.As_rep_req) {
-        badge.className = "status-badge status-red";
-        badge.innerText = "Acier Répartition Insuffisant";
-    } else if (res.esp_net < espLibreMin_cm) {
-        badge.className = "status-badge status-red";
-        badge.innerText = "Aciers trop rapprochés (EC2 §8.2)";
-    } else if (p.espacementInput > res.s_max_main || p.espRepInput > res.s_max_rep) {
-        badge.className = "status-badge status-orange";
-        badge.innerText = `Espacement > Limite EC2`;
-    } else if (!res.fleche.ok) {
-        badge.className = "status-badge status-orange";
-        badge.innerText = "Flèche à vérifier (L/d > limite EC2 §7.4.2)";
-    } else {
-        badge.className = "status-badge status-green";
-        badge.innerText = "Dalle Conforme";
-    }
+    appliquerVerdict('statusBadge', res.checks, 'Dalle conforme');
+    renderWarnings('ec2-warnings', res.warnings);
+    renderChecks('checks', res.checks);
 
-    const diagnostics = res.warnings.slice();
-    if (res.esp_net < espLibreMin_cm) {
-        diagnostics.unshift({
-            level: 'error',
-            text: "Espacement libre de " + res.esp_net.toFixed(1) + " cm < minimum EC2 §8.2 de " +
-                  espLibreMin_cm.toFixed(1) + " cm : augmenter l'espacement ou réduire le diamètre."
-        });
+    const enr = res.enrobage;
+    const lignes = [
+        ['Enrobage requis', `c_nom ≥ ${(enr.requis / 10).toFixed(1)} cm (classe ${q.exposition}, S${enr.detail.classe}, élément de type dalle)`],
+        ['Espacements maximaux', `principal ${res.s_max_main.toFixed(0)} cm, répartition ${res.s_max_rep.toFixed(0)} cm (zone de moment maximal)`],
+        ['Ancrage sur appui', `l_bd = ${res.ancrage.appui.lbd.toFixed(0)} mm (F_E = ${res.ancrage.F_E.toFixed(1)} kN/ml)`],
+        ['Recouvrement', `l_0 = ${res.ancrage.courant.l0.toFixed(0)} mm (50 % des barres recouvertes)`]
+    ];
+    if (res.els) {
+        lignes.push(['ELS quasi-permanent', `σ_s = ${res.els.sigma_s_qp.toFixed(0)} MPa, w_k = ` +
+            `${res.els.wk.toFixed(2)} mm (ψ_2 = ${res.psi2})`]);
     }
-    if (p.espacementInput > res.s_max_main) {
-        diagnostics.unshift({
-            level: 'warn',
-            text: "Espacement des aciers principaux (" + p.espacementInput + " cm) > s_max = min(3h ; 40 cm) = " +
-                  res.s_max_main.toFixed(0) + " cm (EC2 §9.3.1.1(3))."
-        });
-    }
-    if (p.espRepInput > res.s_max_rep) {
-        diagnostics.unshift({
-            level: 'warn',
-            text: "Espacement des aciers de répartition (" + p.espRepInput + " cm) > s_max = min(3.5h ; 45 cm) = " +
-                  res.s_max_rep.toFixed(0) + " cm (EC2 §9.3.1.1(3))."
-        });
-    }
-    renderWarnings('ec2-warnings', diagnostics);
+    lignes.push(['Charge permanente de calcul', `G_tot = ${res.G_tot.toFixed(2)} kN/m²` +
+        (q.poidsPropre ? ` (dont poids propre ${res.poidsPropre.toFixed(2)})` : '')]);
+    AppState.dispositions = lignes;
+    renderInfos('dispositions', lignes);
+
+    signalerBornes([
+        ['L', p.L, q.L, 'm'], ['h', p.h, q.h, 'm'], ['G', p.G, q.G, 'kN/m²'], ['Q', p.Q, q.Q, 'kN/m²'],
+        ['enrobage', p.enrobage, q.enrobage, 'cm'],
+        ['espacementInput', p.espacementInput, q.espacementInput, 'cm'],
+        ['espRepInput', p.espRepInput, q.espRepInput, 'cm']
+    ]);
 
     drawSVG();
 }

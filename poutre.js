@@ -13,64 +13,63 @@
 // =========================================================
 
 const AppState = {
-    inputs: { L: 5.0, b: 0.20, h: 0.50, G: 15, Q: 10, fck: 25 },
-    selectedDiameter: 10,
+    inputs: {
+        L: 5.0, b: 0.25, h: 0.50, G: 15, Q: 10, fck: 25,
+        enrobage: 3.0,        // enrobage nominal des cadres (cm)
+        poidsPropre: true,    // ajoute b x h x 25 à G
+        psi2: 0.3,            // coefficient quasi-permanent de Q (ELS)
+        exposition: 'XC1',
+        duree100: 0
+    },
+    selectedDiameter: 20,
     nbBarres: 3,
     currentView: 'coupe',
     results: null,
-    c_enrobage: 0.03 // Enrobage nominal en mètres (3 cm)
+    recommandation: null,
+    dispositions: []
 };
 
-const inputs = ['L', 'b', 'h', 'G', 'Q', 'fck'];
+const DIAMETRES_POUTRE = [10, 12, 16, 20, 25, 32];
+const DIAM_CADRE_MM = 8;
 
-// Initialisation au chargement du DOM
 window.addEventListener('DOMContentLoaded', () => {
-    // Restauration des paramètres sauvegardés localement
-    inputs.forEach(id => {
-        const savedVal = localStorage.getItem(`poutre_${id}`);
-        // On ignore toute valeur stockée illisible : sinon un NaN se propagerait
-        // dans l'état applicatif et jusque dans la note de calcul PDF.
-        if (savedVal !== null && isFinite(parseFloat(savedVal))) {
-            AppState.inputs[id] = parseFloat(savedVal);
-            document.getElementById(id).value = savedVal;
-        }
-    });
+    lierChamps('poutre_', AppState.inputs, Object.keys(AppState.inputs), runController);
 
-    const savedDiam = localStorage.getItem('poutre_diameter');
-    if (savedDiam) AppState.selectedDiameter = parseInt(savedDiam);
-    
+    let premiereVisite = true;
+    try {
+        const savedDiam = parseInt(localStorage.getItem('poutre_diameter'), 10);
+        if (STEEL_SPECS[savedDiam]) AppState.selectedDiameter = savedDiam;
+        const savedNb = parseInt(localStorage.getItem('poutre_nbBarres'), 10);
+        if (savedNb >= 1) { AppState.nbBarres = savedNb; premiereVisite = false; }
+    } catch (e) { /* stockage indisponible */ }
+    document.getElementById('nbBarresInput').value = AppState.nbBarres;
+
     bindEvents();
     updateSteelSelector();
     runController();
+    // Première visite : on part d'un ferraillage conforme plutôt que d'un écran rouge
+    if (premiereVisite) appliquerRecommandation();
 });
 
 function bindEvents() {
-    // Saisie des paramètres géométriques et de charges
-    inputs.forEach(id => {
-        document.getElementById(id).addEventListener('input', (e) => {
-            AppState.inputs[id] = parseFloat(e.target.value) || 0;
-            localStorage.setItem(`poutre_${id}`, e.target.value);
-            runController();
-        });
-    });
-
-    // Saisie du nombre de barres longitudinales
     document.getElementById('nbBarresInput').addEventListener('input', (e) => {
-        AppState.nbBarres = parseInt(e.target.value) || 1;
+        AppState.nbBarres = Math.max(1, parseInt(e.target.value, 10) || 1);
+        try { localStorage.setItem('poutre_nbBarres', AppState.nbBarres); } catch (err) { /* ignoré */ }
         runController();
     });
 
-    // Choix des diamètres de barres longitudinales (HA)
     document.querySelectorAll('.steel-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            AppState.selectedDiameter = parseInt(e.target.dataset.diameter);
-            localStorage.setItem('poutre_diameter', AppState.selectedDiameter);
+            AppState.selectedDiameter = parseInt(e.currentTarget.dataset.diameter, 10);
+            try { localStorage.setItem('poutre_diameter', AppState.selectedDiameter); } catch (err) { /* ignoré */ }
             updateSteelSelector();
             runController();
         });
     });
 
-    // Callback pour redessiner le schéma lors du changement de thème (clair/sombre)
+    const btnReco = document.getElementById('applyRecommendation');
+    if (btnReco) btnReco.addEventListener('click', appliquerRecommandation);
+
     window.onThemeChange = () => renderUI();
 }
 
@@ -83,29 +82,70 @@ function setView(view) {
 
 function updateSteelSelector() {
     document.querySelectorAll('.steel-btn').forEach(btn => {
-        const diam = parseInt(btn.dataset.diameter);
+        const diam = parseInt(btn.dataset.diameter, 10);
         btn.classList.toggle('active', diam === AppState.selectedDiameter);
     });
-}
-
-function getSVGTextColor() {
-    const theme = document.documentElement.getAttribute('data-theme');
-    return theme === 'dark' ? '#e0e0e0' : '#1e293b';
 }
 
 // =========================================================
 // LOGIQUE DE CALCUL EUROCODE 2
 // =========================================================
 
+/** Paramètres transmis au noyau ec2-core.js pour un ferraillage donné. */
+function parametresCalcul(diametre, nbBarres) {
+    return {
+        ...AppState.inputs,
+        diameter: diametre,
+        phi_t: DIAM_CADRE_MM / 1000,
+        nbBarres: nbBarres,
+        As_prov: nbBarres * STEEL_SPECS[diametre].section
+    };
+}
+
 /**
- * Calcul d'une poutre isostatique en flexion simple et cisaillement à l'ELU.
- * La logique réglementaire est centralisée dans ec2-core.js (fonctions pures,
- * couvertes par le harnais de tests tests-ec2.js).
- * @param {object} params Paramètres géométriques et mécaniques
- * @returns {object} Résultats de calcul et statuts de conformité
+ * Calcul d'une poutre isostatique (ELU, ELS, dispositions constructives).
+ * Toute la logique réglementaire est dans ec2-core.js.
  */
 function calculateEC2(params) {
     return EC2.poutre(params);
+}
+
+/**
+ * Plus petit ferraillage sur un lit vérifiant à la fois la section requise
+ * et l'espacement libre du §8.2, en partant du diamètre sélectionné puis en
+ * augmentant le diamètre si les barres ne tiennent pas sur un lit.
+ */
+function calculerRecommandation() {
+    const res = AppState.results;
+    if (!res || res.status === 'ERROR_MUCU') return null;
+    const depart = DIAMETRES_POUTRE.indexOf(AppState.selectedDiameter);
+    const candidats = DIAMETRES_POUTRE.slice(Math.max(0, depart));
+    for (const diam of candidats) {
+        const n0 = Math.max(2, Math.ceil(res.As_req / STEEL_SPECS[diam].section));
+        for (let n = n0; n <= n0 + 2; n++) {
+            const r = calculateEC2(parametresCalcul(diam, n));
+            if (r.status === 'ERROR_MUCU') break;
+            const okSection = r.As_prov >= r.As_req - 1e-9;
+            const okEspace = n === 1 || r.espLibre >= r.espLibreMin;
+            if (okSection && okEspace) return { diametre: diam, nbBarres: n };
+            if (!okEspace) break;
+        }
+    }
+    return null;
+}
+
+function appliquerRecommandation() {
+    const reco = AppState.recommandation || calculerRecommandation();
+    if (!reco) return;
+    AppState.selectedDiameter = reco.diametre;
+    AppState.nbBarres = reco.nbBarres;
+    document.getElementById('nbBarresInput').value = reco.nbBarres;
+    try {
+        localStorage.setItem('poutre_diameter', reco.diametre);
+        localStorage.setItem('poutre_nbBarres', reco.nbBarres);
+    } catch (e) { /* ignoré */ }
+    updateSteelSelector();
+    runController();
 }
 
 // =========================================================
@@ -113,132 +153,93 @@ function calculateEC2(params) {
 // =========================================================
 
 function runController() {
-    const nbBarres = Math.max(1, AppState.nbBarres || 1);
-    const calcParams = {
-        ...AppState.inputs,
-        diameter: AppState.selectedDiameter,
-        c_nom: AppState.c_enrobage,
-        nbBarres: nbBarres,
-        // Section réellement mise en oeuvre : nécessaire pour rho_l (V_Rd,c) et la flèche
-        As_prov: nbBarres * STEEL_SPECS[AppState.selectedDiameter].section
-    };
-    AppState.results = calculateEC2(calcParams);
+    AppState.nbBarres = Math.max(1, AppState.nbBarres || 1);
+    AppState.results = calculateEC2(parametresCalcul(AppState.selectedDiameter, AppState.nbBarres));
+    AppState.recommandation = calculerRecommandation();
     renderUI();
 }
 
 function renderUI() {
     const res = AppState.results;
     const p = AppState.inputs;
-    
-    // Affichage des sollicitations et coefficients mécaniques
+    const nb = AppState.nbBarres;
+    const diam = AppState.selectedDiameter;
+    const flexionOK = res.status !== 'ERROR_MUCU';
+
+    // Sollicitations et coefficients mécaniques
     document.getElementById('res-Med').innerText = res.Med.toFixed(2);
-    document.getElementById('res-Mu').innerText = res.mu_cu.toFixed(3);
-    document.getElementById('res-Alpha').innerText = res.alpha.toFixed(3);
+    document.getElementById('res-Mu').innerText = isFinite(res.mu_cu) ? res.mu_cu.toFixed(3) : '—';
+    document.getElementById('res-Alpha').innerText = flexionOK ? res.alpha.toFixed(3) : '—';
     document.getElementById('res-Ved').innerText = res.Ved.toFixed(1);
-    
-    let As_to_draw = res.status === 'ERROR_MUCU' ? 0 : res.As_req;
-    document.getElementById('res-As').innerText = res.status === 'ERROR_MUCU' ? "Erreur" : res.As_req.toFixed(2);
+    document.getElementById('res-As').innerText = flexionOK ? res.As_req.toFixed(2) : '—';
+    document.getElementById('res-Asw').innerText =
+        (flexionOK && res.status !== 'ERROR_SHEAR') ? res.Asw_s.toFixed(2) : '—';
 
-    const sectionPerBar = STEEL_SPECS[AppState.selectedDiameter].section;
-    const min_bars = Math.ceil(As_to_draw / sectionPerBar);
-    
-    let nb_barres = AppState.nbBarres;
-    if (nb_barres < 1) nb_barres = 1;
-    
-    // Affichage des recommandations et alertes de sous-dimensionnement
+    // Recommandation de ferraillage
+    const reco = AppState.recommandation;
     const recElement = document.getElementById('recommendation');
-    recElement.textContent = `${min_bars} HA${AppState.selectedDiameter} minimum`;
-    if (nb_barres < min_bars) {
-        recElement.style.color = "var(--danger)";
-        recElement.textContent += " ⚠ Choix Insuffisant";
+    const btnReco = document.getElementById('applyRecommendation');
+    if (reco) {
+        const dejaApplique = reco.diametre === diam && reco.nbBarres === nb;
+        recElement.textContent = `${reco.nbBarres} HA${reco.diametre} sur un lit`;
+        recElement.style.color = dejaApplique ? 'var(--success)' : 'var(--danger)';
+        if (btnReco) {
+            btnReco.hidden = dejaApplique;
+            btnReco.textContent = `Appliquer : ${reco.nbBarres} HA${reco.diametre}`;
+        }
     } else {
-        recElement.style.color = "var(--success)";
+        recElement.textContent = flexionOK
+            ? 'aucun ferraillage sur un lit ne convient : élargir la poutre'
+            : 'section béton insuffisante';
+        recElement.style.color = 'var(--danger)';
+        if (btnReco) btnReco.hidden = true;
     }
 
-    const steelArrangement = { nbBarres: nb_barres, actualSection: nb_barres * sectionPerBar };
-    document.getElementById('steelReq').innerText = res.As_req.toFixed(2);
-    document.getElementById('steelChosen').innerText = steelArrangement.actualSection.toFixed(2);
-    document.getElementById('nbBarres').innerText = steelArrangement.nbBarres;
-    document.getElementById('diamShow').innerText = AppState.selectedDiameter;
+    document.getElementById('steelReq').innerText = flexionOK ? res.As_req.toFixed(2) : '—';
+    document.getElementById('steelChosen').innerText = res.As_prov.toFixed(2);
+    document.getElementById('nbBarres').innerText = nb;
+    document.getElementById('diamShow').innerText = diam;
+    document.getElementById('spacing').innerText = nb > 1 ? (res.espLibre / 10).toFixed(1) : 'N/A';
+    document.getElementById('coverageShow').innerText = res.inputs.enrobage.toFixed(1);
 
-    // Espacement libre entre aciers tendus (EC2 §8.2) : recalculé pour le nombre
-    // de barres réellement choisi par l'utilisateur, en mm puis affiché en cm.
-    const diam_cm = AppState.selectedDiameter / 10;
-    const espLibre_mm = calculerEspacementLibre(res.inputs.b, steelArrangement.nbBarres);
-    const espLibreMin_mm = res.espLibreMin;
-    if (steelArrangement.nbBarres > 1) {
-        document.getElementById('spacing').innerText = (espLibre_mm / 10).toFixed(1);
-    } else {
-        document.getElementById('spacing').innerText = 'N/A';
-    }
-    document.getElementById('coverageShow').innerText = (AppState.c_enrobage * 100).toFixed(1);
+    // Verdict unique, partagé avec la note de calcul PDF
+    appliquerVerdict('statusBadge', res.checks, 'Poutre conforme');
+    renderWarnings('ec2-warnings', res.warnings);
+    renderChecks('checks', res.checks);
 
-    // Vérification des différents critères de conformité
-    const badge = document.getElementById('statusBadge');
-    if (res.status === 'ERROR_MUCU') {
-        badge.className = "status-badge status-red";
-        badge.innerText = "Section béton insuffisante !";
-        document.getElementById('res-Asw').innerText = "—";
-    } else if (res.status === 'ERROR_SHEAR') {
-        badge.className = "status-badge status-red";
-        badge.innerText = "Risque Rupture Bielles (Cisaillement)";
-        document.getElementById('res-Asw').innerText = "Erreur";
-    } else if (steelArrangement.actualSection < res.As_req) {
-        badge.className = "status-badge status-red";
-        badge.innerText = "Ferraillage Insuffisant";
-    } else if (steelArrangement.actualSection > res.As_max) {
-        badge.className = "status-badge status-red";
-        badge.innerText = "Ferraillage Trop Important (As > 4%)";
-    } else if (steelArrangement.nbBarres > 1 && espLibre_mm < espLibreMin_mm) {
-        badge.className = "status-badge status-red";
-        badge.innerText = "Aciers trop serrés (EC2 §8.2)";
-    } else if (!res.fleche.ok) {
-        badge.className = "status-badge status-orange";
-        badge.innerText = "Flèche à vérifier (L/d > limite EC2 §7.4.2)";
-    } else {
-        badge.className = "status-badge status-green";
-        badge.innerText = "Section Conforme";
+    // Dispositions constructives et ELS
+    const enr = res.enrobage;
+    const anc = res.ancrage;
+    const lignes = [
+        ['Enrobage requis', `c_nom ≥ ${(enr.requis / 10).toFixed(1)} cm (classe ${res.inputs.exposition}, S${enr.cadre.classe})`],
+        ['Cadres', res.status === 'ERROR_SHEAR' || !flexionOK ? '—'
+            : `HA${DIAM_CADRE_MM} à 2 brins, s ≤ ${Math.floor(res.s_cadre_prop)} cm ` +
+              `(A_sw/s = ${res.Asw_s.toFixed(2)} cm²/m, s_l,max = ${res.s_max_cadres.toFixed(0)} cm)`],
+        ['Ancrage sur appui', res.status !== 'OK' ? '— (section à redimensionner)'
+            : `l_bd = ${anc.appui.lbd.toFixed(0)} mm au-delà du nu d'appui ` +
+              `(F_E = ${anc.F_E.toFixed(1)} kN, σ_sd = ${anc.appui.sigma_sd.toFixed(0)} MPa)`],
+        ['Recouvrement', `l_0 = ${anc.courant.l0.toFixed(0)} mm (100 % des barres recouvertes, σ_sd = f_yd)`]
+    ];
+    if (res.els) {
+        lignes.push(['ELS quasi-permanent', `σ_s = ${res.els.sigma_s_qp.toFixed(0)} MPa, σ_c = ` +
+            `${res.els.sigma_c_qp.toFixed(1)} MPa, w_k = ${res.els.wk.toFixed(2)} mm (ψ_2 = ${res.psi2})`]);
     }
+    lignes.push(['Charge permanente de calcul', `G_tot = ${res.G_tot.toFixed(2)} kN/ml` +
+        (res.inputs.poidsPropre ? ` (dont poids propre ${res.poidsPropre.toFixed(2)})` : '')]);
+    AppState.dispositions = lignes;
+    renderInfos('dispositions', lignes);
 
-    if (res.status !== 'ERROR_SHEAR' && res.status !== 'ERROR_MUCU') {
-        document.getElementById('res-Asw').innerText = res.Asw_s.toFixed(2);
-    }
-
-    // Diagnostics réglementaires détaillés
-    const diagnostics = res.warnings.slice();
-    if (steelArrangement.nbBarres > 1 && espLibre_mm < espLibreMin_mm) {
-        diagnostics.unshift({
-            level: 'error',
-            text: "Espacement libre entre barres de " + (espLibre_mm / 10).toFixed(1) +
-                  " cm < minimum EC2 §8.2 de " + (espLibreMin_mm / 10).toFixed(1) +
-                  " cm : disposer les aciers sur deux lits ou élargir la poutre."
-        });
-    }
-    if (res.cisaillementMinimal) {
-        diagnostics.push({
-            level: 'info',
-            text: "Cadres HA8 à 2 brins : espacement pratique ≈ " + res.s_cadre_prop.toFixed(0) +
-                  " cm (maximum réglementaire 0.75·d = " + res.s_max_cadres.toFixed(0) + " cm)."
-        });
-    }
-    renderWarnings('ec2-warnings', diagnostics);
+    // Saisies ramenées dans le domaine de calcul
+    signalerBornes([
+        ['L', p.L, res.inputs.L, 'm'], ['b', p.b, res.inputs.b, 'm'], ['h', p.h, res.inputs.h, 'm'],
+        ['G', p.G, res.inputs.G, 'kN/ml'], ['Q', p.Q, res.inputs.Q, 'kN/ml'],
+        ['enrobage', p.enrobage, res.inputs.enrobage, 'cm']
+    ]);
 
     // On dessine avec les dimensions BORNÉES par ec2-core.js : une saisie vide ou
     // nulle produirait sinon une échelle infinie et un SVG rempli de NaN.
-    drawPoutreSVG(res.inputs.b, res.inputs.h, As_to_draw, steelArrangement, espLibre_mm / 10);
-}
-
-/**
- * Espacement libre (net) entre barres d'un même lit, en mm.
- * Prend en compte l'enrobage et l'encombrement des cadres transversaux.
- */
-function calculerEspacementLibre(b, nbBarres) {
-    const phi_l_mm = AppState.selectedDiameter;
-    const dispo_mm = (b - 2 * AppState.c_enrobage - 2 * 0.008) * 1000;
-    if (nbBarres > 1) {
-        return (dispo_mm - nbBarres * phi_l_mm) / (nbBarres - 1);
-    }
-    return dispo_mm - phi_l_mm;
+    const steelArrangement = { nbBarres: nb, actualSection: res.As_prov };
+    drawPoutreSVG(res.inputs.b, res.inputs.h, flexionOK ? res.As_req : 0, steelArrangement, res.espLibre / 10);
 }
 
 // =========================================================
@@ -263,7 +264,7 @@ function drawPoutreSVG(b, h, As, steelArrangement, espLibre_cm) {
     const x0 = (svgSize - w_px) / 2 - 20; 
     const y0 = (svgSize - h_px) / 2;
 
-    const c = AppState.c_enrobage * scale;
+    const c = AppState.results.inputs.c_nom * scale;
     const diam_px = (AppState.selectedDiameter / 1000) * scale;
     const radius_bar = Math.max(diam_px / 2, 6);
 
@@ -320,7 +321,7 @@ function drawPoutreSVG(b, h, As, steelArrangement, espLibre_cm) {
         // Cotations de la section droite et enrobage
         svgContent += drawDimensionLine(x0, y0, x0+w_px, y0, `b = ${(b*100).toFixed(0)}`, "cm", -30, textColor, textColor);
         svgContent += drawDimensionLine(x0+w_px, y0, x0+w_px, y0+h_px, `h = ${(h*100).toFixed(0)}`, "cm", -70, textColor, textColor);
-        svgContent += drawDimensionLine(x0, y0+h_px, x0+c, y0+h_px, `c=${(AppState.c_enrobage*100).toFixed(1)}`, "", 15, textColor, textColor);
+        svgContent += drawDimensionLine(x0, y0+h_px, x0+c, y0+h_px, `c=${(AppState.results.inputs.c_nom*100).toFixed(1)}`, "", 15, textColor, textColor);
 
         // Espacement libre entre barres : coté une seule fois, les barres étant
         // équidistantes (auparavant la même valeur était répétée n-1 fois).
@@ -339,7 +340,7 @@ function drawPoutreSVG(b, h, As, steelArrangement, espLibre_cm) {
         const hL_px = h * scaleL;
         const x0L = margin;
         const y0L = (svgSize - hL_px) / 2;
-        const c_pxL = AppState.c_enrobage * scaleL;
+        const c_pxL = AppState.results.inputs.c_nom * scaleL;
         const barW = Math.max((AppState.selectedDiameter / 1000) * scaleL, 2.5);
 
         svgContent += `<rect x="${x0L}" y="${y0L}" width="${wL_px}" height="${hL_px}" fill="${concreteFill}" stroke="${concreteStroke}" data-base-stroke="1.6"/>`;
@@ -403,7 +404,7 @@ function drawPoutreSVG(b, h, As, steelArrangement, espLibre_cm) {
             infos: [
         `${steelArrangement.nbBarres} HA${AppState.selectedDiameter}`,
         `A<sub>s</sub> = ${steelArrangement.actualSection.toFixed(2)} cm²`,
-        `Enrobage ${(AppState.c_enrobage*100).toFixed(1)} cm`
+        `Enrobage ${(AppState.results.inputs.c_nom*100).toFixed(1)} cm`
     ]
         },
         titre: AppState.currentView === 'coupe'
@@ -426,10 +427,10 @@ function showFormula(type) {
     let msg = "";
     switch(type) {
         case 'Med': 
-            msg = "Moment fléchissant ultime (ELU) : M_ed = (1.35 * G + 1.5 * Q) * L² / 8\nModèle isostatique d'une poutre sur deux appuis simples supportant des charges uniformément réparties."; 
+            msg = "Moment fléchissant ultime (ELU) : M_ed = (1.35 * G_tot + 1.5 * Q) * L² / 8\nG_tot = G + poids propre b × h × 25 si la case est cochée.\nModèle isostatique d'une poutre sur deux appuis simples supportant des charges uniformément réparties."; 
             break;
         case 'Mu': 
-            msg = "Moment ultime réduit : μ_cu = M_ed / (b * d² * f_cd)\nPermet d'évaluer la nécessité d'armatures comprimées (EC2 §3.1.6). Limite à 0.371 pour l'acier S500."; 
+            msg = "Moment ultime réduit : μ_cu = M_ed / (b * d² * f_cd)\nPermet d'évaluer la nécessité d'armatures comprimées (EC2 §3.1.7 et §6.1). Limite μ_lim = 0.372 pour l'acier S500 (au-delà, aciers comprimés nécessaires)."; 
             break;
         case 'Alpha': 
             msg = "Position relative de l'axe neutre : α = 1.25 * (1 - √(1 - 2 * μ_cu))\nDistance y entre la fibre la plus comprimée et l'axe neutre (y = α * d)."; 
@@ -438,7 +439,7 @@ function showFormula(type) {
             msg = "Section d'acier longitudinal requise : A_s = M_ed / (z * f_yd)\nCalculée avec le bras de levier z des forces internes de flexion (z = d * (1 - 0.4 * α))."; 
             break;
         case 'Ved': 
-            msg = "Effort tranchant ultime maximum : V_ed = (1.35 * G + 1.5 * Q) * L / 2\nCalculé aux appuis (sections critiques)."; 
+            msg = "Effort tranchant ultime maximum : V_ed = (1.35 * G_tot + 1.5 * Q) * L / 2\nCalculé à l'axe des appuis (choix conservatif, sans la réduction du §6.2.1(8))."; 
             break;
         case 'Asw': 
             msg = "Aciers transversaux (cadres) requis : A_sw/s = V_ed / (z * f_ywd * cot(θ))\nCalculés selon la méthode des bielles inclinées d'inclinaison variable θ (comprise entre 21.8° et 45° selon l'EC2 §6.2.3)."; 

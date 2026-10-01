@@ -23,73 +23,51 @@ const AppState = {
         q_adm: 0.25,     // Contrainte admissible de calcul sur le sol (MPa)
         N_Ed: 600,       // Effort normal ultime de calcul à l'ELU (kN)
         N_Eq: 430,       // Effort normal de service à l'ELS (kN)
-        enrobage: 4.0    // Enrobage nominal des aciers (cm)
+        enrobage: 5.0,   // Enrobage nominal des aciers (cm)
+        exposition: 'XC2',
+        contactSol: 'proprete',
+        duree100: 0
     },
-    diamA: 12,           // Diamètre HA de la nappe inférieure // A (mm)
-    diamB: 12,           // Diamètre HA de la nappe supérieure // B (mm)
+    diamA: 12,           // Diamètre HA du lit inférieur // A (mm)
+    diamB: 12,           // Diamètre HA du second lit // B (mm)
     currentView: 'coupe',// Vue active dans l'interface ('coupe' | 'plan')
-    results: null        // Résultats du dernier calcul
+    results: null,       // Résultats du dernier calcul
+    dispositions: []
 };
 
 const semelleInputs = Object.keys(AppState.inputs);
 
-// Initialisation au chargement de la page
 window.addEventListener('DOMContentLoaded', () => {
-    // Restauration des paramètres saisis par l'utilisateur
-    semelleInputs.forEach(id => {
-        const savedVal = localStorage.getItem(`semelle_${id}`);
-        // On ignore toute valeur stockée illisible : sinon un NaN se propagerait
-        // dans l'état applicatif et jusque dans la note de calcul PDF.
-        if (savedVal !== null && isFinite(parseFloat(savedVal))) {
-            AppState.inputs[id] = parseFloat(savedVal);
-            const el = document.getElementById(id);
-            if (el) el.value = savedVal;
-        }
-    });
-    
-    const savedDiamA = localStorage.getItem('semelle_diamA');
-    if (savedDiamA) AppState.diamA = parseInt(savedDiamA, 10);
-    
-    const savedDiamB = localStorage.getItem('semelle_diamB');
-    if (savedDiamB) AppState.diamB = parseInt(savedDiamB, 10);
+    lierChamps('semelle_', AppState.inputs, semelleInputs, runController);
+    try {
+        const savedDiamA = parseInt(localStorage.getItem('semelle_diamA'), 10);
+        if (STEEL_SPECS[savedDiamA]) AppState.diamA = savedDiamA;
+        const savedDiamB = parseInt(localStorage.getItem('semelle_diamB'), 10);
+        if (STEEL_SPECS[savedDiamB]) AppState.diamB = savedDiamB;
+    } catch (e) { /* stockage indisponible */ }
 
     bindEvents();
     updateSteelSelectors();
     runController();
 });
 
-// Liaison des événements de l'interface
 function bindEvents() {
-    semelleInputs.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('input', (e) => {
-                AppState.inputs[id] = parseFloat(e.target.value) || 0;
-                localStorage.setItem(`semelle_${id}`, e.target.value);
-                runController();
-            });
-        }
-    });
-
-    // Choix des diamètres d'acier
     document.querySelectorAll('#sel-A .steel-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            AppState.diamA = parseInt(e.target.dataset.diam, 10);
-            localStorage.setItem('semelle_diamA', AppState.diamA);
+            AppState.diamA = parseInt(e.currentTarget.dataset.diam, 10);
+            try { localStorage.setItem('semelle_diamA', AppState.diamA); } catch (err) { /* ignoré */ }
             updateSteelSelectors();
             runController();
         });
     });
-    
     document.querySelectorAll('#sel-B .steel-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            AppState.diamB = parseInt(e.target.dataset.diam, 10);
-            localStorage.setItem('semelle_diamB', AppState.diamB);
+            AppState.diamB = parseInt(e.currentTarget.dataset.diam, 10);
+            try { localStorage.setItem('semelle_diamB', AppState.diamB); } catch (err) { /* ignoré */ }
             updateSteelSelectors();
             runController();
         });
     });
-
     window.onThemeChange = () => renderUI();
 }
 
@@ -109,21 +87,9 @@ function updateSteelSelectors() {
     });
 }
 
-function getSVGTextColor() {
-    const theme = document.documentElement.getAttribute('data-theme');
-    return theme === 'dark' ? '#e0e0e0' : '#1e293b';
-}
-
-// =========================================================================
-// 2. LOGIQUE DE CALCUL RÈGLEMENTAIRE (EUROCODE 2 & GÉOTECHNIQUE)
-// =========================================================================
-
 /**
  * Calcul et vérification de la semelle isolée sous poteau centré.
- * La logique réglementaire est centralisée dans ec2-core.js (fonctions pures,
- * couvertes par le harnais de tests tests-ec2.js).
- * @param {object} params Paramètres géométriques et charges de calcul
- * @returns {object} Résultats géotechniques, structurels et sections d'armatures
+ * La logique réglementaire est centralisée dans ec2-core.js.
  */
 function calculateEurocode2(params) {
     return EC2.semelleIsolee({
@@ -133,24 +99,20 @@ function calculateEurocode2(params) {
     });
 }
 
-// =========================================================================
-// 3. CONTRÔLEUR DE L'INTERFACE UTILISATEUR
-// =========================================================================
-
 function runController() {
-    const params = {
+    AppState.results = calculateEurocode2({
         ...AppState.inputs,
         diamA: AppState.diamA,
         diamB: AppState.diamB
-    };
-    AppState.results = calculateEurocode2(params);
+    });
     renderUI();
 }
 
 function renderUI() {
     const res = AppState.results;
-    
-    // Renseignement de la note de calcul interactive
+    const p = AppState.inputs;
+    const q = res.inputs;
+
     document.getElementById('res-sigma').innerText = res.sigma_sol.toFixed(3);
     document.getElementById('res-dmin').innerText = res.d_req.toFixed(2);
     document.getElementById('res-AsA').innerText = res.As_A_req.toFixed(2);
@@ -163,45 +125,44 @@ function renderUI() {
         poincEl.style.color = taux > 1 ? 'var(--danger)' : 'var(--success)';
     }
 
-    // Nappe inférieure
     document.getElementById('info-nbA').innerText = res.nb_A;
     document.getElementById('info-diamA').innerText = AppState.diamA;
     document.getElementById('info-secA').innerText = res.As_A_prov.toFixed(2);
     document.getElementById('req-secA').innerText = res.As_A_req.toFixed(2);
 
-    // Nappe supérieure
     document.getElementById('info-nbB').innerText = res.nb_B;
     document.getElementById('info-diamB').innerText = AppState.diamB;
     document.getElementById('info-secB').innerText = res.As_B_prov.toFixed(2);
     document.getElementById('req-secB').innerText = res.As_B_req.toFixed(2);
 
-    // Affichage du statut de conformité
-    const badge = document.getElementById('statusBadge');
-    if (res.status === 'ERROR_BEARING') {
-        badge.className = 'status-badge status-red';
-        badge.innerText = 'Surface insuffisante (σ_sol > q_adm)';
-    } else if (res.status === 'ERROR_PUNCHING') {
-        badge.className = 'status-badge status-red';
-        badge.innerText = 'Poinçonnement (EC2 §6.4) : augmenter h';
-    } else if (res.status === 'WARNING_FLEXIBLE') {
-        badge.className = 'status-badge status-orange';
-        badge.innerText = 'Semelle Flexible (d < d_req, bielles hors limites)';
-    } else if (res.status === 'ERROR_STEEL') {
-        badge.className = 'status-badge status-red';
-        badge.innerText = 'Ferraillage Insuffisant';
-    } else {
-        badge.className = 'status-badge status-green';
-        badge.innerText = 'Semelle Conforme';
-    }
-
+    appliquerVerdict('statusBadge', res.checks, 'Semelle conforme');
     renderWarnings('ec2-warnings', res.warnings);
+    renderChecks('checks', res.checks);
+
+    const anc = res.ancrage;
+    const crochets = anc.A.lbd > anc.debordA || anc.B.lbd > anc.debordB;
+    const lignes = [
+        ['Enrobage requis', `c_nom ≥ ${(res.enrobage.requis / 10).toFixed(1)} cm (classe ${q.exposition}, ` +
+            `${q.contactSol === 'sol' ? 'coulé contre le sol' : 'sur béton de propreté'})`],
+        ['Espacements', `${res.esp_A.toFixed(1)} cm (lit // A), ${res.esp_B.toFixed(1)} cm (lit // B)`],
+        ['Ancrage des barres', `l_bd = ${anc.A.lbd.toFixed(0)} mm (HA${AppState.diamA}) / ${anc.B.lbd.toFixed(0)} mm ` +
+            `(HA${AppState.diamB}) pour un débord de ${Math.max(0, anc.debordA).toFixed(0)} / ${Math.max(0, anc.debordB).toFixed(0)} mm : ` +
+            (crochets ? 'crochets d\'extrémité nécessaires' : 'ancrage droit possible')],
+        ['Poinçonnement', `taux ${(res.poinconnement.ratio_u1 * 100).toFixed(0)} % sur le périmètre à ` +
+            `${(res.poinconnement.a_crit * 100).toFixed(0)} cm du poteau, ${(res.poinconnement.ratio_u0 * 100).toFixed(0)} % au nu`]
+    ];
+    AppState.dispositions = lignes;
+    renderInfos('dispositions', lignes);
+
+    signalerBornes([
+        ['a', p.a, q.a, 'm'], ['b', p.b, q.b, 'm'], ['A', p.A, q.A, 'm'], ['B', p.B, q.B, 'm'],
+        ['h', p.h, q.h, 'm'], ['q_adm', p.q_adm, q.q_adm, 'MPa'], ['N_Ed', p.N_Ed, q.N_Ed, 'kN'],
+        ['N_Eq', p.N_Eq, q.N_Eq, 'kN'], ['enrobage', p.enrobage, q.enrobage, 'cm']
+    ]);
 
     drawSVG();
 }
 
-// =========================================================================
-// 4. GÉNÉRATION DES SCHÉMAS DE FERRAILLAGE (SVG)
-// =========================================================================
 
 function drawSVG() {
     const container = document.getElementById('svgContainer');
@@ -410,7 +371,7 @@ function showFormula(type) {
                   "Calcule la section nécessaire sous l'effort normal ultime pour équilibrer la traction à la base de la bielle de compression s'étendant parallèlement à la dimension A. Cette section est comparée aux exigences minimales de non-fragilité de l'Eurocode 2."; 
             break;
         case 'As_B':
-            msg = "Calcul des armatures de la nappe supérieure (// B) :\n" +
+            msg = "Calcul des armatures du second lit inférieur (// B) :\n" +
                   "As = N_Ed × (B - b) / (8 × d_B × fyd)\n\n" +
                   "Détermine la section pour l'axe parallèle à B. On prend en compte la réduction de la hauteur utile (d_B = d_A - Ø_A) liée à la superposition des barres de la nappe A.";
             break;
@@ -421,7 +382,7 @@ function showFormula(type) {
                   "Pour une semelle, la vérification est menée sur les périmètres de contrôle " +
                   "situés à une distance a ≤ 2d du nu du poteau, en déduisant la réaction du sol " +
                   "comprise à l'intérieur du périmètre. La résistance est majorée du facteur 2d/a.\n" +
-                  "On vérifie en outre au nu du poteau que v_Ed ≤ v_Rd,max = 0.5 × ν × f_cd.\n\n" +
+                  "On vérifie en outre au nu du poteau que v_Ed ≤ v_Rd,max = 0.4 × ν × f_cd (§6.4.5(3), valeur recommandée).\n\n" +
                   (poinc
                       ? "Ici : périmètre critique à " + (poinc.a_crit * 100).toFixed(0) + " cm du poteau, " +
                         "v_Ed = " + poinc.v_Ed.toFixed(2) + " MPa pour v_Rd = " + poinc.v_Rd.toFixed(2) +

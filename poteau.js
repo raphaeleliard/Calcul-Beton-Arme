@@ -13,59 +13,42 @@
 // =========================================================
 
 const AppState = {
-    inputs: { L: 3.0, a: 0.30, b: 0.30, beta: 0.7, fck: 25, fyk: 500, N_Ed: 500, M_Ed: 0, enrobage: 3.0, nb_a: 2, nb_b: 2 },
+    inputs: {
+        L: 3.0, a: 0.30, b: 0.30, beta: 0.7, fck: 25, fyk: 500, N_Ed: 500, M_Ed: 0,
+        enrobage: 3.0, phi_ef: 2.0, exposition: 'XC1', duree100: 0, nb_a: 2, nb_b: 2
+    },
     selectedDiameter: 12,
     currentView: 'coupe',
-    results: null
+    results: null,
+    recommandation: null,
+    dispositions: []
 };
 
 const poteauInputs = Object.keys(AppState.inputs);
 
-// Initialisation au chargement du DOM
 window.addEventListener('DOMContentLoaded', () => {
-    // Restauration des données locales
-    poteauInputs.forEach(id => {
-        const savedVal = localStorage.getItem(`poteau_${id}`);
-        // On ignore toute valeur stockée illisible : sinon un NaN se propagerait
-        // dans l'état applicatif et jusque dans la note de calcul PDF.
-        if (savedVal !== null && isFinite(parseFloat(savedVal))) {
-            AppState.inputs[id] = parseFloat(savedVal);
-            const el = document.getElementById(id);
-            if (el) el.value = savedVal;
-        }
-    });
+    lierChamps('poteau_', AppState.inputs, poteauInputs, runController);
+    try {
+        const savedDiam = parseInt(localStorage.getItem('poteau_diameter'), 10);
+        if (STEEL_SPECS[savedDiam]) AppState.selectedDiameter = savedDiam;
+    } catch (e) { /* stockage indisponible */ }
 
-    const savedDiam = localStorage.getItem('poteau_diameter');
-    if (savedDiam) AppState.selectedDiameter = parseInt(savedDiam);
-    
     bindEvents();
     updateSteelSelector();
     runController();
 });
 
 function bindEvents() {
-    // Écoute des champs de saisie géométriques et mécaniques
-    poteauInputs.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('input', (e) => {
-                AppState.inputs[id] = parseFloat(e.target.value) || 0;
-                localStorage.setItem(`poteau_${id}`, e.target.value);
-                runController();
-            });
-        }
-    });
-
-    // Écouteurs sur les boutons HA
     document.querySelectorAll('.steel-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            AppState.selectedDiameter = parseInt(e.target.dataset.diameter);
-            localStorage.setItem('poteau_diameter', AppState.selectedDiameter);
+            AppState.selectedDiameter = parseInt(e.currentTarget.dataset.diameter, 10);
+            try { localStorage.setItem('poteau_diameter', AppState.selectedDiameter); } catch (err) { /* ignoré */ }
             updateSteelSelector();
             runController();
         });
     });
-
+    const btnReco = document.getElementById('applyRecommendation');
+    if (btnReco) btnReco.addEventListener('click', appliquerRecommandation);
     window.onThemeChange = () => renderUI();
 }
 
@@ -73,19 +56,16 @@ function setView(view) {
     AppState.currentView = view;
     document.getElementById('btnViewCoupe').classList.toggle('active', view === 'coupe');
     document.getElementById('btnViewElev').classList.toggle('active', view === 'elevation');
+    const btnNM = document.getElementById('btnViewNM');
+    if (btnNM) btnNM.classList.toggle('active', view === 'nm');
     renderUI();
 }
 
 function updateSteelSelector() {
     document.querySelectorAll('.steel-btn').forEach(btn => {
-        const diam = parseInt(btn.dataset.diameter);
+        const diam = parseInt(btn.dataset.diameter, 10);
         btn.classList.toggle('active', diam === AppState.selectedDiameter);
     });
-}
-
-function getSVGTextColor() {
-    const theme = document.documentElement.getAttribute('data-theme');
-    return theme === 'dark' ? '#e0e0e0' : '#000';
 }
 
 // =========================================================
@@ -93,14 +73,39 @@ function getSVGTextColor() {
 // =========================================================
 
 /**
- * Calcul réglementaire de la stabilité et résistance d'un poteau comprimé (EC2 §5.8 & §6.1).
- * La logique réglementaire est centralisée dans ec2-core.js (fonctions pures,
- * couvertes par le harnais de tests tests-ec2.js).
- * @param {object} params Paramètres géométriques et mécaniques
- * @returns {object} Résultats mécaniques et excentricités
+ * Calcul réglementaire du poteau : élancement, second ordre (courbure
+ * nominale), diagramme d'interaction N-M. Toute la logique est dans ec2-core.js.
  */
 function calculateEurocode2(params) {
     return EC2.poteau(params);
+}
+
+/**
+ * Plus petite répartition de barres (diamètre sélectionné) vérifiant le
+ * diagramme N-M, les sections minimale/maximale et l'espacement libre.
+ * Les barres sont ajoutées sur la face où elles sont le plus espacées.
+ */
+function calculerRecommandation(res) {
+    let nbA = 2, nbB = 2;
+    for (let i = 0; i < 60; i++) {
+        const v = EC2.poteauVerif(res, nbA, nbB);
+        if (v.ok) return { nb_a: nbA, nb_b: nbB, nbBarres: v.verif.nbBarres };
+        if (!v.okEspacement) return null;
+        if (res.inputs.a / nbA >= res.inputs.b / nbB) nbA++; else nbB++;
+    }
+    return null;
+}
+
+function appliquerRecommandation() {
+    const reco = AppState.recommandation;
+    if (!reco) return;
+    AppState.inputs.nb_a = reco.nb_a;
+    AppState.inputs.nb_b = reco.nb_b;
+    ['nb_a', 'nb_b'].forEach(id => {
+        document.getElementById(id).value = AppState.inputs[id];
+        try { localStorage.setItem('poteau_' + id, AppState.inputs[id]); } catch (e) { /* ignoré */ }
+    });
+    runController();
 }
 
 // =========================================================
@@ -108,125 +113,161 @@ function calculateEurocode2(params) {
 // =========================================================
 
 function runController() {
-    // Le bornage des données d'entrée est assuré par ec2-core.js ; on ne conserve
-    // ici que le nombre de barres, propre à l'interface.
     const p = AppState.inputs;
     p.nb_a = Math.max(2, Math.round(p.nb_a) || 2);
     p.nb_b = Math.max(2, Math.round(p.nb_b) || 2);
-
-    const calcParams = {
-        ...p,
-        diameter: AppState.selectedDiameter
-    };
-    AppState.results = calculateEurocode2(calcParams);
+    AppState.results = calculateEurocode2({ ...p, diameter: AppState.selectedDiameter });
+    AppState.recommandation = calculerRecommandation(AppState.results);
     renderUI();
 }
 
 function renderUI() {
     const res = AppState.results;
     const p = AppState.inputs;
-    
-    // Ferraillage réel choisi
-    let nb_a = Math.max(2, p.nb_a);
-    let nb_b = Math.max(2, p.nb_b);
-    const total_bars = nb_a * 2 + Math.max(0, nb_b - 2) * 2;
-    const section_per_bar = STEEL_SPECS[AppState.selectedDiameter].section;
-    const As_chosen = total_bars * section_per_bar;
+    const q = res.inputs;
+    const v = res.verif;
+    const fmt = (x, n) => isFinite(x) ? x.toFixed(n) : '—';
 
-    // Résistance de calcul N_Rd avec les aciers réels.
-    // La contrainte des aciers COMPRIMÉS est plafonnée à E_s x eps_c2 = 400 MPa
-    // pour du S500 (EC2 §6.1), et non à f_yd = 435 MPa.
-    const N_Rd = EC2.poteauNRd(res, As_chosen); // kN
-    
-    // Rendu des résultats animés (Effet Wow)
-    animateValue('res-N_Rd', parseFloat(document.getElementById('res-N_Rd').textContent) || 0, N_Rd, 800, 0);
+    animateValue('res-N_Rd', parseFloat(document.getElementById('res-N_Rd').textContent) || 0, v.NRd, 800, 0);
     animateValue('res-l0', parseFloat(document.getElementById('res-l0').textContent) || 0, res.l0, 800, 2);
-    animateValue('res-N_cr', parseFloat(document.getElementById('res-N_cr').textContent) || 0, res.N_cr, 800, 0);
     animateValue('res-lambda', parseFloat(document.getElementById('res-lambda').textContent) || 0, res.lambda, 800, 1);
     animateValue('res-As_min', parseFloat(document.getElementById('res-As_min').textContent) || 0, res.As_min, 800, 2);
-    animateValue('res-As_calc', parseFloat(document.getElementById('res-As_calc').textContent) || 0, res.As_req, 800, 2);
+    document.getElementById('res-M_Rd').textContent = fmt(v.MRd, 1);
+    document.getElementById('res-M_Ed_tot').textContent = fmt(v.M_Ed_tot, 1);
+    document.getElementById('res-As_calc').textContent = fmt(res.As_req, 2);
 
-    animateValue('steelReq', parseFloat(document.getElementById('steelReq').textContent) || 0, res.As_req, 800, 2);
-    animateValue('steelChosen', parseFloat(document.getElementById('steelChosen').textContent) || 0, As_chosen, 800, 2);
-    document.getElementById('nbBarres').textContent = total_bars;
+    document.getElementById('steelReq').textContent = fmt(res.As_req, 2);
+    document.getElementById('steelChosen').textContent = v.As.toFixed(2);
+    document.getElementById('nbBarres').textContent = v.nbBarres;
     document.getElementById('diamShow').textContent = AppState.selectedDiameter;
+    document.getElementById('spacing').textContent = isFinite(v.espLibre) ? (v.espLibre / 10).toFixed(1) : 'N/A';
+    document.getElementById('coverageShow').textContent = q.enrobage.toFixed(1);
 
-    // Calcul de la répartition recommandée
-    const min_bars = Math.ceil(res.As_req / section_per_bar);
-    let rec_a = 2, rec_b = 2;
-    // Plafond à 40 barres par face : au-delà le poteau est hors domaine
-    // (A_s > 4 % A_c est déjà signalé) et la boucle deviendrait très longue.
-    while ((rec_a * 2 + Math.max(0, rec_b - 2) * 2) < min_bars && rec_a < 40 && rec_b < 40) {
-        if (res.inputs.a / rec_a >= res.inputs.b / rec_b) rec_a++;
-        else rec_b++;
-    }
-    const rec_total = rec_a * 2 + Math.max(0, rec_b - 2) * 2;
+    // Recommandation vérifiée par le diagramme d'interaction
+    const reco = AppState.recommandation;
     const recElement = document.getElementById('recommendation');
-    recElement.textContent = `${rec_total} HA${AppState.selectedDiameter} (${rec_a} face 'a' × ${rec_b} face 'b')`;
-    recElement.style.color = (total_bars < rec_total) ? "var(--danger)" : "var(--success)";
-
-    // Calcul de l'espacement net des barres longitudinales
-    // (dimensions bornées par ec2-core.js pour rester numériquement stables)
-    const a_mm = res.inputs.a * 1000;
-    const b_mm = res.inputs.b * 1000;
-    const c_mm = res.inputs.enrobage * 10;
-    const diam_cadre_mm = 8;
-    const espace_libre_a = a_mm - 2*c_mm - 2*diam_cadre_mm;
-    const espace_libre_b = b_mm - 2*c_mm - 2*diam_cadre_mm;
-    
-    const spacing_a = nb_a > 1 ? (espace_libre_a - (nb_a * AppState.selectedDiameter)) / (nb_a - 1) : 1000;
-    const spacing_b = nb_b > 1 ? (espace_libre_b - (nb_b * AppState.selectedDiameter)) / (nb_b - 1) : 1000;
-    let min_spacing_mm = Math.min(spacing_a, spacing_b);
-    if (nb_a === 1 && nb_b === 1) min_spacing_mm = 1000;
-    
-    document.getElementById('spacing').textContent = min_spacing_mm === 1000 ? "N/A" : (min_spacing_mm / 10).toFixed(1);
-    document.getElementById('coverageShow').textContent = res.inputs.enrobage.toFixed(1);
-
-    // Vérifications de conformité et badge de statut
-    const statusBadge = document.getElementById('statusBadge');
-    const ratio = p.N_Ed / N_Rd;
-    if (ratio > 1.0) {
-        statusBadge.className = 'status-badge status-red';
-        statusBadge.textContent = 'Section Béton Insuffisante';
-    } else if (As_chosen < res.As_req) {
-        statusBadge.className = 'status-badge status-red';
-        statusBadge.textContent = 'Ferraillage Insuffisant';
-    } else if (As_chosen > res.As_max) {
-        statusBadge.className = 'status-badge status-red';
-        statusBadge.textContent = 'Ferraillage Trop Important (As > 4%)';
-    } else if (min_spacing_mm < Math.max(20, AppState.selectedDiameter)) {
-        statusBadge.className = 'status-badge status-red';
-        statusBadge.textContent = 'Aciers trop serrés (EC2 §8.2)';
-    } else if (ratio > 0.9) {
-        statusBadge.className = 'status-badge status-orange';
-        statusBadge.textContent = 'Section Limite (N_Ed proche N_Rd)';
+    const btnReco = document.getElementById('applyRecommendation');
+    if (reco) {
+        const dejaApplique = reco.nb_a === v.nb_a && reco.nb_b === v.nb_b;
+        recElement.textContent = `${reco.nbBarres} HA${AppState.selectedDiameter} (${reco.nb_a} par face a × ${reco.nb_b} par face b)`;
+        recElement.style.color = dejaApplique ? 'var(--success)' : 'var(--danger)';
+        if (btnReco) {
+            btnReco.hidden = dejaApplique;
+            btnReco.textContent = `Appliquer : ${reco.nb_a} × ${reco.nb_b} HA${AppState.selectedDiameter}`;
+        }
     } else {
-        statusBadge.className = 'status-badge status-green';
-        statusBadge.textContent = 'Section Conforme';
+        recElement.textContent = 'aucune répartition ne convient : augmenter Ø ou la section';
+        recElement.style.color = 'var(--danger)';
+        if (btnReco) btnReco.hidden = true;
     }
 
-    // Diagnostics réglementaires détaillés
+    appliquerVerdict('statusBadge', res.checks, 'Poteau conforme');
     const diagnostics = res.warnings.slice();
     diagnostics.push({
         level: 'info',
-        text: "N_Rd = A_c·f_cd + A_s·σ_sc = " + N_Rd.toFixed(0) + " kN pour N_Ed = " +
-              p.N_Ed.toFixed(0) + " kN (taux de travail " + (ratio * 100).toFixed(0) + " %). " +
-              "Cette résistance est celle de la compression centrée : le moment M_Ed,tot = " +
-              res.M_Ed_tot.toFixed(1) + " kN.m est repris séparément par les aciers."
+        text: "Sous N_Ed = " + q.N_Ed.toFixed(0) + " kN, la section disposée résiste à M_Rd = " +
+              fmt(v.MRd, 1) + " kN.m pour M_Ed,tot = " + fmt(v.M_Ed_tot, 1) + " kN.m (taux " +
+              fmt(v.tauxM * 100, 0) + " %). Voir la vue « Diagramme N-M »."
     });
-    if (min_spacing_mm !== 1000 && min_spacing_mm < Math.max(20, AppState.selectedDiameter)) {
-        diagnostics.unshift({
-            level: 'error',
-            text: "Espacement libre de " + (min_spacing_mm / 10).toFixed(1) + " cm insuffisant : " +
-                  "l'EC2 §8.2 impose au moins max(Ø ; 20 mm ; d_g + 5 mm)."
-        });
-    }
     renderWarnings('ec2-warnings', diagnostics);
+    renderChecks('checks', res.checks);
 
-    // Dimensions bornées par ec2-core.js : une saisie nulle donnerait une échelle
-    // infinie, un SVG rempli de NaN et une boucle de dessin sans fin.
-    generateColumnSVG(res.inputs.a, res.inputs.b, nb_a, nb_b, AppState.selectedDiameter,
-                      res.inputs.enrobage, As_chosen);
+    const d = res.dispositions;
+    const lignes = [
+        ['Enrobage requis', `c_nom ≥ ${(res.enrobage.requis / 10).toFixed(1)} cm (classe ${q.exposition}, S${res.enrobage.cadre.classe})`],
+        ['Cadres', `HA8, s ≤ ${Math.floor(d.s_cadres / 10)} cm en partie courante, ${Math.floor(d.s_cadres_reduit / 10)} cm aux abouts et recouvrements (§9.5.3)`],
+        ['Recouvrement', `l_0 = ${d.recouvrement.l0.toFixed(0)} mm (barres comprimées, 100 % recouvertes)`],
+        ['Second ordre', res.secondOrdre
+            ? `e_2 = ${(v.e.e_2 * 1000).toFixed(0)} mm (K_r = ${v.e.K_r.toFixed(2)}, K_φ = ${v.e.K_phi.toFixed(2)})`
+            : `négligé (λ = ${res.lambda.toFixed(1)} ≤ λ_lim = ${fmt(res.lambda_lim, 1)})`],
+        ['Moment de calcul', `M_Ed,tot = max(M_Ed + N·e_i ; N·e_0) + N·e_2 = ${fmt(v.M_Ed_tot, 1)} kN.m`]
+    ];
+    AppState.dispositions = lignes;
+    renderInfos('dispositions', lignes);
+
+    signalerBornes([
+        ['L', p.L, q.L, 'm'], ['a', p.a, q.a, 'm'], ['b', p.b, q.b, 'm'],
+        ['N_Ed', p.N_Ed, q.N_Ed, 'kN'], ['M_Ed', p.M_Ed, q.M_Ed, 'kN.m'],
+        ['enrobage', p.enrobage, q.enrobage, 'cm'], ['phi_ef', p.phi_ef, q.phi_ef, '']
+    ]);
+
+    if (AppState.currentView === 'nm') {
+        drawDiagrammeNM();
+    } else {
+        // Dimensions bornées par ec2-core.js : une saisie nulle donnerait une échelle
+        // infinie, un SVG rempli de NaN et une boucle de dessin sans fin.
+        generateColumnSVG(q.a, q.b, v.nb_a, v.nb_b, AppState.selectedDiameter, q.enrobage, v.As);
+    }
+}
+
+// =========================================================
+// DIAGRAMME D'INTERACTION N-M
+// =========================================================
+
+/**
+ * Trace le diagramme d'interaction de la section réellement armée et le
+ * point de calcul (M_Ed,tot ; N_Ed). Compression positive vers le haut.
+ */
+function drawDiagrammeNM() {
+    const container = document.getElementById('svgContainer');
+    const res = AppState.results;
+    const v = res.verif;
+    const { textColor } = getThemeColors();
+    const rebar = getRebarColors();
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const ok = v.tauxM <= 1 && v.tauxN <= 1;
+
+    const W = 640, H = 520, mg = { g: 70, d: 30, h: 30, b: 50 };
+    const pts = v.diagramme.filter(pt => isFinite(pt.N) && isFinite(pt.M));
+    const Mmax = Math.max(1, ...pts.map(pt => Math.abs(pt.M)), Math.abs(v.M_Ed_tot)) * 1.15;
+    const Nhaut = Math.max(...pts.map(pt => pt.N), res.inputs.N_Ed) * 1.08;
+    const Nbas = Math.min(0, ...pts.map(pt => pt.N)) * 1.08;
+    const X = (M) => mg.g + (M + Mmax) / (2 * Mmax) * (W - mg.g - mg.d);
+    const Y = (N) => mg.h + (Nhaut - N) / (Nhaut - Nbas) * (H - mg.h - mg.b);
+
+    const contour = pts.map(pt => `${X(pt.M).toFixed(1)},${Y(pt.N).toFixed(1)}`)
+        .concat(pts.slice().reverse().map(pt => `${X(-pt.M).toFixed(1)},${Y(pt.N).toFixed(1)}`));
+
+    // Graduations arrondies
+    const pas = (etendue) => {
+        const brut = etendue / 5, p10 = Math.pow(10, Math.floor(Math.log10(brut)));
+        return [1, 2, 5, 10].map(k => k * p10).find(k => k >= brut);
+    };
+    const pasM = pas(Mmax), pasN = pas(Nhaut - Nbas);
+    let grille = '';
+    for (let m = -Math.floor(Mmax / pasM) * pasM; m <= Mmax; m += pasM) {
+        grille += `<line x1="${X(m)}" y1="${mg.h}" x2="${X(m)}" y2="${H - mg.b}" stroke="${textColor}" stroke-opacity="0.12"/>
+                   <text x="${X(m)}" y="${H - mg.b + 18}" text-anchor="middle" data-base-size="10" fill="${textColor}">${Math.round(m)}</text>`;
+    }
+    for (let n = Math.ceil(Nbas / pasN) * pasN; n <= Nhaut; n += pasN) {
+        grille += `<line x1="${mg.g}" y1="${Y(n)}" x2="${W - mg.d}" y2="${Y(n)}" stroke="${textColor}" stroke-opacity="0.12"/>
+                   <text x="${mg.g - 8}" y="${Y(n) + 4}" text-anchor="end" data-base-size="10" fill="${textColor}">${Math.round(n)}</text>`;
+    }
+
+    const couleurPoint = ok ? (dark ? '#4ade80' : '#1e8449') : rebar.main;
+    const svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
+        ${grille}
+        <line x1="${X(0)}" y1="${mg.h}" x2="${X(0)}" y2="${H - mg.b}" stroke="${textColor}" stroke-opacity="0.6"/>
+        <line x1="${mg.g}" y1="${Y(0)}" x2="${W - mg.d}" y2="${Y(0)}" stroke="${textColor}" stroke-opacity="0.6"/>
+        <polygon points="${contour.join(' ')}" fill="${rebar.stirrup}" fill-opacity="0.15" stroke="${rebar.stirrup}" data-base-stroke="2"/>
+        <line x1="${X(0)}" y1="${Y(res.inputs.N_Ed)}" x2="${X(v.M_Ed_tot)}" y2="${Y(res.inputs.N_Ed)}" stroke="${couleurPoint}" stroke-dasharray="4,3" data-base-stroke="1.2"/>
+        <circle cx="${X(v.M_Ed_tot)}" cy="${Y(res.inputs.N_Ed)}" r="7" fill="${couleurPoint}"/>
+        <text x="${X(v.M_Ed_tot) + 12}" y="${Y(res.inputs.N_Ed) - 10}" data-base-size="11" fill="${textColor}">(${v.M_Ed_tot.toFixed(1)} kN.m ; ${res.inputs.N_Ed.toFixed(0)} kN)</text>
+        <text x="${W - mg.d}" y="${H - 8}" text-anchor="end" data-base-size="11" fill="${textColor}">M (kN.m)</text>
+        <text x="${mg.g - 50}" y="${mg.h - 10}" data-base-size="11" fill="${textColor}">N (kN, compression +)</text>
+    </svg>`;
+    container.innerHTML = svg;
+    finalizePlan('svgContainer', {
+        legende: {
+            entrees: [
+                { forme: 'box', couleur: rebar.stirrup, texte: 'Domaine résistant N-M de la section' },
+                { forme: 'dot', couleur: couleurPoint, texte: ok ? 'Point de calcul (intérieur : vérifié)' : 'Point de calcul (extérieur : non vérifié)' }
+            ],
+            infos: [`${v.nbBarres} HA${AppState.selectedDiameter}`, `M<sub>Rd</sub> = ${isFinite(v.MRd) ? v.MRd.toFixed(1) : "—"} kN.m`]
+        },
+        titre: `Diagramme d'interaction effort normal - moment du poteau, point de calcul ${ok ? 'à l\'intérieur' : 'à l\'extérieur'} du domaine résistant`,
+        minRatio: 1.0, maxRatio: 1.6
+    });
 }
 
 // =========================================================
@@ -416,25 +457,36 @@ function showFormula(type) {
                   "Attention : en compression pure le raccourcissement du béton est plafonné à " +
                   "ε_c2 = 2 ‰. L'acier ne peut donc mobiliser que σ_sc = E_s × ε_c2 = 400 MPa " +
                   "pour du S500, et non f_yd = 435 MPa (EC2 §6.1).\n\n" +
-                  "Cette valeur ne couvre que l'effort normal : le moment total M_Ed,tot " +
-                  "(1er ordre + imperfections + 2nd ordre) est équilibré séparément par les aciers.";
+                  "Cette valeur ne couvre que la compression centrée ; la flexion composée est vérifiée " +
+                  "sur le diagramme d'interaction N-M.";
             break;
         case 'l0': 
             msg = "Longueur efficace de flambement : l₀ = β * L\nDépend des conditions de liaison aux extrémités (articulation, encastrement) selon l'EC2 §5.8.3.2."; 
             break;
-        case 'N_cr': 
-            msg = "Charge critique de flambement élastique (Euler) : N_cr = π² * E_cm * I / l₀²\nSeuil mécanique théorique d'instabilité."; 
+        case 'M_Rd':
+            msg = "Moment résistant sous N_Ed, lu sur le diagramme d'interaction N-M de la section réellement armée (EC2 §6.1).\n\n" +
+                  "Hypothèses : béton en loi parabole-rectangle (ε_c2 = 2 ‰, ε_cu2 = 3.5 ‰), acier élasto-plastique, " +
+                  "diagramme des déformations passant par les pivots A, B ou C.\n\n" +
+                  "La section est vérifiée si M_Ed,tot ≤ M_Rd(N_Ed), où M_Ed,tot = max(M_Ed + N_Ed·e_i ; N_Ed·e_0) + N_Ed·e_2.";
+            break;
+        case 'M_Ed_tot':
+            msg = "Moment de calcul total (EC2 §5.8.8.2 et §6.1(4)) :\n" +
+                  "M_Ed,tot = M_0Ed + M_2\n" +
+                  "M_0Ed = max(M_Ed + N_Ed·e_i ; N_Ed·e_0) : imperfections géométriques e_i = θ_i·l₀/2, " +
+                  "plancher e_0 = max(h/30 ; 20 mm).\n" +
+                  "M_2 = N_Ed·e_2, e_2 = K_r·K_φ·(f_yd/E_s)/(0.45 d)·l₀²/10 (courbure nominale), " +
+                  "K_φ = 1 + β·φ_ef ≥ 1 (fluage), K_r ≤ 1 (effort normal élevé).";
             break;
         case 'lambda':
             msg = "Élancement géométrique : λ = l₀ / i\n\n" +
                   "Les effets du second ordre peuvent être négligés tant que λ reste inférieur " +
                   "à l'élancement limite de l'EC2 §5.8.3.1 :\n" +
                   "λ_lim = 20 · A · B · C / √n  avec n = N_Ed / (A_c · f_cd)\n" +
-                  "A = 0.7, B = 1.1 et C = 0.7 (valeurs par défaut lorsque le fluage, le taux " +
+                  "A = 1/(1 + 0.2·φ_ef) (fluage), B = 1.1 et C = 0.7 (valeurs par défaut lorsque le taux " +
                   "d'armatures et le rapport des moments d'extrémité ne sont pas connus).\n\n" +
                   (AppState.results
                       ? "Ici : λ = " + AppState.results.lambda.toFixed(1) +
-                        " et λ_lim = " + AppState.results.lambda_lim.toFixed(1) + " → " +
+                        " et λ_lim = " + (isFinite(AppState.results.lambda_lim) ? AppState.results.lambda_lim.toFixed(1) : '∞') + " → " +
                         (AppState.results.secondOrdre
                             ? "effets du second ordre pris en compte."
                             : "effets du second ordre négligeables.")
@@ -444,7 +496,10 @@ function showFormula(type) {
             msg = "Section d'acier minimale réglementaire : A_s,min = max(0.10 * N_Ed / f_yd, 0.002 * A_c)\nExigence minimale de ductilité (EC2 §9.5.2)."; 
             break;
         case 'As_calc': 
-            msg = "Section d'acier théorique requise : A_s,req\nDéterminée pour équilibrer la compression ultime N_Ed combinée au moment ultime total M_Ed,tot (1er ordre + excentricité géométrique e_i + 2nd ordre e_2)."; 
+            msg = "Section d'acier théorique requise A_s,req : plus petite section, répartie symétriquement sur les deux faces " +
+                  "perpendiculaires au plan de flambement, dont le diagramme d'interaction N-M contient le point (M_Ed,tot ; N_Ed), " +
+                  "et au moins égale à A_s,min (EC2 §9.5.2).\n\nLa vérification finale porte sur la disposition réelle des barres : " +
+                  "des barres intermédiaires sur les faces latérales sont moins efficaces en flexion qu'aux faces extrêmes."; 
             break;
     }
     showModal("Détails réglementaires Eurocode 2", msg);

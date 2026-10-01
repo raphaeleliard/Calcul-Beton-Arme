@@ -80,20 +80,20 @@ const steps = [
     {
         page: "Poutre.html",
         title: "1. Paramètres d'Entrée ✏️",
-        desc: "Définissez la portée de la poutre, sa section en béton (base & hauteur), ainsi que les charges permanentes G et d'exploitation Q.<br><br><em>Observation : Regardez la portée changer sous vos yeux...</em>",
+        desc: "Définissez la portée de la poutre, sa section en béton (largeur & hauteur), les charges permanentes G et d'exploitation Q, ainsi que la classe d'exposition qui fixe l'enrobage requis.<br><br><em>Observation : regardez la portée passer de 5.0 m à 6.0 m...</em>",
         target: "aside.panel:first-of-type",
         duration: 14000,
         action: (callback) => {
-            // Simulation d'une saisie de portée augmentée (de 5.0m à 6.5m)
+            // Simulation d'une saisie de portée augmentée (de 5.0 m à 6.0 m)
             setTimeout(() => {
-                simulateNumberInput("L", 6.5, 15, 1200, callback);
+                simulateNumberInput("L", 6.0, 10, 1200, callback);
             }, 1000);
         }
     },
     {
         page: "Poutre.html",
         title: "2. Note de Calcul Interactive 📊",
-        desc: "L'application calcule instantanément les sollicitations (Moment fléchissant Med, Effort tranchant Ved) et les sections requises d'acier.<br><br>Chaque carte affiche le paragraphe réglementaire de l'Eurocode 2 correspondant (ex: EC2 §6.1).",
+        desc: "L'application calcule instantanément les sollicitations (moment M<sub>Ed</sub>, effort tranchant V<sub>Ed</sub>), les sections d'acier requises, puis dresse la liste de toutes les vérifications ELU et ELS menées.<br><br>Chaque carte affiche le paragraphe réglementaire de l'Eurocode 2 correspondant (ex : EC2 §6.1).",
         target: "main.panel",
         duration: 12000,
         action: (callback) => {
@@ -119,7 +119,7 @@ const steps = [
     {
         page: "Poutre.html",
         title: "4. Choix du Ferraillage Commercial 🔩",
-        desc: "En fonction de la section d'acier théorique requise, l'ingénieur choisit le diamètre des barres (HA10, HA12...) et leur nombre.<br><br><em>Observation : Avec notre nouvelle portée de 6.5m, 3 HA10 sont insuffisants. Modifions le choix...</em>",
+        desc: "En fonction de la section d'acier requise, l'ingénieur choisit le diamètre des barres et leur nombre ; l'outil propose le plus petit ferraillage qui tient sur un lit.<br><br><em>Observation : avec la portée de 6.0 m, 3 HA20 ne suffisent plus. Passons à 4 HA20...</em>",
         target: "aside.panel:last-of-type",
         duration: 15000,
         action: (callback) => {
@@ -127,11 +127,11 @@ const steps = [
                 closeModal();
             }
             
-            // Sélectionner HA16 et augmenter à 4 barres
+            // Conserver HA20 et passer à 4 barres
             setTimeout(() => {
-                // Simuler le choix HA16
-                const btn16 = document.querySelector('.steel-btn[data-diameter="16"]');
-                if (btn16) btn16.click();
+                // Simuler le choix HA20
+                const btn20 = document.querySelector('.steel-btn[data-diameter="20"]');
+                if (btn20) btn20.click();
                 
                 setTimeout(() => {
                     // Simuler le passage à 4 barres
@@ -167,7 +167,7 @@ const steps = [
     {
         page: "Poutre.html",
         title: "6. Validation de la Conformité 🛡️",
-        desc: "Le badge de statut vérifie la conformité de l'élément vis-à-vis des clauses de l'Eurocode 2 (ferraillage minimal, espacement net pour coulage du béton, section d'acier maximale de 4%).",
+        desc: "Le badge de statut résume la liste des vérifications Eurocode 2 (flexion, effort tranchant, espacements, enrobage, flèche, contraintes et fissuration à l'ELS). La note PDF reprend exactement la même conclusion.",
         target: "#statusBadge",
         duration: 11000,
         action: (callback) => {
@@ -177,7 +177,7 @@ const steps = [
     {
         page: "Poutre.html",
         title: "7. Rapports & Exports 📥",
-        desc: "Une fois le dimensionnement conforme, vous pouvez exporter le plan sous format PNG ou télécharger un rapport de calcul A4 réglementaire complet en PDF (3 pages).",
+        desc: "Une fois le dimensionnement conforme, vous pouvez exporter le plan sous format PNG ou télécharger une note de calcul A4 complète en PDF (4 pages).",
         target: ".export-buttons",
         duration: 11000,
         action: (callback) => {
@@ -225,14 +225,18 @@ function simulateNumberInput(id, targetVal, stepsCount, duration, callback) {
 function applyAppState(state) {
     if (typeof AppState === 'undefined') return;
     
-    AppState.inputs = JSON.parse(JSON.stringify(state.inputs));
+    // Mise à jour EN PLACE : les champs de saisie sont liés à cet objet (lierChamps),
+    // le remplacer romprait la liaison et figerait le calcul sur l'ancien état.
+    Object.assign(AppState.inputs, JSON.parse(JSON.stringify(state.inputs)));
     AppState.selectedDiameter = state.selectedDiameter;
     AppState.nbBarres = state.nbBarres;
     AppState.currentView = state.currentView;
     
     for (let id in AppState.inputs) {
         const el = document.getElementById(id);
-        if (el) el.value = AppState.inputs[id];
+        if (!el) continue;
+        if (el.type === 'checkbox') el.checked = !!AppState.inputs[id];
+        else el.value = AppState.inputs[id];
     }
     
     const nbInput = document.getElementById('nbBarresInput');
@@ -275,8 +279,9 @@ window.lancerDemoWalkthrough = function(startStepIdx = 0) {
             };
         }
         applyAppState({
-            inputs: { L: 5.0, b: 0.20, h: 0.50, G: 15, Q: 10, fck: 25 },
-            selectedDiameter: 10,
+            inputs: { L: 5.0, b: 0.25, h: 0.50, G: 15, Q: 10, fck: 25, enrobage: 3.0,
+                      poidsPropre: true, psi2: 0.3, exposition: 'XC1', duree100: 0 },
+            selectedDiameter: 20,
             nbBarres: 3,
             currentView: "coupe"
         });

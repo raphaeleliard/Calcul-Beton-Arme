@@ -13,30 +13,24 @@
 // =========================================================
 
 const AppState = {
-    inputs: { h: 0.20, fck: 25, N_Ed: 300, V_Ed: 40, enrobage: 3.0, nappesCount: 2 },
+    inputs: {
+        h: 0.20, L_w: 2.70, beta_w: 1.0, fck: 25, N_Ed: 300, V_Ed: 40, phi_ef: 2.0,
+        enrobage: 3.0, nappesCount: 2, exposition: 'XC1', duree100: 0
+    },
     selectedTS: 'ST25C',
     currentView: 'coupe',
-    results: null
+    results: null,
+    dispositions: []
 };
 
 const voileInputs = Object.keys(AppState.inputs);
 
-// Initialisation au chargement du DOM
 window.addEventListener('DOMContentLoaded', () => {
-    // Restauration de l'état sauvegardé localement
-    voileInputs.forEach(id => {
-        const savedVal = localStorage.getItem(`voile_${id}`);
-        // On ignore toute valeur stockée illisible : sinon un NaN se propagerait
-        // dans l'état applicatif et jusque dans la note de calcul PDF.
-        if (savedVal !== null && isFinite(parseFloat(savedVal))) {
-            AppState.inputs[id] = parseFloat(savedVal);
-            const el = document.getElementById(id);
-            if (el) el.value = savedVal;
-        }
-    });
-    
-    const savedTS = localStorage.getItem('voile_ts');
-    if (savedTS) AppState.selectedTS = savedTS;
+    lierChamps('voile_', AppState.inputs, voileInputs, runController);
+    try {
+        const savedTS = localStorage.getItem('voile_ts');
+        if (savedTS && TS_SPECS[savedTS]) AppState.selectedTS = savedTS;
+    } catch (e) { /* stockage indisponible */ }
 
     bindEvents();
     updateTSSelector();
@@ -44,28 +38,14 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 function bindEvents() {
-    // Écouteurs sur les champs de saisie
-    voileInputs.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('input', (e) => {
-                AppState.inputs[id] = parseFloat(e.target.value) || 0;
-                localStorage.setItem(`voile_${id}`, e.target.value);
-                runController();
-            });
-        }
-    });
-
-    // Choix des treillis soudés
     document.querySelectorAll('.steel-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            AppState.selectedTS = e.target.dataset.ts;
-            localStorage.setItem('voile_ts', AppState.selectedTS);
+            AppState.selectedTS = e.currentTarget.dataset.ts;
+            try { localStorage.setItem('voile_ts', AppState.selectedTS); } catch (err) { /* ignoré */ }
             updateTSSelector();
             runController();
         });
     });
-
     window.onThemeChange = () => renderUI();
 }
 
@@ -82,29 +62,23 @@ function updateTSSelector() {
     });
 }
 
-function getSVGTextColor() {
-    const theme = document.documentElement.getAttribute('data-theme');
-    return theme === 'dark' ? '#e0e0e0' : '#1e293b';
-}
-
 // =========================================================
 // LOGIQUE DE CALCUL EUROCODE 2
 // =========================================================
 
 /**
- * Vérification réglementaire d'une bande de voile sous charge axiale et transversale.
- * La logique réglementaire est centralisée dans ec2-core.js (fonctions pures,
- * couvertes par le harnais de tests tests-ec2.js).
- * @param {object} params Paramètres du voile
- * @returns {object} Résultats de calcul
+ * Vérification d'une bande de voile de 1 m : compression excentrée,
+ * flambement hors plan, effort tranchant, armatures minimales.
+ * La logique réglementaire est centralisée dans ec2-core.js.
  */
 function calculateEurocode2(params) {
     const ts = TS_SPECS[params.selectedTS];
     return EC2.voile({
         ...params,
         tsDiam: ts.diam,
-        tsSection: ts.section,     // cm²/ml dans le sens porteur (fils longitudinaux)
-        tsSectionT: ts.section_t   // cm²/ml dans le sens transversal (fils de répartition)
+        tsSection: ts.section,     // cm²/ml dans le sens porteur (fils verticaux)
+        tsSectionT: ts.section_t,  // cm²/ml dans le sens transversal (fils horizontaux)
+        tsEsp: ts.esp
     });
 }
 
@@ -113,22 +87,19 @@ function calculateEurocode2(params) {
 // =========================================================
 
 function runController() {
-    const params = {
-        ...AppState.inputs,
-        selectedTS: AppState.selectedTS
-    };
-    AppState.results = calculateEurocode2(params);
+    AppState.results = calculateEurocode2({ ...AppState.inputs, selectedTS: AppState.selectedTS });
     renderUI();
 }
 
 function renderUI() {
     const res = AppState.results;
-    
-    // Rendu des valeurs calculées
-    document.getElementById('res-sigma').innerText = res.sigma_cp.toFixed(2);
-    document.getElementById('res-d').innerText = res.d.toFixed(3);
+    const p = AppState.inputs;
+    const q = res.inputs;
+
+    document.getElementById('res-sigma').innerText = res.sigma_cp_calc.toFixed(2);
+    document.getElementById('res-NRd').innerText = res.N_Rd.toFixed(0);
     document.getElementById('res-Vrdc').innerText = res.V_Rdc.toFixed(1);
-    document.getElementById('res-vmin').innerText = res.v_min.toFixed(3);
+    document.getElementById('res-lambda').innerText = res.lambda.toFixed(1);
     document.getElementById('res-As_v').innerText = res.As_vmin.toFixed(2);
     document.getElementById('res-As_h').innerText = res.As_hmin.toFixed(2);
 
@@ -136,26 +107,28 @@ function renderUI() {
     document.getElementById('steelReq').innerText = res.As_req.toFixed(2);
     document.getElementById('steelChosen').innerText = res.As_prov.toFixed(2);
 
-    // Validation de conformité et badge de statut
-    const badge = document.getElementById('statusBadge');
-    if (res.status === 'ERROR_AXIAL') {
-        badge.className = "status-badge status-red";
-        badge.innerText = "Compression excessive (N_Ed > N_Rd)";
-    } else if (res.status === 'ERROR_SHEAR') {
-        badge.className = "status-badge status-red";
-        badge.innerText = "Épaisseur insuffisante (Cisaillement > V_Rdc)";
-    } else if (res.status === 'ERROR_STEEL') {
-        badge.className = "status-badge status-red";
-        badge.innerText = "Aciers verticaux insuffisants (EC2 §9.6.2)";
-    } else if (res.status === 'ERROR_STEEL_H') {
-        badge.className = "status-badge status-red";
-        badge.innerText = "Aciers horizontaux insuffisants (EC2 §9.6.3)";
-    } else {
-        badge.className = "status-badge status-green";
-        badge.innerText = "Voile Conforme";
-    }
-
+    appliquerVerdict('statusBadge', res.checks, 'Voile conforme');
     renderWarnings('ec2-warnings', res.warnings);
+    renderChecks('checks', res.checks);
+
+    const lignes = [
+        ['Enrobage requis', `c_nom ≥ ${(res.enrobage.requis / 10).toFixed(1)} cm (classe ${q.exposition}, S${res.enrobage.detail.classe})`],
+        ['Flambement', `l_0 = ${res.l0.toFixed(2)} m, λ = ${res.lambda.toFixed(1)} ` +
+            (res.secondOrdre ? `> λ_lim = ${res.lambda_lim.toFixed(1)} (e_2 = ${(res.e_2 * 1000).toFixed(0)} mm)`
+                             : `≤ λ_lim = ${isFinite(res.lambda_lim) ? res.lambda_lim.toFixed(1) : '∞'}`)],
+        ['Excentricité de calcul', `e = max(e_i ; e_0) + e_2 = ${(res.e_tot * 1000).toFixed(0)} mm ` +
+            `(e_i = ${(res.e_i * 1000).toFixed(1)} mm, e_0 = ${(res.e_0_min * 1000).toFixed(0)} mm)`],
+        ['Résistance', `N_Rd = ${res.N_Rd.toFixed(0)} kN/ml sous e, ${res.N_Rd0.toFixed(0)} kN/ml en compression centrée`],
+        ['Treillis', `${AppState.selectedTS} : ${res.As_v_prov.toFixed(2)} cm²/ml vertical, ${res.As_h_prov.toFixed(2)} cm²/ml horizontal`]
+    ];
+    AppState.dispositions = lignes;
+    renderInfos('dispositions', lignes);
+
+    signalerBornes([
+        ['h', p.h, q.h, 'm'], ['L_w', p.L_w, q.L_w, 'm'], ['N_Ed', p.N_Ed, q.N_Ed, 'kN/ml'],
+        ['V_Ed', p.V_Ed, q.V_Ed, 'kN/ml'], ['enrobage', p.enrobage, q.enrobage, 'cm'],
+        ['phi_ef', p.phi_ef, q.phi_ef, '']
+    ]);
 
     drawSVG();
 }
@@ -308,16 +281,24 @@ function showFormula(type) {
     let msg = "";
     switch(type) {
         case 'sigma_cp': 
-            msg = "Contrainte normale moyenne de compression : σ_cp = N_Ed / A_c\nLimitée par l'EC2 à 20% de la résistance de calcul f_cd pour éviter l'écrasement du béton."; 
+            msg = "Contrainte normale moyenne de compression : σ_cp = N_Ed / A_c\nSa contribution à V_Rd,c (terme k₁·σ_cp) est plafonnée à σ_cp ≤ 0.2·f_cd (EC2 §6.2.2(1)).";
             break;
-        case 'd': 
-            msg = "Hauteur utile effective : d = h - enrobage - Ø_ts / 2\nImportant : l'utilisation d'une seule nappe d'aciers centrale réduit la hauteur utile à h/2, pénalisant fortement la flexion hors-plan."; 
+        case 'N_Rd':
+            msg = "Effort normal résistant sous l'excentricité de calcul e (EC2 §5.8 et §6.1) :\n" +
+                  "e = max(e_i ; e_0) + e_2, avec e_i = θ_i·l₀/2 (imperfections), e_0 = max(h/30 ; 20 mm) " +
+                  "(excentricité minimale) et e_2 l'excentricité du second ordre (courbure nominale).\n\n" +
+                  "N_Rd est le plus grand effort normal tel que N·e reste dans le diagramme d'interaction N-M " +
+                  "de la bande de 1 m armée de ses deux nappes de treillis.";
+            break;
+        case 'lambda':
+            msg = "Élancement hors plan : λ = l₀·√12 / h, avec l₀ = β·l_w (hauteur libre du voile).\n" +
+                  "Au-delà de λ_lim = 20·A·B·C/√n (EC2 §5.8.3.1), le second ordre est pris en compte.";
             break;
         case 'V_Rdc': 
-            msg = "Effort tranchant résistant ultime (béton seul) : V_Rd,c = (v_min + k₁ * σ_cp) * b * d\nRésistance mécanique au cisaillement sans aciers transversaux (EC2 §6.2.2)."; 
+            msg = "Effort tranchant résistant (béton seul, EC2 §6.2.2) :\nV_Rd,c = max[C_Rd,c·k·(100·ρ_l·f_ck)^(1/3) ; v_min] · b·d + k₁·σ_cp·b·d\nv_min = 0.35/γ_c·√f_ck pour un voile (AN française).";
             break;
         case 'vmin': 
-            msg = "Résistance minimale brute au cisaillement : v_min = 0.035 * k^(3/2) * f_ck^(1/2)\nCalculée avec le coefficient d'échelle de hauteur k (k = 1 + √(200/d) ≤ 2.0)."; 
+            msg = "Résistance minimale au cisaillement d'un voile (Annexe Nationale française) : v_min = 0.35 / γ_c · f_ck^(1/2)";
             break;
         case 'As_vmin': 
             msg = "Section d'acier verticale minimale : A_s,v,min = 0.002 * A_c\nGarantit une ductilité minimale et la maîtrise de la fissuration verticale (EC2 §9.6.2)."; 

@@ -778,3 +778,73 @@ footer { text-align: center; padding: 1rem; color: var(--text-muted); font-size:
     transition: color 0.3s;
 }
 
+
+/* ==========================================
+   12. VÉRIFICATIONS, SAISIES ET ACCESSIBILITÉ
+   ========================================== */
+.sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+.section-title { margin-top: 1.5rem; }
+
+.checks-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.checks-table th {
+    text-align: left; font-weight: 600; color: var(--text-muted);
+    padding: 0.35rem 0.4rem; border-bottom: 1px solid var(--border-color);
+}
+.checks-table td { padding: 0.4rem; border-bottom: 1px solid var(--border-color); vertical-align: top; }
+.check-label { display: block; font-weight: 600; }
+.check-ref { display: block; font-size: 0.72rem; color: var(--text-muted); }
+.check-etat { text-align: center; font-weight: bold; width: 1.8rem; }
+.check-ok .check-etat { color: var(--success); }
+.check-ko { background: rgba(231, 76, 60, 0.10); }
+.check-ko .check-etat { color: var(--danger); }
+.check-warn { background: rgba(241, 196, 15, 0.12); }
+.check-warn .check-etat { color: var(--warning); }
+
+.input-hint { font-size: 0.78rem; color: var(--danger); margin-top: 0.25rem; }
+.input-hint:empty { display: none; }
+input.input-clamped, select.input-clamped { border-color: var(--danger); }
+
+.checkbox-group { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+.checkbox-group input { width: auto; }
+.checkbox-group label { margin: 0; font-weight: 600; }
+
+.apply-btn {
+    width: 100%; margin: 0.25rem 0 1rem; padding: 0.5rem; cursor: pointer;
+    border: 2px solid var(--primary); border-radius: 6px; background: transparent;
+    color: var(--primary); font-weight: 600; transition: var(--transition);
+}
+.apply-btn:hover { background: var(--primary); color: #fff; }
+
+/* Focus visible au clavier sur tous les éléments interactifs */
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible,
+[role="button"]:focus-visible {
+    outline: 3px solid var(--primary); outline-offset: 2px;
+}
+
+/* En-tête compact sur téléphone : le lien, le titre et les deux boutons
+   tenaient sur quatre lignes à 390 px. */
+@media (max-width: 640px) {
+    header { padding: 0.6rem 1rem; gap: 0.5rem; flex-wrap: wrap; }
+    header > div:nth-child(2) { order: 3; width: 100%; font-size: 0.9rem; }
+    .back-link { font-size: 0.9rem; }
+    .demo-toggle, .theme-toggle { padding: 4px 10px; font-size: 0.8rem; }
+    .dashboard { padding: 1rem; gap: 1rem; }
+    .panel { padding: 1rem; }
+    .result-value { font-size: 1.25rem; }
+    .checks-table { font-size: 0.76rem; }
+}
+
+/* Note de calcul PDF : tableau de vérifications et page de plan */
+.pdf-ref { font-size: 7pt; color: #7f8c8d; }
+.pdf-table-compact th, .pdf-table-compact td { padding: 3px 6px; }
+.pdf-compliance-box.warning { border-color: #f39c12; background: #fef9ef; }
+.pdf-compliance-status.warning { color: #d68910; }
+.pdf-compliance-box { margin: 8px 0; }
+.pdf-diagram-full { max-height: 210mm; }
+
+.hero .hero-note { font-size: 0.9rem; max-width: 760px; margin: 0.75rem auto 0; }
+.hero .hero-note a { color: var(--primary); }

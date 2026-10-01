@@ -14,82 +14,60 @@
 
 const AppState = {
     inputs: {
-        a: 0.20,         // Épaisseur du voile supporté (m)
-        B: 1.00,         // Largeur totale de la semelle (m)
+        a: 0.20,         // Épaisseur du voile (m)
+        B: 1.10,         // Largeur totale de la semelle (m)
         h: 0.30,         // Hauteur totale de la semelle (m)
         fck: 25,         // Résistance caractéristique à la compression du béton (MPa)
         q_adm: 0.25,     // Contrainte de calcul admissible sur le sol (MPa)
         N_Ed: 350,       // Effort normal de calcul à l'ELU (kN/ml)
         N_Eq: 250,       // Effort normal de service à l'ELS (kN/ml)
-        enrobage: 4.0,   // Enrobage nominal des armatures (cm)
+        enrobage: 5.0,   // Enrobage nominal des armatures (cm)
         espMain: 15,     // Espacement des aciers transversaux (cm)
-        espRep: 20       // Espacement des aciers de répartition (cm)
+        espRep: 20,      // Espacement des aciers de répartition (cm)
+        exposition: 'XC2',
+        contactSol: 'proprete',
+        duree100: 0
     },
     diamMain: 12,        // Diamètre nominal HA de l'acier principal transversal (mm)
     diamRep: 8,          // Diamètre nominal HA de l'acier longitudinal de répartition (mm)
     currentView: 'coupe',// Vue active dans l'interface ('coupe' | 'plan')
-    results: null        // Résultats du dernier calcul
+    results: null,       // Résultats du dernier calcul
+    dispositions: []
 };
 
 const semelleInputs = Object.keys(AppState.inputs);
 
-// Initialisation au chargement de la page
 window.addEventListener('DOMContentLoaded', () => {
-    // Restauration des paramètres saisis par l'utilisateur
-    semelleInputs.forEach(id => {
-        const savedVal = localStorage.getItem(`sfilante_${id}`);
-        // On ignore toute valeur stockée illisible : sinon un NaN se propagerait
-        // dans l'état applicatif et jusque dans la note de calcul PDF.
-        if (savedVal !== null && isFinite(parseFloat(savedVal))) {
-            AppState.inputs[id] = parseFloat(savedVal);
-            const el = document.getElementById(id);
-            if (el) el.value = savedVal;
-        }
-    });
-    
-    const savedDiamMain = localStorage.getItem('sfilante_diamMain');
-    if (savedDiamMain) AppState.diamMain = parseInt(savedDiamMain, 10);
-    
-    const savedDiamRep = localStorage.getItem('sfilante_diamRep');
-    if (savedDiamRep) AppState.diamRep = parseInt(savedDiamRep, 10);
+    lierChamps('sfilante_', AppState.inputs, semelleInputs, runController);
+    try {
+        const savedDiamMain = parseInt(localStorage.getItem('sfilante_diamMain'), 10);
+        if (STEEL_SPECS[savedDiamMain]) AppState.diamMain = savedDiamMain;
+        const savedDiamRep = parseInt(localStorage.getItem('sfilante_diamRep'), 10);
+        if (STEEL_SPECS[savedDiamRep]) AppState.diamRep = savedDiamRep;
+    } catch (e) { /* stockage indisponible */ }
 
     bindEvents();
     updateSteelSelectors();
     runController();
 });
 
-// Liaison des événements de l'interface
 function bindEvents() {
-    semelleInputs.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('input', (e) => {
-                AppState.inputs[id] = parseFloat(e.target.value) || 0;
-                localStorage.setItem(`sfilante_${id}`, e.target.value);
-                runController();
-            });
-        }
-    });
-
-    // Choix des diamètres d'acier
     document.querySelectorAll('#sel-Main .steel-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            AppState.diamMain = parseInt(e.target.dataset.diam, 10);
-            localStorage.setItem('sfilante_diamMain', AppState.diamMain);
+            AppState.diamMain = parseInt(e.currentTarget.dataset.diam, 10);
+            try { localStorage.setItem('sfilante_diamMain', AppState.diamMain); } catch (err) { /* ignoré */ }
             updateSteelSelectors();
             runController();
         });
     });
-    
     document.querySelectorAll('#sel-Rep .steel-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            AppState.diamRep = parseInt(e.target.dataset.diam, 10);
-            localStorage.setItem('sfilante_diamRep', AppState.diamRep);
+            AppState.diamRep = parseInt(e.currentTarget.dataset.diam, 10);
+            try { localStorage.setItem('sfilante_diamRep', AppState.diamRep); } catch (err) { /* ignoré */ }
             updateSteelSelectors();
             runController();
         });
     });
-
     window.onThemeChange = () => renderUI();
 }
 
@@ -109,21 +87,9 @@ function updateSteelSelectors() {
     });
 }
 
-function getSVGTextColor() {
-    const theme = document.documentElement.getAttribute('data-theme');
-    return theme === 'dark' ? '#e0e0e0' : '#1e293b';
-}
-
-// =========================================================================
-// 2. LOGIQUE DE CALCUL RÈGLEMENTAIRE (EUROCODE 2 & GÉOTECHNIQUE)
-// =========================================================================
-
 /**
- * Calcul et vérification de la semelle filante sur une bande unitaire de 1.0m.
- * La logique réglementaire est centralisée dans ec2-core.js (fonctions pures,
- * couvertes par le harnais de tests tests-ec2.js).
- * @param {object} params Paramètres géométriques et mécaniques
- * @returns {object} Variables d'état calculées et états de conformité
+ * Calcul et vérification de la semelle filante sur une bande unitaire de 1.0 m.
+ * La logique réglementaire est centralisée dans ec2-core.js.
  */
 function calculateEurocode2(params) {
     return EC2.semelleFilante({
@@ -133,69 +99,66 @@ function calculateEurocode2(params) {
     });
 }
 
-// =========================================================================
-// 3. CONTRÔLEUR DE L'INTERFACE UTILISATEUR
-// =========================================================================
-
 function runController() {
-    const params = {
+    AppState.results = calculateEurocode2({
         ...AppState.inputs,
         diamMain: AppState.diamMain,
         diamRep: AppState.diamRep
-    };
-    AppState.results = calculateEurocode2(params);
+    });
     renderUI();
 }
 
 function renderUI() {
     const res = AppState.results;
     const p = AppState.inputs;
+    const q = res.inputs;
 
-    // Mise à jour de la note de calcul interactive
     document.getElementById('res-sigma').innerText = res.sigma_sol.toFixed(3);
     document.getElementById('res-dmin').innerText = res.d_req.toFixed(2);
     document.getElementById('res-AsReq').innerText = res.As_req.toFixed(2);
     document.getElementById('res-AsRep').innerText = res.As_rep_req.toFixed(2);
+    const vEl = document.getElementById('res-VEd');
+    if (vEl) {
+        vEl.innerText = (res.V_Rdc > 0 ? res.V_Ed / res.V_Rdc * 100 : 0).toFixed(0);
+        vEl.style.color = res.V_Ed > res.V_Rdc ? 'var(--danger)' : 'var(--success)';
+    }
 
-    // Rendu des infos des armatures principales (transversales)
     document.getElementById('info-diamMain').innerText = AppState.diamMain;
-    document.getElementById('info-espMain').innerText = p.espMain;
+    document.getElementById('info-espMain').innerText = q.espMain;
     document.getElementById('info-secMain').innerText = res.As_prov_main.toFixed(2);
     document.getElementById('req-secMain').innerText = res.As_req.toFixed(2);
 
-    // Rendu des infos des armatures de répartition (longitudinales)
     document.getElementById('info-diamRep').innerText = AppState.diamRep;
-    document.getElementById('info-espRep').innerText = p.espRep;
+    document.getElementById('info-espRep').innerText = q.espRep;
     document.getElementById('info-secRep').innerText = res.As_prov_rep.toFixed(2);
     document.getElementById('req-secRep').innerText = res.As_rep_req.toFixed(2);
 
-    // Affichage de l'état de conformité
-    const badge = document.getElementById('statusBadge');
-    if (res.status === 'ERROR_BEARING') {
-        badge.className = 'status-badge status-red';
-        badge.innerText = 'Surface insuffisante (σ_sol > q_adm)';
-    } else if (res.status === 'WARNING_FLEXIBLE') {
-        badge.className = 'status-badge status-orange';
-        badge.innerText = 'Semelle Flexible (d < d_req, bielles hors limites)';
-    } else if (res.status === 'ERROR_SHEAR') {
-        badge.className = 'status-badge status-red';
-        badge.innerText = 'Effort tranchant excessif (V_Ed > V_Rd,c)';
-    } else if (res.status === 'ERROR_STEEL') {
-        badge.className = 'status-badge status-red';
-        badge.innerText = 'Ferraillage Insuffisant';
-    } else {
-        badge.className = 'status-badge status-green';
-        badge.innerText = 'Semelle Conforme';
-    }
-
+    appliquerVerdict('statusBadge', res.checks, 'Semelle conforme');
     renderWarnings('ec2-warnings', res.warnings);
+    renderChecks('checks', res.checks);
+
+    const anc = res.ancrage;
+    const lignes = [
+        ['Enrobage requis', `c_nom ≥ ${(res.enrobage.requis / 10).toFixed(1)} cm (classe ${q.exposition}, ` +
+            `${q.contactSol === 'sol' ? 'coulé contre le sol' : 'sur béton de propreté'})`],
+        ['Effort tranchant', `V_Ed = ${res.V_Ed.toFixed(1)} kN/ml à d du nu du voile, V_Rd,c = ${res.V_Rdc.toFixed(1)} kN/ml`],
+        ['Ancrage des barres', `l_bd = ${anc.principal.lbd.toFixed(0)} mm pour un débord de ` +
+            `${Math.max(0, anc.debord).toFixed(0)} mm : ` +
+            (anc.principal.lbd > anc.debord ? 'crochets d\'extrémité nécessaires' : 'ancrage droit possible')]
+    ];
+    AppState.dispositions = lignes;
+    renderInfos('dispositions', lignes);
+
+    signalerBornes([
+        ['a', p.a, q.a, 'm'], ['B', p.B, q.B, 'm'], ['h', p.h, q.h, 'm'], ['q_adm', p.q_adm, q.q_adm, 'MPa'],
+        ['N_Ed', p.N_Ed, q.N_Ed, 'kN/ml'], ['N_Eq', p.N_Eq, q.N_Eq, 'kN/ml'],
+        ['enrobage', p.enrobage, q.enrobage, 'cm'], ['espMain', p.espMain, q.espMain, 'cm'],
+        ['espRep', p.espRep, q.espRep, 'cm']
+    ]);
 
     drawSVG();
 }
 
-// =========================================================================
-// 4. GÉNÉRATION DES SCHÉMAS DE FERRAILLAGE (SVG)
-// =========================================================================
 
 function drawSVG() {
     const container = document.getElementById('svgContainer');
@@ -374,8 +337,15 @@ function showFormula(type) {
             break;
         case 'As_rep': 
             msg = "Section minimale d'armature longitudinale de répartition :\n" +
-                  "As,rep ≥ max(0.20 × As,req , Aciers minimaux de peau)\n\n" +
+                  "As,rep ≥ 0.20 × As,req\n\n" +
                   "Disposée perpendiculairement aux armatures principales pour s'opposer au retrait thermique, aux effets du retrait plastique et aux variations de température journalières (recommandations Eurocode 2)."; 
+            break;
+        case 'V_Ed':
+            msg = "Effort tranchant à la distance d du nu du voile (EC2 §6.2.2) :\n" +
+                  "V_Ed = (N_Ed / B) × [(B − a)/2 − d]   ≤   V_Rd,c\n\n" +
+                  "Une semelle ne comporte pas d'armatures d'effort tranchant : le béton seul doit " +
+                  "reprendre l'effort. Ce critère devient déterminant pour les semelles souples " +
+                  "(d < (B − a)/4) ; il est vérifié dans tous les cas.";
             break;
     }
     showModal("Détails Théoriques Eurocode 2", msg);

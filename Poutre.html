@@ -47,7 +47,7 @@ et proposer un arrangement des aciers transversaux (cadres).
 
     <header>
         <a href="index.html" class="back-link">← Retour Accueil</a>
-        <div><strong>Module Poutre :</strong> Flexion Simple (ELU)</div>
+        <div><strong>Module Poutre :</strong> Flexion simple, ELU et ELS</div>
         <div style="display: flex; gap: 10px; align-items: center;">
             <button class="demo-toggle" id="demoToggle" onclick="lancerDemoWalkthrough()">✨ Visite Guidée</button>
             <button class="theme-toggle" id="themeToggle">🌓 Mode</button>
@@ -58,36 +58,82 @@ et proposer un arrangement des aciers transversaux (cadres).
         <!-- PANNEAU 1 : PARAMÈTRES -->
         <aside class="panel">
             <h2>1. Paramètres</h2>
-            <form id="poutreForm">
+            <form id="poutreForm" onsubmit="return false;">
                 <div class="input-group">
-                    <label>Portée L (m)</label>
-                    <input type="number" id="L" value="5.0" step="0.1">
+                    <label for="L">Portée L (m)</label>
+                    <input type="number" id="L" value="5.0" step="0.1" min="0.5">
                 </div>
                 <div class="input-group">
-                    <label>Base b (m)</label>
-                    <input type="number" id="b" value="0.20" step="0.05">
+                    <label for="b">Largeur b (m)</label>
+                    <input type="number" id="b" value="0.25" step="0.05" min="0.05">
                 </div>
                 <div class="input-group">
-                    <label>Hauteur h (m)</label>
-                    <input type="number" id="h" value="0.50" step="0.05">
+                    <label for="h">Hauteur h (m)</label>
+                    <input type="number" id="h" value="0.50" step="0.05" min="0.05">
                 </div>
-                
-                <h2 style="margin-top: 1.5rem;">Matériaux & Charges</h2>
                 <div class="input-group">
-                    <label>Béton (fck en MPa)</label>
+                    <label for="enrobage">Enrobage nominal des cadres c (cm)</label>
+                    <input type="number" id="enrobage" value="3.0" step="0.5" min="1">
+                </div>
+
+                <h2 class="section-title">Matériaux & Charges</h2>
+                <div class="input-group">
+                    <label for="fck">Béton (classe de résistance)</label>
                     <select id="fck">
                         <option value="20">C20/25</option>
                         <option value="25" selected>C25/30</option>
                         <option value="30">C30/37</option>
+                        <option value="35">C35/45</option>
+                        <option value="40">C40/50</option>
+                        <option value="45">C45/55</option>
+                        <option value="50">C50/60</option>
                     </select>
                 </div>
                 <div class="input-group">
-                    <label>Charge Permanente G (kN/ml)</label>
-                    <input type="number" id="G" value="15" step="1">
+                    <label for="G">Charge permanente G (kN/ml)</label>
+                    <input type="number" id="G" value="15" step="1" min="0">
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="poidsPropre" checked>
+                    <label for="poidsPropre">Ajouter le poids propre (b × h × 25 kN/m³) à G</label>
                 </div>
                 <div class="input-group">
-                    <label>Charge Exploitation Q (kN/ml)</label>
-                    <input type="number" id="Q" value="10" step="1">
+                    <label for="Q">Charge d'exploitation Q (kN/ml)</label>
+                    <input type="number" id="Q" value="10" step="1" min="0">
+                </div>
+                <div class="input-group">
+                    <label for="psi2">Catégorie d'usage (ψ₂ de Q, ELS)</label>
+                    <select id="psi2">
+                        <option value="0.3" selected>A/B — habitation, bureaux (ψ₂ = 0.3)</option>
+                        <option value="0.6">C/D — réunion, commerces (ψ₂ = 0.6)</option>
+                        <option value="0.8">E — stockage (ψ₂ = 0.8)</option>
+                        <option value="0">H — toiture inaccessible (ψ₂ = 0)</option>
+                    </select>
+                </div>
+
+                <h2 class="section-title">Durabilité (EC2 §4.4.1)</h2>
+                <div class="input-group">
+                    <label for="exposition">Classe d'exposition</label>
+                    <select id="exposition">
+                        <option value="X0">X0 — aucun risque de corrosion</option>
+                        <option value="XC1" selected>XC1 — intérieur sec ou humide en permanence</option>
+                        <option value="XC2">XC2 — humide, rarement sec (fondations)</option>
+                        <option value="XC3">XC3 — humidité modérée, extérieur abrité</option>
+                        <option value="XC4">XC4 — alternance humidité / séchage</option>
+                        <option value="XD1">XD1 — chlorures, humidité modérée</option>
+                        <option value="XD2">XD2 — chlorures, humide</option>
+                        <option value="XD3">XD3 — chlorures, alternance (parkings)</option>
+                        <option value="XS1">XS1 — air marin</option>
+                        <option value="XS2">XS2 — immergé en eau de mer</option>
+                        <option value="XS3">XS3 — marnage, embruns</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="duree100">Durée d'utilisation de projet</label>
+                    <select id="duree100">
+                        <option value="0" selected>50 ans (bâtiments courants)</option>
+                        <option value="1">100 ans (ouvrages monumentaux, ponts)</option>
+                    </select>
                 </div>
             </form>
         </aside>
@@ -109,14 +155,14 @@ et proposer un arrangement des aciers transversaux (cadres).
                     <div>Moment réduit (μcu)</div>
                     <div class="result-value" id="res-Mu">0.000</div>
                     <div>Sans dimension</div>
-                    <div class="clickable-hint">🔍 EC2 §3.1.6</div>
+                    <div class="clickable-hint">🔍 EC2 §3.1.7</div>
                 </div>
 
                 <div class="result-card" onclick="showFormula('Alpha')">
                     <div>Axe neutre (α)</div>
                     <div class="result-value" id="res-Alpha">0.000</div>
                     <div>Sans dimension</div>
-                    <div class="clickable-hint">🔍 EC2 §3.1.6</div>
+                    <div class="clickable-hint">🔍 EC2 §3.1.7</div>
                 </div>
 
                 <div class="result-card" onclick="showFormula('As')">
@@ -140,12 +186,18 @@ et proposer un arrangement des aciers transversaux (cadres).
                     <div class="clickable-hint">🔍 EC2 §6.2.3</div>
                 </div>
             </div>
+
+            <h2 class="section-title">Vérifications Eurocode 2</h2>
+            <div id="checks" aria-live="polite"></div>
+
+            <h2 class="section-title">Dispositions constructives</h2>
+            <div id="dispositions" class="ferraillage-info"></div>
         </main>
 
         <!-- PANNEAU 3 : VALIDATION & VISUEL -->
         <aside class="panel">
             <h2>3. Plan de Ferraillage</h2>
-            <div id="statusBadge" class="status-badge status-green">Section Conforme</div>
+            <div id="statusBadge" class="status-badge status-green" role="status" aria-live="polite">Calcul en cours…</div>
             <div id="ec2-warnings" class="ec2-warnings"></div>
             
             <div class="view-toggles">
@@ -155,12 +207,12 @@ et proposer un arrangement des aciers transversaux (cadres).
 
             <!-- Sélecteur d'acier -->
             <div style="margin-bottom: 1rem;">
-                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.9rem;">Diamètre des aciers</label>
-                <div class="steel-selector">
-                    <button class="steel-btn active" data-diameter="10">HA10</button>
+                <span id="lblDiam" style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.9rem;">Diamètre des aciers longitudinaux</span>
+                <div class="steel-selector" role="group" aria-labelledby="lblDiam">
+                    <button class="steel-btn" data-diameter="10">HA10</button>
                     <button class="steel-btn" data-diameter="12">HA12</button>
                     <button class="steel-btn" data-diameter="16">HA16</button>
-                    <button class="steel-btn" data-diameter="20">HA20</button>
+                    <button class="steel-btn active" data-diameter="20">HA20</button>
                     <button class="steel-btn" data-diameter="25">HA25</button>
                     <button class="steel-btn" data-diameter="32">HA32</button>
                 </div>
@@ -168,16 +220,17 @@ et proposer un arrangement des aciers transversaux (cadres).
             
             <!-- Nombre de barres -->
             <div style="margin-bottom: 1rem;">
-                <label style="font-size: 0.85rem; font-weight: 600;">Nombre de barres (Zone tendue)</label>
+                <label for="nbBarresInput" style="font-size: 0.85rem; font-weight: 600;">Nombre de barres (zone tendue, un lit)</label>
                 <input type="number" id="nbBarresInput" value="3" min="1" step="1" style="padding: 0.4rem; width: 100%;">
             </div>
+            <button type="button" class="apply-btn" id="applyRecommendation" hidden>Appliquer la recommandation</button>
 
             <!-- Info ferraillage -->
             <div class="ferraillage-info">
                 <div><span class="info-label">Recommandé:</span> <span id="recommendation">-</span></div>
                 <div><span class="info-label">Acier requis:</span> <span id="steelReq">0.00</span> cm²</div>
                 <div><span class="info-label">Acier choisi:</span> <span id="steelChosen">0.00</span> cm²</div>
-                <div><span class="info-label">Nb de barres:</span> <span id="nbBarres">0</span> HA<span id="diamShow">10</span></div>
+                <div><span class="info-label">Nb de barres:</span> <span id="nbBarres">0</span> HA<span id="diamShow">20</span></div>
                 <div><span class="info-label">Écart. net:</span> <span id="spacing">0.00</span> cm</div>
                 <div><span class="info-label">Enrobage:</span> <span id="coverageShow">3.0</span> cm</div>
             </div>

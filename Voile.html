@@ -45,7 +45,7 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
 
     <header>
         <a href="index.html" class="back-link">← Retour Accueil</a>
-        <div><strong>Module Voile :</strong> Vérification Effort Tranchant (Bande de 1m)</div>
+        <div><strong>Module Voile :</strong> Compression, flambement et cisaillement (bande de 1 m)</div>
         <div style="display: flex; gap: 10px; align-items: center;">
             <button class="demo-toggle" id="demoToggle" onclick="window.location.href='index.html?runDemo=true'">✨ Visite Guidée</button>
             <button class="theme-toggle" id="themeToggle">🌓 Mode</button>
@@ -56,40 +56,84 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
         <!-- PANNEAU 1 : PARAMÈTRES -->
         <aside class="panel">
             <h2>1. Paramètres</h2>
-            <form id="voileForm">
+            <form id="voileForm" onsubmit="return false;">
                 <div class="input-group">
-                    <label>Épaisseur du voile h (m)</label>
-                    <input type="number" id="h" value="0.20" step="0.01">
+                    <label for="h">Épaisseur du voile h (m)</label>
+                    <input type="number" id="h" value="0.20" step="0.01" min="0.05">
                 </div>
-                <div class="input-group" style="opacity: 0.6; pointer-events: none;">
-                    <label>Largeur de bande b (m)</label>
+                <div class="input-group">
+                    <label for="L_w">Hauteur libre du voile l_w (m)</label>
+                    <input type="number" id="L_w" value="2.70" step="0.05" min="0.5">
+                </div>
+                <div class="input-group">
+                    <label for="beta_w">Conditions d'appui (l₀ = β·l_w)</label>
+                    <select id="beta_w">
+                        <option value="1" selected>β = 1.0 — articulé en tête et en pied</option>
+                        <option value="0.85">β = 0.85 — encastré en pied, articulé en tête</option>
+                        <option value="0.7">β = 0.7 — encastré en tête et en pied</option>
+                        <option value="2">β = 2.0 — libre en tête (console)</option>
+                    </select>
+                </div>
+                <div class="input-group" style="opacity: 0.6;">
+                    <label for="b">Largeur de bande b (m)</label>
                     <input type="number" id="b" value="1.00" disabled>
                 </div>
 
-                <h2 style="margin-top: 1.5rem;">Matériaux & Charges</h2>
+                <h2 class="section-title">Matériaux & Charges</h2>
                 <div class="input-group">
-                    <label>Béton (fck en MPa)</label>
+                    <label for="fck">Béton (classe de résistance)</label>
                     <select id="fck">
                         <option value="20">C20/25</option>
                         <option value="25" selected>C25/30</option>
                         <option value="30">C30/37</option>
                         <option value="35">C35/45</option>
                         <option value="40">C40/50</option>
+                        <option value="45">C45/55</option>
+                        <option value="50">C50/60</option>
                     </select>
                 </div>
                 <div class="input-group">
-                    <label>Effort Normal N_Ed (kN/ml)</label>
-                    <input type="number" id="N_Ed" value="300" step="10">
+                    <label for="N_Ed">Effort normal N_Ed (kN/ml)</label>
+                    <input type="number" id="N_Ed" value="300" step="10" min="0">
                 </div>
                 <div class="input-group">
-                    <label>Effort Tranchant V_Ed (kN/ml)</label>
-                    <input type="number" id="V_Ed" value="40" step="5">
+                    <label for="V_Ed">Effort tranchant hors plan V_Ed (kN/ml)</label>
+                    <input type="number" id="V_Ed" value="40" step="5" min="0">
+                </div>
+                <div class="input-group">
+                    <label for="phi_ef">Coefficient de fluage effectif φ_ef</label>
+                    <input type="number" id="phi_ef" value="2.0" step="0.1" min="0" max="5">
                 </div>
 
-                <h2 style="margin-top: 1.5rem;">Ferraillage</h2>
+                <h2 class="section-title">Ferraillage</h2>
                 <div class="input-group">
-                    <label>Enrobage c (cm)</label>
-                    <input type="number" id="enrobage" value="3.0" step="0.5" min="2.0">
+                    <label for="enrobage">Enrobage c (cm)</label>
+                    <input type="number" id="enrobage" value="3.0" step="0.5" min="1.0">
+                </div>
+
+                <h2 class="section-title">Durabilité (EC2 §4.4.1)</h2>
+                <div class="input-group">
+                    <label for="exposition">Classe d'exposition</label>
+                    <select id="exposition">
+                        <option value="X0">X0 — aucun risque de corrosion</option>
+                        <option value="XC1" selected>XC1 — intérieur sec ou humide en permanence</option>
+                        <option value="XC2">XC2 — humide, rarement sec (fondations)</option>
+                        <option value="XC3">XC3 — humidité modérée, extérieur abrité</option>
+                        <option value="XC4">XC4 — alternance humidité / séchage</option>
+                        <option value="XD1">XD1 — chlorures, humidité modérée</option>
+                        <option value="XD2">XD2 — chlorures, humide</option>
+                        <option value="XD3">XD3 — chlorures, alternance (parkings)</option>
+                        <option value="XS1">XS1 — air marin</option>
+                        <option value="XS2">XS2 — immergé en eau de mer</option>
+                        <option value="XS3">XS3 — marnage, embruns</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="duree100">Durée d'utilisation de projet</label>
+                    <select id="duree100">
+                        <option value="0" selected>50 ans (bâtiments courants)</option>
+                        <option value="1">100 ans (ouvrages monumentaux, ponts)</option>
+                    </select>
                 </div>
             </form>
         </aside>
@@ -107,11 +151,11 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
                     <div class="clickable-hint">🔍 EC2 §6.2.2</div>
                 </div>
 
-                <div class="result-card" onclick="showFormula('d')">
-                    <div>Hauteur utile d</div>
-                    <div class="result-value" id="res-d">0.00</div>
-                    <div>m</div>
-                    <div class="clickable-hint">🔍 h - enrobage - Ø/2</div>
+                <div class="result-card" onclick="showFormula('N_Rd')">
+                    <div>Résistance N_Rd (excentrée)</div>
+                    <div class="result-value" id="res-NRd">0</div>
+                    <div>kN/ml</div>
+                    <div class="clickable-hint">🔍 EC2 §5.8 / §6.1</div>
                 </div>
 
                 <div class="result-card" onclick="showFormula('V_Rdc')">
@@ -121,11 +165,11 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
                     <div class="clickable-hint">🔍 EC2 §6.2.2</div>
                 </div>
 
-                <div class="result-card" onclick="showFormula('vmin')">
-                    <div>Contrainte Cisaillement (v_min)</div>
-                    <div class="result-value" id="res-vmin">0.00</div>
-                    <div>MPa</div>
-                    <div class="clickable-hint">🔍 EC2 Formule 6.3N</div>
+                <div class="result-card" onclick="showFormula('lambda')">
+                    <div>Élancement hors plan λ</div>
+                    <div class="result-value" id="res-lambda">0.0</div>
+                    <div>sans dimension</div>
+                    <div class="clickable-hint">🔍 EC2 §5.8.3</div>
                 </div>
 
                 <div class="result-card" onclick="showFormula('As_vmin')">
@@ -142,12 +186,18 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
                     <div class="clickable-hint">🔍 EC2 §9.6.3</div>
                 </div>
             </div>
+
+            <h2 class="section-title">Vérifications Eurocode 2</h2>
+            <div id="checks" aria-live="polite"></div>
+
+            <h2 class="section-title">Dispositions constructives</h2>
+            <div id="dispositions" class="ferraillage-info"></div>
         </main>
 
         <!-- PANNEAU 3 : VALIDATION & VISUEL -->
         <aside class="panel">
             <h2>3. Plan de Ferraillage (Treillis)</h2>
-            <div id="statusBadge" class="status-badge status-green">Voile Conforme</div>
+            <div id="statusBadge" class="status-badge status-green" role="status" aria-live="polite">Calcul en cours…</div>
             <div id="ec2-warnings" class="ec2-warnings"></div>
 
             <div class="view-toggles">
@@ -157,8 +207,8 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
 
             <!-- Sélecteur d'acier -->
             <div style="margin-bottom: 1rem;">
-                <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.9rem;">Choix du Treillis Soudé (TS)</label>
-                <div class="steel-selector">
+                <span id="lblGroupe1" style="display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.9rem;">Choix du Treillis Soudé (TS)</span>
+                <div class="steel-selector" role="group" aria-labelledby="lblGroupe1">
                     <button class="steel-btn" data-ts="ST15C">ST15C</button>
                     <button class="steel-btn active" data-ts="ST25C">ST25C</button>
                     <button class="steel-btn" data-ts="ST35C">ST35C</button>
@@ -168,10 +218,10 @@ et proposer un ferraillage par treillis soudés conformes aux normes.
             </div>
 
             <div class="input-group">
-                <label>Disposition</label>
+                <label for="nappesCount">Disposition</label>
                 <select id="nappesCount">
-                    <option value="1">1 nappe centrale</option>
-                    <option value="2" selected>2 nappes (Faces int/ext)</option>
+                    <option value="1">1 nappe centrale (non conforme EC2)</option>
+                    <option value="2" selected>2 nappes (une par face, §9.6.2(3))</option>
                 </select>
             </div>
 

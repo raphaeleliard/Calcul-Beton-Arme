@@ -73,12 +73,14 @@
         // =================================================================
         // b = 1.0 m, d = 0.17 m, C25/30, rho = 0.005
         // k = 1 + sqrt(200/170) = 2.0846 -> plafonné à 2.0
-        // v_min = 0.035 x 2^1.5 x 5 = 0.4950 MPa
+        // v_min (AN française, poutres et dalles) = 0.053/1.5 x 2^1.5 x 5 = 0.49966 MPa
         // v_calc = 0.12 x 2 x (12.5)^(1/3) = 0.24 x 2.32079 = 0.55699 MPa (> v_min)
         // V_Rdc = 0.55699 x 1.0 x 0.17 x 1000 = 94.69 kN
         const v = EC2.VRdc(1.0, 0.17, 25, 0.005, 0);
         check("V_Rd,c : facteur d'échelle k plafonné à 2.0", v.k, 2.0, 0.0001);
-        check("V_Rd,c : v_min (MPa)", v.v_min, 0.4950, 0.001);
+        check("V_Rd,c : v_min AN française 0.053/γc·k^1.5·√fck (MPa)", v.v_min, 0.49966, 0.0005);
+        // Voiles (AN française) : v_min = 0.35/1.5 x sqrt(25) = 1.1667 MPa
+        check("V_Rd,c : v_min des voiles 0.35/γc·√fck (MPa)", EC2.vMin(2, 25, 'voile'), 1.16667, 0.0005);
         check("V_Rd,c : effort résistant (kN/ml)", v.V_Rdc, 94.688, 0.1);
         checkTrue("V_Rd,c : le ratio d'acier est plafonné à 2 %",
             Math.abs(EC2.VRdc(1.0, 0.17, 25, 0.10, 0).rho_l - 0.02) < 1e-9);
@@ -147,8 +149,12 @@
         // §9.3.1.1(2) : As,rep = 20 % des aciers principaux fournis, SANS plancher de non-fragilité
         check("Dalle : aciers de répartition = 20 % des principaux (§9.3.1.1)",
             dl.As_rep_req, 0.20 * dl.As_prov, 0.0001);
-        check("Dalle : espacement maximal principal min(3h ; 40 cm)", dl.s_max_main, 40, 0.001);
-        check("Dalle : espacement maximal répartition min(3.5h ; 45 cm)", dl.s_max_rep, 45, 0.001);
+        // §9.3.1.1(3), zone de moment maximal (mi-portée) : 2h <= 25 cm et 3h <= 40 cm
+        check("Dalle : espacement maximal principal min(2h ; 25 cm)", dl.s_max_main, 25, 0.001);
+        check("Dalle : espacement maximal répartition min(3h ; 40 cm)", dl.s_max_rep, 40, 0.001);
+        check("Dalle mince h = 12 cm : s_max principal = 2h = 24 cm",
+            EC2.dalle({ L: 4, h: 0.12, G: 5, Q: 2.5, fck: 25, enrobage: 2.5, espacementInput: 30,
+                        espRepInput: 35, diamMain: 10, diamRep: 8 }).s_max_main, 24, 0.001);
         checkTrue("Dalle : statut OK sur le cas de référence", dl.status === 'OK');
 
         // Espacement nul saisi par l'utilisateur -> pas d'infini
@@ -181,9 +187,15 @@
         // As_min = max(0.10 x 1000 / 43.478 ; 0.002 x 900) = max(2.30 ; 1.80) = 2.30 cm2
         check("Poteau : A_s,min §9.5.2 (cm²)", po.As_min, 2.3, 0.01);
         check("Poteau : A_s,max = 4 % A_c (cm²)", po.As_max, 36, 0.001);
-        // n = 1000 / (0.09 x 16.667 x 1000) = 0.6667 ; lambda_lim = 10.78 / sqrt(0.6667) = 13.20
+        // n = 1000 / (0.09 x 16.667 x 1000) = 0.6667 ; phi_ef = 2 => A = 1/(1+0.4) = 0.71429
+        // lambda_lim = 20 x 0.71429 x 1.1 x 0.7 / sqrt(0.6667) = 13.472
         check("Poteau : effort normal réduit n", po.n_rel, 0.66667, 0.0001);
-        check("Poteau : élancement limite §5.8.3.1", po.lambda_lim, 13.203, 0.01);
+        check("Poteau : élancement limite §5.8.3.1", po.lambda_lim, 13.472, 0.01);
+        // K_phi = 1 + beta x phi_ef, beta = 0.35 + 25/200 - 34.641/150 = 0.24406 => 1.4881
+        check("Poteau : coefficient de fluage K_φ >= 1 (§5.8.8.3(4))", po.K_phi, 1.4881, 0.001);
+        checkTrue("Poteau : K_r <= 1 (§5.8.8.3(3))", po.K_r <= 1 && po.K_r >= 0);
+        // e_i = (1/200) x 1.0 x 3.0 / 2 = 7.5 mm < e_0 = 20 mm => M_0Ed = 1000 x 0.020 = 20 kN.m
+        check("Poteau : moment du 1er ordre plancher N·e_0 (§6.1(4)) (kN.m)", po.M_0Ed, 20.0, 0.01);
         checkTrue("Poteau : lambda > lambda_lim => second ordre pris en compte",
             po.secondOrdre === true && po.e_2 > 0);
         // La hauteur utile doit être prise dans le plan de flambement (axe faible)
@@ -218,8 +230,17 @@
         check("Voile : armatures horizontales minimales §9.6.3 (cm²/ml)", vo.As_hmin, 2.0, 0.001);
         checkTrue("Voile : la section horizontale du treillis est distinguée de la verticale",
             Math.abs(vo.As_h_prov - 2.56) < 1e-9 && Math.abs(vo.As_v_prov - 5.14) < 1e-9);
-        // N_Rd = 0.20 x 16.667 x 1000 + 5.14 x 40 = 3333.3 + 205.6 = 3538.9 kN/ml
-        check("Voile : effort normal résistant N_Rd (kN/ml)", vo.N_Rd, 3538.9, 0.5);
+        // N_Rd0 = 0.20 x 16.667 x 1000 + 5.14 x 40 = 3333.3 + 205.6 = 3538.9 kN/ml
+        check("Voile : effort normal résistant centré N_Rd0 (kN/ml)", vo.N_Rd0, 3538.9, 0.5);
+        checkTrue("Voile : l'excentricité minimale réduit N_Rd sous N_Rd0 (§6.1(4))",
+            vo.N_Rd < vo.N_Rd0 && vo.e_tot >= 0.02 - 1e-9);
+        // Avec e_0 = 20 mm, N = 2900 kN/ml n'est plus admissible (M_Rd < N·e_0)
+        checkTrue("Voile : 2900 kN/ml refusé une fois l'excentricité minimale prise en compte",
+            EC2.voile({ h: 0.20, fck: 25, N_Ed: 2900, V_Ed: 10, enrobage: 3, nappesCount: 2,
+                        tsDiam: 7, tsSection: 2.57, tsSectionT: 1.28 }).status === 'ERROR_AXIAL');
+        checkTrue("Voile : une nappe unique est refusée (§9.6.2(3))",
+            EC2.verdict(EC2.voile({ h: 0.20, fck: 25, N_Ed: 300, V_Ed: 10, enrobage: 3, nappesCount: 1,
+                        tsDiam: 7, tsSection: 5.03, tsSectionT: 2.57 }).checks).niveau === 'error');
         checkTrue("Voile : effort normal excessif détecté",
             EC2.voile({ h: 0.20, fck: 25, N_Ed: 9000, V_Ed: 10, enrobage: 3, nappesCount: 2,
                         tsDiam: 7, tsSection: 2.57, tsSectionT: 1.28 }).status === 'ERROR_AXIAL');
@@ -274,6 +295,77 @@
             sf.As_rep_req, 0.20 * sf.As_req, 0.0001);
         checkTrue("Semelle filante : l'effort tranchant est vérifié",
             isFinite(sf.V_Ed) && isFinite(sf.V_Rdc));
+        // Semelle souple : le cisaillement ne doit plus être masqué par le statut « souple »
+        const sfSouple = EC2.semelleFilante({ a: 0.20, B: 2.40, h: 0.35, fck: 25, q_adm: 0.30,
+                                              N_Ed: 900, N_Eq: 650, enrobage: 5, espMain: 7, espRep: 15,
+                                              diamMain: 20, diamRep: 10 });
+        checkTrue("Semelle filante souple : rupture par effort tranchant signalée",
+            sfSouple.status === 'ERROR_SHEAR' &&
+            sfSouple.checks.some(c => /tranchant/.test(c.label) && !c.ok));
+
+
+        // =================================================================
+        // K. Flexion composée : diagramme d'interaction N-M (§6.1)
+        // =================================================================
+        // Compression centrée : N_max = A_c·f_cd + A_s·σ_s(2 ‰) = 1500 + 8.04 x 40 = 1821.6 kN
+        const secNM = EC2.sectionNM(0.30, 0.30, [{ As: 4.02, y: 0.05 }, { As: 4.02, y: 0.25 }], 25, 500);
+        check("N-M : effort normal maximal en compression centrée (kN)", secNM.Nmax, 1821.6, 0.5);
+        // Traction pure : N_min = -A_s·f_yd = -8.04 x 43.478 = -349.6 kN
+        check("N-M : effort normal minimal en traction pure (kN)", secNM.Nmin, -349.6, 0.5);
+        // Flexion simple : la section de 5.558 cm² dimensionnée en B pour 100 kN.m doit
+        // présenter M_Rd(N=0) ≈ 100 kN.m (loi parabole-rectangle vs bloc rectangulaire)
+        const secFlex = EC2.sectionNM(0.20, 0.50, [{ As: 5.558, y: 0.45 }], 25, 500);
+        check("N-M : M_Rd(0) cohérent avec la flexion simple (kN.m)", secFlex.MRd(0), 100, 0.6);
+        checkTrue("N-M : hors domaine au-delà de N_max", secNM.MRd(secNM.Nmax + 1) === -Infinity);
+
+        // Cas de l'audit : 30x30, C25, N = 1400 kN, M = 30 kN.m. L'ancienne méthode
+        // (bras de levier constant) donnait une section non résistante.
+        const poNM = EC2.poteau({ L: 3, a: 0.30, b: 0.30, beta: 0.7, fck: 25, N_Ed: 1400, M_Ed: 30,
+                                  enrobage: 3, diameter: 16 });
+        checkTrue("Poteau : A_s,req vérifie le diagramme N-M (M_Rd >= M_Ed,tot)",
+            poNM.M_Rd_req >= poNM.M_Ed_tot - 0.1);
+        // 4 HA12 sous N = 1400 kN, M = 30 kN.m doivent être refusés
+        const poNMko = EC2.poteau({ L: 3, a: 0.30, b: 0.30, beta: 0.7, fck: 25, N_Ed: 1400, M_Ed: 30,
+                                    enrobage: 3, diameter: 12, nb_a: 2, nb_b: 2 });
+        checkTrue("Poteau : ferraillage insuffisant détecté par le diagramme N-M",
+            EC2.verdict(poNMko.checks).niveau === 'error');
+
+        // =================================================================
+        // L. Enrobage (§4.4.1), ancrages (§8.4, §8.7) et ELS (§7.2, §7.3)
+        // =================================================================
+        // XC1, C25/30, cadre Ø8 : classe S4 -> c_min,dur = 15 mm ; c_nom = 15 + 10 = 25 mm
+        check("Enrobage : XC1 / C25 / S4 (mm)",
+            EC2.enrobageNominal({ exposition: 'XC1', fck: 25, phi: 8 }).c_nom, 25, 0.001);
+        // XC1, C30/37, dalle : S4 - 1 (béton) - 1 (dalle) = S2 -> 10 mm ; Ø10 -> c_nom = 20 mm
+        check("Enrobage : XC1 / C30 / dalle -> classe S2 (mm)",
+            EC2.enrobageNominal({ exposition: 'XC1', fck: 30, phi: 10, dalle: true }).c_nom, 20, 0.001);
+        // Fondation sur béton de propreté : c_min >= 40 mm (§4.4.1.3(4)) -> c_nom = 50 mm
+        check("Enrobage : béton coulé sur béton de propreté (mm)",
+            EC2.enrobageNominal({ exposition: 'XC2', fck: 25, phi: 12, contactSol: 'proprete' }).c_nom,
+            50, 0.001);
+        // HA12, C25/30 : f_bd = 2.25 x 0.7 x 2.565 / 1.5 = 2.693 MPa ; l_b,rqd = 3 x 434.78 / 2.693
+        const anc12 = EC2.ancrage({ phi: 12, fck: 25, cd: 12 });
+        check("Ancrage : contrainte d'adhérence f_bd (MPa)", anc12.fbd, 2.6933, 0.001);
+        check("Ancrage : longueur de base l_b,rqd (mm)", anc12.lb_rqd, 484.3, 0.5);
+        check("Recouvrement : l_0 = 1.5 l_b,rqd pour 100 % recouvert (mm)", anc12.l0, 726.4, 0.8);
+        // Section fissurée : équilibre des moments statiques b·x²/2 = αe·A_s·(d - x)
+        const fis = EC2.sectionFissuree(1.0, 0.165, 5.236e-4, 15);
+        check("ELS : équilibre de la section fissurée (résidu)",
+            1.0 * fis.x * fis.x / 2 - 15 * 5.236e-4 * (0.165 - fis.x), 0, 1e-9);
+        checkTrue("ELS : contraintes et ouverture de fissures calculées pour la dalle",
+            dl.els && dl.els.wk > 0 && dl.els.sigma_s_qp > 0);
+
+        // =================================================================
+        // M. Verdict unique écran / note de calcul
+        // =================================================================
+        const ptShear = EC2.poutre({ L: 2, b: 0.20, h: 0.50, G: 160, Q: 110, fck: 25, diameter: 20,
+                                     c_nom: 0.03, nbBarres: 4, As_prov: 12.57 });
+        checkTrue("Verdict : une rupture des bielles rend la poutre non conforme",
+            ptShear.status === 'ERROR_SHEAR' && EC2.verdict(ptShear.checks).niveau === 'error');
+        checkTrue("Verdict : poinçonnement défaillant => semelle non conforme",
+            EC2.verdict(siKO.checks).niveau === 'error');
+        checkTrue("Poinçonnement : v_Rd,max = 0.4·ν·f_cd (§6.4.5(3))",
+            Math.abs(si.poinconnement.v_Rd_max - 0.4 * 0.54 * EC2.fcd(25)) < 1e-9);
 
         // =================================================================
         // J. Cohérence transverse : aucun module ne doit renvoyer de NaN
